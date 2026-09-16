@@ -16,14 +16,21 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <!-- Native guard: marketing homepage is unreachable inside the iOS/Android app (Guideline 3.1.1).
+       startPage in capacitor.config.json already prevents this, but a stray internal link
+       (e.g. the brand logo on login.html) could still navigate here. Redirect immediately. -->
+  <script>
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      window.location.replace('login.html');
+    }
+  </script>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <!-- Preload critical resources -->
-  <link rel="preload" href="/logo.png" as="image" />
-  <link rel="preload" href="/supabaseclient.js" as="script" />
-  <link rel="preload" href="/i18n.js" as="script" />
+  <link rel="preload" href="supabaseclient.js" as="script" />
+  <link rel="preload" href="i18n.js" as="script" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Preconnect to external services -->
@@ -31,8 +38,8 @@
   <link rel="preconnect" href="https://js.stripe.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     /* Page-specific overrides */
     :root {
@@ -94,25 +101,13 @@
 
     body {
       min-height: 100vh;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
     }
 
-    /* Ambient background effect */
-    .ambient-bg {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      background:
-        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
-    }
-    
     /* Light mode ambient - subtle warm tints on softer gray */
     [data-theme="light"] .ambient-bg {
       background:
@@ -125,16 +120,6 @@
     [data-theme="light"] .founder-programs,
     [data-theme="light"] .cta-section {
       background: var(--bg-section-alt, #eaecf0);
-    }
-
-    /* Subtle noise texture */
-    .noise {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      opacity: 0.025;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
     .container {
@@ -169,18 +154,18 @@
     }
 
     .brand-icon {
-      height: 160px;
+      height: 68px;
       width: auto;
-      border-radius: var(--radius-lg);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
-      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      filter: drop-shadow(0 4px 14px rgba(212, 168, 85, 0.20));
       transition: filter 0.3s ease;
     }
-    
     .brand:hover .brand-icon {
-      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
+      filter: drop-shadow(0 6px 18px rgba(212, 168, 85, 0.35));
     }
+    /* Theme-aware logo: cream wordmark on dark theme (default), navy on light. */
+    .brand-icon-light { display: none; }
+    [data-theme="light"] .brand-icon-dark { display: none; }
+    [data-theme="light"] .brand-icon-light { display: inline-block; }
 
     .brand-text {
       display: flex;
@@ -188,15 +173,15 @@
     }
 
     .brand-name {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-weight: 600;
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       color: var(--text-primary);
       letter-spacing: -0.02em;
     }
 
     .brand-tagline {
-      font-size: 0.72rem;
+      font-size: var(--text-xs);
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.12em;
@@ -208,9 +193,70 @@
       gap: 8px;
     }
 
+    /* ── Quiet nav icon-links: language picker + theme toggle ──────────
+       Overrides the pilled defaults (i18n.js for .lang-btn, shared-styles.css
+       for .header-theme-toggle) so both render as plain icon+label links in
+       the nav. Specificity beats both base rules: nav .X (0,1,1) > .X (0,1,0).
+       Functions unchanged (toggleTheme / I18n setLanguage). */
+    nav .language-switcher .lang-btn,
+    nav .header-theme-toggle,
+    .mobile-nav .language-switcher .lang-btn,
+    .mobile-nav .header-theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      height: auto;
+      cursor: pointer;
+      transition: color 0.15s, text-shadow 0.15s;
+      box-shadow: none;
+    }
+    nav .language-switcher .lang-btn:hover,
+    nav .header-theme-toggle:hover,
+    .mobile-nav .language-switcher .lang-btn:hover,
+    .mobile-nav .header-theme-toggle:hover {
+      background: transparent;
+      border-color: transparent;
+      color: var(--accent-gold);
+      transform: none;
+      box-shadow: none;
+    }
+    nav .language-switcher .lang-btn svg,
+    .mobile-nav .language-switcher .lang-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    /* Hide the dropdown chevron in chip mode; the language list still opens
+       on click via the existing handler. */
+    nav .language-switcher .lang-btn .chevron,
+    .mobile-nav .language-switcher .lang-btn .chevron { display: none; }
+    /* Theme toggle: keep only the active icon visible (one per theme). The
+       inline "Day" / "Night" text strings stay readable for screen readers
+       but we use 0-width spacing to hide them from the chip. */
+    nav .header-theme-toggle,
+    .mobile-nav .header-theme-toggle {
+      font-size: 0; /* hide the "Day"/"Night" text */
+    }
+    nav .header-theme-toggle .icon-inline,
+    .mobile-nav .header-theme-toggle .icon-inline {
+      font-size: 14px; /* restore icon size */
+    }
+    /* Show sun in dark mode (clicking → switch to light/Day), moon in light. */
+    .header-theme-toggle .theme-icon-moon { display: none; }
+    [data-theme="light"] .header-theme-toggle .theme-icon-sun { display: none; }
+    [data-theme="light"] .header-theme-toggle .theme-icon-moon { display: inline-flex; }
+
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -225,27 +271,50 @@
     nav a.founder-link {
       color: var(--accent-gold);
       font-weight: 600;
-      border: 1px solid var(--accent-gold);
+      border: none;
       background: transparent;
     }
 
     nav a.founder-link:hover {
-      background: var(--accent-gold);
-      color: var(--bg-deep);
+      background: transparent;
+      color: var(--accent-gold);
+      text-shadow: 0 0 12px rgba(199, 164, 102, 0.5);
     }
 
     .mobile-nav a.founder-link {
       color: var(--accent-gold);
       font-weight: 600;
-      border: 1px solid var(--accent-gold);
+      border: none;
+      background: transparent;
     }
 
     .mobile-nav a.founder-link:hover {
-      background: var(--accent-gold);
-      color: var(--bg-deep);
+      background: transparent;
+      color: var(--accent-gold);
+      text-shadow: 0 0 12px rgba(199, 164, 102, 0.5);
     }
 
-    nav .btn-login {
+    nav a.support-mcc-link {
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c !important;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 100px;
+      white-space: nowrap;
+      border: none;
+    }
+    nav a.support-mcc-link:hover {
+      opacity: 0.9;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c !important;
+      transform: translateY(-1px);
+    }
+    .mobile-nav a.support-mcc-link {
+      color: #12161c !important;
+      font-weight: 700;
+    }
+
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -254,101 +323,189 @@
     /* Open-for-business announcement bar — sits above the hero badge to
        signal that the marketplace is live and that both sides can sign up
        and transact at no cost. */
-    .open-banner {
-      background: linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(212, 168, 85, 0.12));
-      border-bottom: 1px solid rgba(76, 175, 80, 0.35);
-      color: var(--text-primary);
-      padding: 10px 16px;
-      text-align: center;
-      font-size: 0.92rem;
-      font-weight: 500;
-      line-height: 1.4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .open-banner-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #4CAF50;
-      box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6);
-      animation: openBannerPulse 2s infinite;
-      flex-shrink: 0;
-    }
-    .open-banner-strong {
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      font-size: 0.78rem;
-    }
-    .open-banner-sep {
-      opacity: 0.55;
-      margin: 0 2px;
-    }
-    /* Inside the gold onboarding-banner, the pulsing dot needs to read as
-       a live "open" indicator against the gold gradient — switch to a
-       darker green ring + a clean inner dot so it stays readable. */
-    .onboarding-banner .open-banner-dot {
-      background: #1b5e20;
-      box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.6);
-      animation: openBannerPulseDark 2s infinite;
-    }
-    @keyframes openBannerPulse {
-      0%   { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
-    }
-    @keyframes openBannerPulseDark {
-      0%   { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.65); }
-      70%  { box-shadow: 0 0 0 7px rgba(27, 94, 32, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0); }
-    }
-    @media (max-width: 600px) {
-      .open-banner { font-size: 0.84rem; padding: 9px 12px; gap: 8px; }
-      .open-banner-strong { font-size: 0.7rem; }
-      .open-banner-sep { display: none; }
-    }
-
-    /* Free-pricing strip under the hero CTAs — reinforces that both
-       member and provider sign-ups are free. */
-    .hero-free-strip {
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-      margin: 18px auto 0;
-      padding: 10px 18px;
-      background: rgba(76, 175, 80, 0.08);
-      border: 1px solid rgba(76, 175, 80, 0.25);
-      border-radius: 100px;
-      font-size: 0.88rem;
-      color: var(--text-primary);
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .hero-free-strip svg {
-      width: 14px;
-      height: 14px;
-      color: #4CAF50;
-      flex-shrink: 0;
-    }
-    .hero-free-strip strong { color: #4CAF50; font-weight: 600; }
-    .hero-free-strip-sep {
-      width: 1px;
-      height: 14px;
-      background: rgba(160, 168, 184, 0.3);
-    }
-    @media (max-width: 540px) {
-      .hero-free-strip { font-size: 0.8rem; gap: 8px; padding: 9px 14px; }
-      .hero-free-strip-sep { display: none; }
-    }
 
     /* Hero Section */
     .hero {
-      padding: 80px 0 100px;
+      padding: 48px 0 64px;
       text-align: center;
+    }
+
+    /* ── Split hero: text-stack LEFT / flow-card RIGHT on desktop ─────── */
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .hero-split-left {
+      text-align: left;
+    }
+    /* Override centered defaults inherited from .hero for the left column */
+    .hero-split-left .hero-tagline,
+    .hero-split-left .hero-subtitle,
+    .hero-split-left .hero-nudge {
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .hero-split-left .hero-actions {
+      justify-content: flex-start;
+    }
+    .hero-split-left .hero-badge {
+      margin-bottom: 18px;
+    }
+
+    /* Compact 2-item trust line under the CTAs (left column only) */
+    .hero-trust-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-top: 22px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+    .hero-trust-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .hero-trust-icon {
+      color: var(--accent-gold);
+      display: inline-flex;
+    }
+    [data-theme="light"] .hero-trust-compact { color: #1a1a2e; }
+
+    /* ── 3-step "how it works" flow card (right column) ──────────────────
+       Three uniform numbered rows linked by ONE continuous vertical line
+       that passes behind the number circles. Steps 1 & 2 use a navy
+       circle; step 3 is the only emphasis — a gold circle. ───────────── */
+    .hero-flow-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl, 16px);
+      padding: 24px 22px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    }
+    [data-theme="light"] .hero-flow-card {
+      box-shadow: 0 6px 20px rgba(30, 58, 95, 0.08);
+    }
+    .flow-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 14px;
+      position: relative;
+    }
+    /* Continuous vertical line linking steps 1 → 2 → 3, passing behind
+       each circle. Each non-last step draws a line from its own circle
+       center down 28px past its own bottom edge — landing exactly at
+       the next step's circle center. The line stops at the last circle. */
+    .flow-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 29px;   /* center of 32px circle inside 14px step padding */
+      top: 28px;    /* below own circle center (12px pad + 16px to center) */
+      bottom: -28px;/* reaches the next step's circle center */
+      width: 2px;
+      background: var(--border-medium);
+      z-index: 0;
+    }
+    .flow-step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      /* Navy circle for steps 1 & 2. Slightly lighter navy in dark
+         mode so it stays visible against the dark card. Deep navy in
+         light mode for maximum contrast against the white card. */
+      background: #1a2c4a;
+      color: #f5f0e6;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: var(--text-sm);
+      position: relative;
+      z-index: 1;   /* sit above the connecting line */
+    }
+    [data-theme="light"] .flow-step-num {
+      background: #0a1628;
+    }
+    /* Step 3: gold circle — the ONLY emphasis on the final step. */
+    .flow-step-num-final,
+    [data-theme="light"] .flow-step-num-final {
+      background: #b8962e;
+      color: #ffffff;
+    }
+    .flow-step-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .flow-step-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: var(--text-md);
+      line-height: 1.3;
+    }
+    .flow-step-sub {
+      margin-top: 2px;
+      color: var(--text-secondary);
+      font-size: var(--text-sm);
+      line-height: 1.4;
+    }
+
+    /* Mobile: collapse to a single column, tighten the flow card */
+    @media (max-width: 768px) {
+      .hero-split {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .hero-split-left {
+        text-align: center;
+      }
+      .hero-split-left .hero-tagline,
+      .hero-split-left .hero-subtitle,
+      .hero-split-left .hero-nudge {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-split-left .hero-actions {
+        justify-content: center;
+      }
+      .hero-trust-compact {
+        justify-content: center;
+      }
+      .hero-flow-card {
+        padding: 16px 14px;
+      }
+      .flow-step {
+        padding: 10px 10px;
+        gap: 10px;
+      }
+      .flow-step-num {
+        width: 28px;
+        height: 28px;
+        font-size: var(--text-xs);
+      }
+      /* Re-anchor the connecting line for the smaller mobile circle/padding:
+         28px circle inside 10px step padding → center at 24px from edges. */
+      .flow-step:not(:last-child)::after {
+        left: 23px;
+        top: 24px;
+        bottom: -24px;
+      }
+      .flow-step-title { font-size: var(--text-sm); }
+      .flow-step-sub  { font-size: var(--text-xs); }
     }
 
     .hero-badge {
@@ -379,46 +536,60 @@
       50% { opacity: 0.4; }
     }
 
+    /* Headline: SANS by design so it doesn't echo the serif wordmark above.
+       To revert to serif in one edit, swap the active rule with the commented
+       fallback right below.
+       --- Serif fallback (uncomment + comment-out the sans rule to use) ---
+       .hero h1 {
+         font-family: 'Fraunces', serif;
+         font-size: clamp(2rem, 4vw, 3rem);
+         font-weight: 500;
+         line-height: 1.1;
+         letter-spacing: -0.02em;
+         margin-bottom: 8px;
+         color: var(--text-primary);
+         animation: fadeInUp 0.6s ease 0.1s both;
+       }
+       -------------------------------------------------------------------- */
     .hero h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2.5rem, 5vw, 3.8rem);
-      font-weight: 500;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-      margin-bottom: 24px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      color: var(--text-primary);
       animation: fadeInUp 0.6s ease 0.1s both;
     }
 
-    .hero h1 .highlight {
-      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    /* Light mode highlight - warm gold on white */
-    [data-theme="light"] .hero h1 .highlight {
-      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    /* The one deliberate serif accent — italic Playfair, sits directly
+       beneath the headline as a complementary phrase. */
+    .hero-tagline {
+      font-family: 'Fraunces', Georgia, serif;
+      font-style: italic;
+      font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+      font-weight: 400;
+      line-height: 1.35;
+      color: var(--text-secondary);
+      margin: 0 auto 16px;
+      animation: fadeInUp 0.6s ease 0.15s both;
     }
 
     .hero-subtitle {
       max-width: 580px;
-      margin: 0 auto 20px;
-      font-size: 1.1rem;
+      margin: 0 auto 14px;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
-      line-height: 1.7;
+      line-height: 1.55;
       animation: fadeInUp 0.6s ease 0.2s both;
     }
-    
+
     .hero-nudge {
       max-width: 520px;
-      margin: 0 auto 40px;
-      font-size: 0.95rem;
+      margin: 0 auto 24px;
+      font-size: var(--text-base);
       color: var(--text-secondary);
-      line-height: 1.6;
+      line-height: 1.5;
       animation: fadeInUp 0.6s ease 0.3s both;
     }
     [data-theme="light"] .hero-nudge { color: #4a5568; }
@@ -430,7 +601,7 @@
     }
     .hero-tertiary a {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       text-decoration: underline;
       text-underline-offset: 3px;
       text-decoration-color: rgba(201, 162, 39, 0.4);
@@ -443,18 +614,19 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 22px;
+      gap: 24px;
       flex-wrap: wrap;
-      margin: 28px auto 0;
-      max-width: 760px;
+      margin: 18px auto 0;
+      max-width: 780px;
       animation: fadeInUp 0.6s ease 0.45s both;
     }
     .capability-item {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: 0.86rem;
-      color: var(--text-secondary);
+      gap: 9px;
+      font-size: var(--text-md);
+      font-weight: 500;
+      color: var(--text-primary);
     }
     .capability-item .capability-icon {
       color: var(--accent-gold);
@@ -467,7 +639,33 @@
       text-decoration-color: rgba(201, 162, 39, 0.45);
     }
     .capability-item a:hover { color: var(--accent-gold); }
-    [data-theme="light"] .capability-item { color: #4a5568; }
+    [data-theme="light"] .capability-item { color: #1a1a2e; }
+
+    /* Founding-shop strip — single-row proof line shown right after the hero. */
+    .founding-strip {
+      padding: 18px 0 22px;
+    }
+    .founding-strip-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px 16px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary, #c8ccd6);
+      text-align: center;
+    }
+    .founding-strip .founding-label {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+    }
+    .founding-strip .founding-sep {
+      opacity: 0.45;
+    }
+    [data-theme="light"] .founding-strip-inner { color: #4a5568; }
     @media (max-width: 600px) {
       .capability-strip { gap: 12px 18px; font-size: 0.8rem; }
     }
@@ -480,9 +678,9 @@
       animation: fadeInUp 0.6s ease 0.3s both;
     }
     
-    .btn-lg {
+    .btn--large {
       padding: 18px 36px;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
     }
     
     .trust-strip {
@@ -505,40 +703,15 @@
     }
     
     .trust-icon {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
     }
     
     .trust-text {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       font-weight: 500;
     }
     
-    .social-proof-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 20px;
-      font-size: 0.88rem;
-      color: var(--text-secondary);
-      animation: fadeInUp 0.6s ease 0.6s both;
-    }
-
-    .social-proof-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #4ade80;
-      flex-shrink: 0;
-      animation: pulse-dot 2s infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.6; transform: scale(0.85); }
-    }
-
     /* Light mode trust strip */
     [data-theme="light"] .trust-badge {
       background: rgba(30, 58, 95, 0.04);
@@ -556,7 +729,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -565,66 +738,66 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
       color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
       box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-medium);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
     }
     
     /* Light mode buttons - deeper gold for higher contrast (23% more clicks) */
-    [data-theme="light"] .btn-primary {
+    [data-theme="light"] .btn--primary {
       background: linear-gradient(135deg, #b8942d, #d4a63a);
       color: #ffffff; /* Intentionally hardcoded: white text on gold for contrast */
       box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
       font-weight: 600;
     }
-    [data-theme="light"] .btn-primary:hover {
+    [data-theme="light"] .btn--primary:hover {
       background: linear-gradient(135deg, #a6852a, #c49a35);
       box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
     }
-    [data-theme="light"] .btn-secondary {
+    [data-theme="light"] .btn--secondary {
       background: #ffffff;
       color: var(--accent-blue);
       border: 2px solid var(--accent-blue);
       font-weight: 500;
     }
-    [data-theme="light"] .btn-secondary:hover {
+    [data-theme="light"] .btn--secondary:hover {
       background: var(--accent-blue);
       color: #ffffff; /* Intentionally hardcoded: white text on dark background for contrast */
       border-color: var(--accent-blue);
     }
 
-    .btn-outline-gold {
+    .btn--ghost {
       background: transparent;
       color: var(--accent-gold);
       border: 2px solid var(--accent-gold);
       font-weight: 600;
     }
-    .btn-outline-gold:hover {
+    .btn--ghost:hover {
       background: var(--accent-gold);
       color: #1a1a2e;
     }
-    [data-theme="light"] .btn-outline-gold {
+    [data-theme="light"] .btn--ghost {
       color: #b8942d;
       border-color: #b8942d;
     }
-    [data-theme="light"] .btn-outline-gold:hover {
+    [data-theme="light"] .btn--ghost:hover {
       background: #b8942d;
       color: #ffffff;
     }
@@ -659,7 +832,7 @@
 
     .hero-login-divider span {
       color: var(--text-muted);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       text-transform: uppercase;
       letter-spacing: 0.1em;
     }
@@ -683,7 +856,7 @@
       border-radius: var(--radius-md);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       min-width: 180px;
       flex: 1;
       max-width: 220px;
@@ -700,22 +873,72 @@
       color: var(--text-muted);
     }
 
-    .btn-login-hero {
-      background: linear-gradient(135deg, var(--accent-blue), #5eb8f7);
-      color: white;
+    .btn--primary {
+      background: #C9A84C;
+      color: #0F1923;
       padding: 14px 28px;
       font-weight: 600;
-      box-shadow: 0 2px 12px rgba(56, 189, 248, 0.3);
+      box-shadow: 0 2px 12px rgba(201, 168, 76, 0.3);
     }
 
-    .btn-login-hero:hover {
+    .btn--primary:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      box-shadow: 0 4px 16px rgba(201, 168, 76, 0.35);
+    }
+
+    .hero-social-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 380px;
+      margin: 0 auto 16px;
+    }
+
+    .hero-social-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px 24px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+    .hero-social-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .hero-social-btn-apple  { background: #000; color: #fff; }
+    .hero-social-btn-apple:hover  { background: #1a1a1a; transform: translateY(-1px); }
+    .hero-social-btn-google { background: #fff; color: #3c4043; border: 1.5px solid #dadce0; }
+    .hero-social-btn-google:hover { background: #f8f9fa; transform: translateY(-1px); }
+    .hero-social-btn-facebook { background: #1877F2; color: #fff; }
+    .hero-social-btn-facebook:hover { background: #166FE5; transform: translateY(-1px); }
+
+    .hero-social-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 380px;
+      margin: 0 auto 16px;
+      color: rgba(255,255,255,0.35);
+      font-size: var(--text-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .hero-social-divider::before,
+    .hero-social-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.2);
     }
 
     .hero-login-error {
       color: var(--accent-red);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       margin-top: 12px;
       text-align: center;
     }
@@ -727,7 +950,7 @@
 
     .hero-login-links a {
       color: var(--text-secondary);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       text-decoration: none;
       transition: color 0.2s;
     }
@@ -752,14 +975,14 @@
     }
 
     .stat-value {
-      font-family: 'Playfair Display', serif;
-      font-size: 2rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-4xl);
       font-weight: 600;
       color: var(--text-primary);
     }
 
     .stat-label {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       margin-top: 4px;
     }
@@ -787,7 +1010,7 @@
 
     .section-label {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: var(--accent-blue);
@@ -795,7 +1018,7 @@
     }
 
     .features-header h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 500;
       letter-spacing: -0.01em;
@@ -803,8 +1026,11 @@
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .features-grid { grid-template-columns: 1fr; }
     }
 
     .feature-card {
@@ -839,21 +1065,21 @@
     }
 
     .feature-card h3 {
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 10px;
     }
 
     .feature-card p {
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       line-height: 1.65;
     }
 
     .feature-tagline {
       color: var(--accent-gold);
       font-weight: 500;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       margin-bottom: 16px;
       font-style: italic;
     }
@@ -889,7 +1115,7 @@
     [data-theme="light"] .mobile-nav a:hover {
       color: var(--accent-gold);
     }
-    [data-theme="light"] .mobile-nav .btn-login {
+    [data-theme="light"] .mobile-nav .btn--primary {
       color: #ffffff;
     }
     [data-theme="light"] .mobile-menu-btn span {
@@ -906,7 +1132,7 @@
       align-items: center;
       gap: 10px;
       padding: 8px 0;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       border-top: 1px solid var(--border-subtle);
     }
@@ -939,7 +1165,7 @@
     }
 
     .how-it-works-header h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 500;
     }
@@ -968,17 +1194,17 @@
       margin: 0 auto 20px;
       font-weight: 600;
       color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
     }
 
     .step h3 {
-      font-size: 1.05rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 8px;
     }
 
     .step p {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
     }
 
@@ -993,7 +1219,7 @@
     }
 
     .more-features-header h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 500;
       margin-bottom: 12px;
@@ -1001,7 +1227,7 @@
 
     .more-features-header p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       max-width: 520px;
       margin: 0 auto;
     }
@@ -1010,6 +1236,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 24px;
+      justify-content: center;
     }
 
     .more-feature-item {
@@ -1040,7 +1267,7 @@
     }
 
     .more-feature-item h4 {
-      font-size: 1.05rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 8px;
       color: var(--accent-gold);
@@ -1048,8 +1275,25 @@
 
     .more-feature-item p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       line-height: 1.6;
+    }
+
+    /* Coming-soon roadmap treatment — dim card + small pill */
+    .more-feature-item.coming-soon { opacity: 0.7; }
+    .coming-soon-pill {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 8px;
+      background: rgba(201, 162, 39, 0.14);
+      border: 1px solid rgba(201, 162, 39, 0.32);
+      border-radius: 100px;
+      color: var(--accent-gold);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      vertical-align: middle;
     }
 
     /* Light mode */
@@ -1078,7 +1322,7 @@
     }
 
     .founder-programs-header h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 500;
       margin-bottom: 12px;
@@ -1086,7 +1330,7 @@
 
     .founder-programs-header p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       max-width: 560px;
       margin: 0 auto;
     }
@@ -1115,7 +1359,7 @@
     }
 
     .founder-card h3 {
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       font-weight: 600;
       margin-bottom: 12px;
       color: var(--accent-gold);
@@ -1123,7 +1367,7 @@
 
     .founder-card p {
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       line-height: 1.65;
       margin-bottom: 24px;
     }
@@ -1133,35 +1377,35 @@
       padding: 12px 28px;
       border-radius: var(--radius-md);
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       text-decoration: none;
       transition: all 0.3s ease;
     }
 
-    .founder-card .btn-gold {
+    .founder-card .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #c49a45);
       color: #12161c;
     }
 
-    .founder-card .btn-gold:hover {
+    .founder-card .btn--primary:hover {
       filter: brightness(1.1);
       transform: translateY(-1px);
     }
 
-    .founder-card .btn-outline-gold {
+    .founder-card .btn--ghost {
       border: 2px solid var(--accent-gold);
       color: var(--accent-gold);
       background: transparent;
     }
 
-    .founder-card .btn-outline-gold:hover {
+    .founder-card .btn--ghost:hover {
       background: rgba(201, 169, 98, 0.1);
     }
 
     .founder-urgency {
       text-align: center;
       color: var(--accent-gold);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 500;
       font-style: italic;
     }
@@ -1182,11 +1426,11 @@
     [data-theme="light"] .founder-urgency {
       color: #b8942d;
     }
-    [data-theme="light"] .founder-card .btn-gold {
+    [data-theme="light"] .founder-card .btn--primary {
       background: linear-gradient(135deg, #b8942d, #a0812a);
       color: #ffffff;
     }
-    [data-theme="light"] .founder-card .btn-outline-gold {
+    [data-theme="light"] .founder-card .btn--ghost {
       border-color: #b8942d;
       color: #b8942d;
     }
@@ -1278,7 +1522,7 @@
 
     .founder-modal-content .founder-text .section-label {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       font-weight: 600;
       letter-spacing: 1.5px;
       text-transform: uppercase;
@@ -1287,22 +1531,22 @@
     }
 
     .founder-modal-content .founder-text h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-3xl);
       font-weight: 500;
       margin-bottom: 16px;
       color: var(--text-primary);
     }
 
     .founder-modal-content .founder-text h3 {
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin: 20px 0 10px;
       color: var(--accent-gold);
     }
 
     .founder-modal-content .founder-text p {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       line-height: 1.7;
       color: var(--text-secondary);
       margin-bottom: 16px;
@@ -1319,7 +1563,7 @@
     }
 
     .founder-modal-content .founder-features li {
-      font-size: 1.05rem;
+      font-size: var(--text-md);
       line-height: 1.6;
       color: var(--text-secondary);
       margin-bottom: 10px;
@@ -1341,7 +1585,7 @@
 
     .founder-modal-content .founder-closing {
       font-style: italic;
-      font-size: 1rem;
+      font-size: var(--text-md);
       color: var(--text-primary) !important;
       margin-top: 20px;
     }
@@ -1354,8 +1598,8 @@
 
     .founder-modal-content .founder-signature .signature-name {
       display: block;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.3rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-xl);
       font-style: italic;
       color: var(--text-primary);
       margin-bottom: 4px;
@@ -1418,7 +1662,7 @@
     }
 
     .cta-box h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.6rem, 3vw, 2.2rem);
       font-weight: 500;
       margin-bottom: 16px;
@@ -1458,13 +1702,12 @@
     }
 
     .footer-brand .brand-icon {
-      width: 60px;
-      height: 60px;
-      font-size: 16px;
+      width: auto;
+      height: 44px;
     }
 
     .footer-brand span {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-weight: 500;
     }
 
@@ -1474,7 +1717,7 @@
     }
 
     .footer-links a {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
@@ -1485,7 +1728,7 @@
     }
 
     .footer-copy {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -1500,6 +1743,7 @@
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 32px;
       margin-bottom: 40px;
+      justify-content: center;
     }
 
     .footer-section {
@@ -1525,14 +1769,14 @@
     }
 
     .footer-section-header h4 {
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       color: var(--text-primary);
       margin: 0;
     }
 
     .footer-section-header .toggle-icon {
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       color: var(--text-muted);
       transition: transform 0.3s ease;
     }
@@ -1555,7 +1799,7 @@
     .footer-section-content a {
       display: block;
       padding: 8px 0;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       transition: color 0.2s;
@@ -1669,7 +1913,7 @@
     }
     
     .mobile-nav a {
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       font-weight: 500;
       color: var(--text-primary);
       text-decoration: none;
@@ -1693,7 +1937,7 @@
       color: var(--accent-gold);
     }
     
-    .mobile-nav .btn-login {
+    .mobile-nav .btn--primary {
       margin-top: 16px;
       background: linear-gradient(135deg, var(--accent-gold), #c49a4a);
       color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
@@ -1717,7 +1961,7 @@
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .brand-icon {
-        height: 100px;
+        height: 40px;
         filter: drop-shadow(0 4px 20px rgba(212, 168, 85, 0.35));
       }
       
@@ -1749,19 +1993,31 @@
         min-height: 48px; /* Ensure 44px+ touch target */
       }
       
-      .btn-lg {
+      .btn--large {
         padding: 16px 28px;
-        font-size: 1rem;
+        font-size: var(--text-md);
       }
       
       h1 {
-        font-size: 2rem;
+        font-size: var(--text-4xl);
         line-height: 1.2;
       }
-      
+
+      /* Override the generic h1 mobile rule for the hero — keep it tight
+         so the CTAs sit above the fold on a 390px-wide phone. */
+      .hero h1 {
+        font-size: clamp(1.4rem, 5vw, 1.75rem);
+        line-height: 1.25;
+        margin-bottom: 6px;
+      }
+      .hero-tagline {
+        font-size: clamp(1rem, 3.2vw, 1.2rem);
+        margin-bottom: 12px;
+      }
+
       .hero-subtitle {
-        font-size: 1rem;
-        margin-bottom: 28px;
+        font-size: var(--text-md);
+        margin-bottom: 20px;
       }
 
       .stats {
@@ -1808,7 +2064,7 @@
         width: 100%;
       }
 
-      .btn-login-hero {
+      .btn--primary {
         width: 100%;
         max-width: 300px;
         justify-content: center;
@@ -1816,64 +2072,8 @@
     }
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
 
-    .onboarding-banner {
-      display: block;
-      position: relative;
-      z-index: 101;
-      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
-      color: #0a0a0f;
-      text-align: center;
-      padding: 10px 48px 10px 20px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      line-height: 1.4;
-      animation: fadeInUp 0.4s ease;
-    }
-    .onboarding-banner a {
-      color: #0a0a0f;
-      font-weight: 700;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .onboarding-banner a:hover {
-      opacity: 0.8;
-    }
-    .onboarding-banner .banner-dismiss {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: #0a0a0f;
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 4px 8px;
-      line-height: 1;
-      opacity: 0.7;
-      transition: opacity 0.2s;
-    }
-    .onboarding-banner .banner-dismiss:hover {
-      opacity: 1;
-    }
-    [data-theme="light"] .onboarding-banner {
-      background: linear-gradient(135deg, #b8942d, #d4a63a);
-      color: #ffffff;
-    }
-    [data-theme="light"] .onboarding-banner a {
-      color: #ffffff;
-    }
-    [data-theme="light"] .onboarding-banner .banner-dismiss {
-      color: #ffffff;
-    }
-    @media (max-width: 600px) {
-      .onboarding-banner {
-        font-size: 0.82rem;
-        padding: 8px 40px 8px 12px;
-      }
-    }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -1883,16 +2083,16 @@
   <meta property="og:url" content="https://www.mycarconcierge.com/" />
   <meta property="og:title" content="My Car Concierge – Your Automotive Service Marketplace" />
   <meta property="og:description" content="List your automotive service needs and let vetted providers compete for your business. Choose the best service at the most reasonable price." />
-  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image" content="https://www.mycarconcierge.com/assets/wefunder-cover.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:image:alt" content="My Car Concierge — Get competing bids from vetted local providers on any vehicle service." />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@mycarconcierge" />
   <meta name="twitter:title" content="My Car Concierge – Your Automotive Service Marketplace" />
   <meta name="twitter:description" content="List your automotive service needs and let vetted providers compete for your business. Choose the best service at the most reasonable price." />
-  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/assets/wefunder-cover.png" />
 <!-- SEO-INJECT:END -->
   <script type="application/ld+json">
   {
@@ -1903,8 +2103,8 @@
         "@id": "https://www.mycarconcierge.com/#organization",
         "name": "My Car Concierge",
         "url": "https://www.mycarconcierge.com",
-        "logo": "https://www.mycarconcierge.com/logo.png",
-        "description": "Your complete auto ownership platform. Get quotes from vetted providers, manage your vehicles, schedule maintenance, and shop smarter — all in one place.",
+        "logo": "https://www.mycarconcierge.com/logo-cream.png",
+        "description": "Get competing bids from vetted local providers on any vehicle service.",
         "sameAs": [
           "https://www.facebook.com/mycarconcierge",
           "https://www.instagram.com/mycarconcierge",
@@ -1933,8 +2133,8 @@
         "name": "Automotive Service Marketplace",
         "provider": { "@id": "https://www.mycarconcierge.com/#organization" },
         "areaServed": { "@type": "Country", "name": "United States" },
-        "description": "Connect vehicle owners with vetted automotive service providers for maintenance, repairs, detailing, and specialty work through a competitive bidding marketplace with secure escrow payments.",
-        "serviceType": "Automotive Service Booking Platform"
+        "description": "An automotive marketplace connecting car owners with verified service providers. Members get competing bids from vetted professionals. Providers grow their business through quality connections.",
+        "serviceType": "Automotive Service Marketplace"
       }
     ]
   }
@@ -1944,28 +2144,18 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <div class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
-    <span class="open-banner-dot" aria-hidden="true"></span>
-    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <span data-i18n="landing.openForBusinessBody">Now accepting members and providers nationwide — both profiles are free to create.</span>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <a href="/onboarding-member.html" data-i18n="landing.openForBusinessMemberCta">Create a member profile</a>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
-    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </div>
-  <script>
-    if (!localStorage.getItem('onboardingBannerDismissed')) {
-      document.getElementById('onboardingBanner').style.display = '';
-    }
-  </script>
 
   <header>
     <div class="container">
-      <a href="index.html" class="brand">
-        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
-      </a>
+      <a href="/" class="mcc-logo" aria-label="MyCarConcierge home">
+  <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
+  <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g transform="translate(0,1302) scale(0.1,-0.1)">
+      <path fill="#f5f0e6" d="M7030 8083 c-19 -2 -170 -24 -335 -48 -375 -55 -437 -61 -820 -80 -331 -17 -401 -28 -475 -73 -166 -102 -140 -370 49 -491 176 -113 413 -141 874 -105 398 31 584 11 657 -72 52 -60 43 -68 -95 -76 -233 -14 -345 -44 -700 -190 -435 -179 -508 -194 -711 -143 -180 45 -1110 370 -1364 477 -350 147 -416 166 -537 154 -245 -25 -394 -237 -300 -429 39 -79 43 -81 509 -321 227 -117 460 -238 518 -268 525 -277 1302 -667 1395 -701 175 -62 436 -82 635 -48 41 7 239 41 440 76 935 164 1043 177 1284 156 167 -15 296 -40 424 -82 51 -17 95 -29 97 -27 4 4 363 1089 450 1362 35 107 42 142 33 148 -7 5 -83 45 -168 90 -85 45 -194 103 -242 129 -589 326 -910 480 -1098 527 -148 37 -367 52 -520 35z"/>
+      <path fill="#c7a466" d="M9314 7451 c5 -8 2 -11 -9 -9 -21 4 -106 -229 -97 -264 3 -14 1 -19 -5 -15 -7 5 -9 -1 -5 -15 3 -13 1 -19 -5 -15 -12 7 -106 -280 -96 -296 3 -5 2 -7 -4 -4 -9 6 -80 -204 -77 -230 1 -7 -3 -13 -8 -13 -6 0 -8 -6 -5 -14 3 -8 2 -16 -3 -18 -5 -2 -11 -14 -12 -28 -2 -14 -5 -27 -8 -30 -9 -8 -174 -513 -174 -532 0 -10 -4 -18 -9 -18 -4 0 -5 -5 -1 -11 3 -6 2 -14 -4 -18 -7 -4 -13 -18 -14 -31 -2 -14 -6 -27 -9 -30 -12 -11 -141 -419 -137 -436 2 -11 11 -18 21 -18 9 1 14 -3 10 -9 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 12 4 20 3 17 -1 -6 -11 293 -103 307 -95 6 4 8 3 5 -3 -8 -12 59 -34 81 -26 11 5 13 3 7 -6 -6 -10 -2 -11 15 -6 16 5 20 4 15 -5 -5 -9 -2 -10 12 -6 11 4 31 2 44 -3 14 -6 18 -10 9 -11 -18 -2 158 -60 182 -60 23 0 41 35 32 63 -3 12 -3 18 2 14 10 -9 126 331 118 344 -3 5 0 9 7 9 7 0 9 8 6 21 -3 12 -3 18 0 15 9 -9 213 606 207 624 -3 8 -2 11 2 7 10 -9 306 883 299 901 -3 7 0 10 5 7 6 -3 10 4 9 17 0 13 -3 18 -5 11 -4 -8 -11 -7 -23 5 -10 9 -16 21 -13 26 2 4 -6 5 -18 1 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -17 -5 -21 -4 -15 6 6 9 2 11 -13 7 -14 -4 -20 -2 -16 4 5 7 -2 9 -19 6 -16 -3 -24 -1 -20 5 3 5 -3 6 -17 2 -14 -4 -20 -3 -16 3 7 12 -40 25 -56 16 -6 -4 -8 -3 -5 3 7 11 -255 98 -290 96 -13 0 -20 4 -17 9 4 6 -2 7 -16 3 -14 -4 -20 -3 -16 3 7 12 -80 35 -96 26 -6 -4 -8 -3 -5 3 4 6 -4 14 -17 17 -13 3 -32 9 -42 13 -12 4 -15 3 -10 -6z m-82 -1634 c9 -1 15 -3 13 -5 -2 -3 7 -14 22 -25 105 -83 37 -267 -100 -267 -45 0 -102 24 -121 51 -7 10 -16 16 -20 12 -4 -4 -4 1 0 11 6 14 4 17 -6 11 -8 -5 -11 -3 -8 6 3 8 1 26 -3 42 -5 19 -2 39 9 65 9 20 17 44 17 52 0 8 5 15 10 16 21 2 45 17 39 25 -3 5 2 6 10 3 9 -3 16 -2 16 4 0 8 23 8 122 -1z"/>
+    </g>
+  </svg>
+</a>
       <nav>
         <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
         <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
@@ -1973,6 +2163,9 @@
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#" onclick="openFounderModal(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
         <a href="/contact.html">Contact</a>
+        <!-- DRIVER-PHASE-OUT: restore when driver side launches
+        <a href="#driver-fund-section" class="support-mcc-link">Support MCC</a>
+        -->
         <div id="language-switcher"></div>
         <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
           <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
@@ -1996,6 +2189,9 @@
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <a href="#" onclick="openFounderModal(); closeMobileMenu(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
       <a href="/contact.html" onclick="closeMobileMenu()">Contact</a>
+      <!-- DRIVER-PHASE-OUT: restore when driver side launches
+      <a href="#driver-fund-section" onclick="closeMobileMenu()" class="support-mcc-link">Support MCC ✦</a>
+      -->
       <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme">
         <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
@@ -2008,64 +2204,112 @@
   <main>
     <section class="hero" id="main-content">
       <div class="container">
-        <div class="hero-badge" data-i18n="landing.heroBadge">Your complete auto ownership platform</div>
-        <h1>
-          <span class="highlight" data-i18n="landing.heroHeadline1">Get competing bids</span><br>
-          <span data-i18n="landing.heroHeadline2">from verified auto pros.</span> <span data-i18n="landing.heroHeadline3">Pick the best one.</span>
-        </h1>
-        <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
-          Funds stay in escrow and are only released after you confirm the job is done. Stripe-secured payments. Background-checked providers.
-        </p>
-        <p class="hero-nudge" data-i18n="landing.heroNudge">Setup takes 30 seconds. No commitment, no membership required.</p>
-        <div class="hero-actions">
-          <a href="onboarding-member.html" class="btn btn-primary btn-lg" data-i18n="landing.getStartedFree">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-            Create Your Free Profile
-          </a>
-          <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProviderFree">
-            I'm a Shop or Pro
-          </a>
-        </div>
-        <p class="hero-tertiary">
-          <a href="#" onclick="openFounderModal(); return false;" data-i18n="landing.heroTertiaryAbout">Read our story</a>
-        </p>
 
-        <div class="capability-strip" aria-label="Platform trust">
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="shield"></span></span>
-            <span data-i18n="landing.capEscrowProtected">Escrow Protected — you only pay when the job's done</span>
-          </div>
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="shield-check"></span></span>
-            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Every provider background-checked</a>
-          </div>
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="lock"></span></span>
-            <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
-          </div>
-        </div>
+        <!-- ── SPLIT HERO: text-stack LEFT / flow-card RIGHT (collapses to 1col ≤768px) ── -->
+        <div class="hero-split">
 
-        <div class="hero-free-strip" role="note">
-          <span><strong>Free for members.</strong> Always.</span>
-        </div>
-        
-        <div class="social-proof-bar" id="social-proof-bar" style="display:none">
-          <span class="social-proof-dot"></span>
-          <span id="social-proof-text"></span>
-        </div>
-        
+          <!-- LEFT: eyebrow, headline, tagline, subhead, CTAs, compact trust line -->
+          <div class="hero-split-left">
+            <div class="hero-badge" data-i18n="landing.heroBadge">Now live in Bergen County, NJ</div>
+            <h1 data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service</h1>
+            <p class="hero-tagline" data-i18n="landing.heroHeadline2">and pick the one you like.</p>
+            <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
+              Mechanical, cosmetic, detailing, marine, even snow removal. Vetted local providers bid on your job, you pick the price — and that's exactly what you pay.
+            </p>
+            <div class="hero-actions">
+              <a href="onboarding-member.html" class="btn btn--primary btn--large" data-i18n="landing.getStartedFree">
+                I need service
+              </a>
+              <a href="onboarding-provider.html" class="btn btn--primary btn--large" data-i18n="landing.joinAsProviderFree">
+                I'm a shop / provider
+              </a>
+            </div>
+
+            <!-- Compact trust line: funds-held + Stripe (the third "vetted" cap is in
+                 the features grid below the fold; keep the hero trust line tight). -->
+            <div class="hero-trust-compact" aria-label="Platform trust">
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="shield"></span></span>
+                <span data-i18n="landing.capEscrowProtected">Funds held until you confirm the job's done</span>
+              </span>
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="lock"></span></span>
+                <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
+              </span>
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="star"></span></span>
+                <span data-i18n="landing.heroFreeMembers">Free for members. Always.</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- RIGHT: 3-step "how it works" flow card -->
+          <div class="hero-split-right">
+            <div class="hero-flow-card" aria-label="How it works">
+              <ol class="flow-steps">
+                <li class="flow-step">
+                  <span class="flow-step-num">1</span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep1Title">Post your job</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep1Desc">A few details and a photo or two</div>
+                  </div>
+                </li>
+                <li class="flow-step">
+                  <span class="flow-step-num">2</span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep2Title">Vetted providers bid</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep2Desc">2&ndash;3 invited shops compete</div>
+                  </div>
+                </li>
+                <li class="flow-step">
+                  <span class="flow-step-num flow-step-num-final">3</span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep3Title">You pick the one you like</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep3Desc">Price, rating, timing — your call</div>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </div>
+
+        </div><!-- /.hero-split -->
 
         <div class="hero-login">
           <div class="hero-login-divider">
             <span data-i18n="common.orSignIn">or sign in</span>
           </div>
+
+          <div class="hero-social-buttons">
+            <button type="button" class="hero-social-btn hero-social-btn-apple" id="hero-apple-btn" onclick="heroSignInWithApple()">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="flex-shrink:0;">
+                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+              </svg>
+              <span>Continue with Apple</span>
+            </button>
+            <button type="button" class="hero-social-btn hero-social-btn-google" id="hero-google-btn" onclick="heroSignInWithGoogle()">
+              <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span>Continue with Google</span>
+            </button>
+            <button type="button" class="hero-social-btn hero-social-btn-facebook" id="hero-facebook-btn" onclick="heroSignInWithFacebook()">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="flex-shrink:0;">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <span>Continue with Facebook</span>
+            </button>
+          </div>
+
+          <div class="hero-social-divider">or sign in with email</div>
+
           <form id="hero-login-form" class="hero-login-form">
             <div class="hero-login-row">
               <input type="email" id="hero-email" class="hero-input" placeholder="Email" data-i18n="auth.emailPlaceholder" data-i18n-attr="placeholder" required>
               <input type="password" id="hero-password" class="hero-input" placeholder="Password" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required autocomplete="current-password">
-              <button type="submit" class="btn btn-login-hero" data-i18n="common.login">Log In</button>
+              <button type="submit" class="btn btn--primary" data-i18n="common.login">Log In</button>
             </div>
             <div id="hero-login-error" class="hero-login-error" style="display:none;"></div>
             <div class="hero-login-links">
@@ -2076,18 +2320,29 @@
       </div>
     </section>
 
+    <section class="founding-strip" aria-label="Founding providers">
+      <div class="container">
+        <div class="founding-strip-inner">
+          <span class="founding-label" data-i18n="landing.foundingShopLabel">Founding Shop</span>
+          <span data-i18n="landing.foundingShopName">Alpha Auto Body, Hackensack NJ</span>
+          <span class="founding-sep" aria-hidden="true">&middot;</span>
+          <span data-i18n="landing.foundingShopMore">More Bergen County providers joining soon.</span>
+        </div>
+      </div>
+    </section>
+
     <!-- MCC Verified — customer trust section.
          (Section 4 — Homepage / Landing Page Sections, "For Customers").
          Bilingual via i18n (EN / ES). -->
     <section class="features" id="mcc-verified-trust" style="padding-top:48px;padding-bottom:24px;">
       <div class="container">
         <div style="max-width:760px;margin:0 auto;text-align:center;padding:32px 24px;border:1px solid rgba(76,175,80,0.25);border-radius:16px;background:linear-gradient(135deg,rgba(76,175,80,0.06),rgba(212,168,85,0.04));">
-          <div style="display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:50%;background:#4CAF50;color:#fff;font-size:1.6rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-          <h2 data-i18n="landing.verifiedTrustTitle" style="font-family:'Playfair Display',Georgia,serif;font-size:2rem;font-weight:600;margin:0 0 12px;">Your car. Your trust. Our verification.</h2>
-          <p data-i18n="landing.verifiedTrustBody" style="color:var(--text-secondary,#c8ccd6);font-size:1rem;line-height:1.6;margin:0 0 20px;">
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:50%;background:#4CAF50;color:#fff;font-size:var(--text-3xl);font-weight:700;margin-bottom:14px;">&#10003;</div>
+          <h2 data-i18n="landing.verifiedTrustTitle" style="font-family:'Fraunces',Georgia,serif;font-size:var(--text-4xl);font-weight:600;margin:0 0 12px;">Your car. Your trust. Our verification.</h2>
+          <p data-i18n="landing.verifiedTrustBody" style="color:var(--text-secondary,#c8ccd6);font-size:var(--text-md);line-height:1.6;margin:0 0 20px;">
             Every MCC Verified provider has passed comprehensive background screening for their team. Look for the &#10003; badge when browsing providers &mdash; it means their employees are screened, verified, and current.
           </p>
-          <a href="/providers-directory.html?verified=true" data-i18n="landing.verifiedTrustCta" class="btn btn-primary" style="display:inline-block;padding:12px 24px;text-decoration:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:600;">
+          <a href="/providers-directory.html?verified=true" data-i18n="landing.verifiedTrustCta" class="btn btn--primary" style="display:inline-block;padding:12px 24px;text-decoration:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:600;">
             Browse Verified Providers &rarr;
           </a>
         </div>
@@ -2107,10 +2362,10 @@
             <ul class="feature-list">
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature1">Vetted service providers bid on your job</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature2">Compare quotes with transparent pricing</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature3">Escrow protection holds funds until job is complete</span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature3">Your payment is held until the job is complete</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature4">No surprise charges — you approve any extra work before it happens</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Split the cost — invite others to share the bill, even without an account</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Crowd-fund big repairs — pool money with built-in refund protection</span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span><span data-i18n="landing.pillar1FeatureSplit">Split the cost — invite others to share the bill</span> <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span><span data-i18n="landing.pillar1FeatureCrowd">Crowd-fund big repairs — pool money with built-in refund protection</span> <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>QR check-in when you drop off your ride</span></li>
             </ul>
           </div>
@@ -2169,25 +2424,20 @@
             <h4>Competitive Bidding</h4>
             <p>Post a job, get bids from vetted providers. Compare pricing, ratings, and reviews — then choose.</p>
           </div>
-          <div class="more-feature-item">
+          <div class="more-feature-item coming-soon">
             <div class="mf-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
-            <h4>Split Payments</h4>
-            <p>Share the cost of any job with friends or family. They can pay with just a link — no account needed.</p>
+            <h4>Split Payments <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></h4>
+            <p>Share the cost of any job with friends or family — coming in a future release.</p>
           </div>
-          <div class="more-feature-item">
+          <div class="more-feature-item coming-soon">
             <div class="mf-icon"><span class="icon-inline" data-icon="hand-helping"></span></div>
-            <h4>Crowd-Funded Repairs</h4>
-            <p>Pool money for expensive jobs. Built-in 72-hour window with automatic refunds if not fully funded.</p>
+            <h4>Crowd-Funded Repairs <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></h4>
+            <p>Pool money for expensive jobs — coming in a future release.</p>
           </div>
           <div class="more-feature-item">
             <div class="mf-icon"><span class="icon-inline" data-icon="search"></span></div>
             <h4>AI Diagnostics</h4>
             <p>Upload your check engine codes or snap a photo. Get plain English explanations, severity ratings, and cost estimates.</p>
-          </div>
-          <div class="more-feature-item">
-            <div class="mf-icon"><span class="icon-inline" data-icon="shield"></span></div>
-            <h4>Escrow Protection</h4>
-            <p>Your payment is held securely until the job is done. Any additional work requires your approval before the provider can proceed — no surprises.</p>
           </div>
           <div class="more-feature-item">
             <div class="mf-icon"><span class="icon-inline" data-icon="car"></span></div>
@@ -2198,7 +2448,7 @@
             <div class="mf-icon" style="background:var(--accent-gold-soft);"><span class="icon-inline" data-icon="star"></span></div>
             <h4>Build Loyalty. Keep Your Customers.</h4>
             <p>Launch your own Car Club rewards program. Punch card rewards, auto-join on first visit, and 3 free bid credits (the credits you spend to bid on jobs) each time an existing Car Club member completes and pays for another job with you, up to once per member per month.</p>
-            <a href="car-club-provider.html" style="display:inline-block;margin-top:10px;color:var(--accent-gold);font-weight:600;font-size:0.88rem;text-decoration:none;">Learn more &rarr;</a>
+            <a href="car-club-provider.html" style="display:inline-block;margin-top:10px;color:var(--accent-gold);font-weight:600;font-size:var(--text-base);text-decoration:none;">Learn more &rarr;</a>
           </div>
         </div>
       </div>
@@ -2219,12 +2469,12 @@
           <div class="step">
             <div class="step-number">2</div>
             <h3 data-i18n="landing.step2Title">Get bids from 2&ndash;3 verified providers</h3>
-            <p data-i18n="landing.step2Desc">Background-checked shops compete for your job. Compare them side by side.</p>
+            <p data-i18n="landing.step2Desc">Vetted shops compete for your job. Compare them side by side.</p>
           </div>
           <div class="step">
             <div class="step-number">3</div>
             <h3 data-i18n="landing.step3Title">Pick the best price and schedule</h3>
-            <p data-i18n="landing.step3Desc">Funds stay in escrow until you confirm the work is done.</p>
+            <p data-i18n="landing.step3Desc">Funds are held until you confirm the work is done.</p>
           </div>
         </div>
       </div>
@@ -2233,7 +2483,7 @@
     <section class="founder-programs">
       <div class="container">
         <div class="founder-programs-header">
-          <div style="display:inline-block;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-size:0.75rem;font-weight:700;padding:6px 16px;border-radius:100px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;">Founder Programs</div>
+          <div style="display:inline-block;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-size:var(--text-xs);font-weight:700;padding:6px 16px;border-radius:100px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;">Founder Programs</div>
           <h2>Earn alongside us as we grow</h2>
           <p>Optional referral programs for members and providers who want to share the platform with their network. Free to join — no membership required.</p>
         </div>
@@ -2241,16 +2491,16 @@
           <div class="founder-card">
             <h3>Member Founders</h3>
             <p>Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — just sign up and start sharing your referral link.</p>
-            <a href="member-founder.html" class="btn btn-gold">Join as Member Founder</a>
+            <a href="member-founder.html" class="btn btn--primary">Join as Member Founder</a>
           </div>
           <div class="founder-card">
             <h3>Founding Providers</h3>
             <p>Be among the first providers on the platform. Build your reputation from day one, get early access to new features, and earn referral commissions by bringing other providers on board.</p>
-            <a href="provider-pilot.html" class="btn btn-outline-gold">Apply as Founding Provider</a>
+            <a href="provider-pilot.html" class="btn btn--ghost">Apply as Founding Provider</a>
           </div>
         </div>
         <div style="text-align:center;margin-top:24px;">
-          <a href="founders.html" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:0.95rem;display:inline-flex;align-items:center;gap:6px;">Learn more about Founder Programs <span style="font-size:1.2em;">&rarr;</span></a>
+          <a href="founders.html" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:var(--text-base);display:inline-flex;align-items:center;gap:6px;">Learn more about Founder Programs <span style="font-size:1.2em;">&rarr;</span></a>
         </div>
       </div>
     </section>
@@ -2258,31 +2508,31 @@
     <section class="from-the-blog">
       <div class="container">
         <div class="section-header" style="text-align:center;margin-bottom:32px;">
-          <h2 style="font-family:'Playfair Display',serif;font-size:clamp(1.75rem,3.5vw,2.5rem);margin-bottom:8px;">From the Blog</h2>
-          <p style="color:var(--text-muted);font-size:1rem;">Plain-spoken guides on quotes, maintenance, and smart car shopping.</p>
+          <h2 style="font-family:'Fraunces',serif;font-size:clamp(1.75rem,3.5vw,2.5rem);margin-bottom:8px;">From the Blog</h2>
+          <p style="color:var(--text-muted);font-size:var(--text-md);">Plain-spoken guides on quotes, maintenance, and smart car shopping.</p>
         </div>
         <div class="blog-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:1100px;margin:0 auto;">
           <a href="/blog/how-to-compare-auto-repair-quotes.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">How to Compare Auto Repair Quotes Without Getting Ripped Off</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">A field-tested framework for comparing auto repair quotes line-by-line and negotiating without sounding like you're negotiating.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">Read the guide →</span>
+            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
+            <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);line-height:1.3;margin:0;">How to Compare Auto Repair Quotes Without Getting Ripped Off</h3>
+            <p style="color:var(--text-muted);font-size:var(--text-base);line-height:1.5;margin:0;">A field-tested framework for comparing auto repair quotes line-by-line and negotiating without sounding like you're negotiating.</p>
+            <span style="color:var(--accent-gold);font-size:var(--text-base);font-weight:600;margin-top:auto;">Read the guide →</span>
           </a>
           <a href="/blog/fair-brake-job-cost-2026.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">What Does a Fair Brake Job Cost in 2026?</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">Real 2026 numbers by vehicle class and parts grade — plus the $200 mistake most drivers make when authorizing rotor replacement.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">See the prices →</span>
+            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
+            <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);line-height:1.3;margin:0;">What Does a Fair Brake Job Cost in 2026?</h3>
+            <p style="color:var(--text-muted);font-size:var(--text-base);line-height:1.5;margin:0;">Real 2026 numbers by vehicle class and parts grade — plus the $200 mistake most drivers make when authorizing rotor replacement.</p>
+            <span style="color:var(--accent-gold);font-size:var(--text-base);font-weight:600;margin-top:auto;">See the prices →</span>
           </a>
           <a href="/blog/how-to-find-trustworthy-mechanic.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">How to Find a Trustworthy Mechanic in Your Area</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">A repeatable vetting playbook — what to ask, what to ignore, and what to test before handing over the keys.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">Get the playbook →</span>
+            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:var(--text-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
+            <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);line-height:1.3;margin:0;">How to Find a Trustworthy Mechanic in Your Area</h3>
+            <p style="color:var(--text-muted);font-size:var(--text-base);line-height:1.5;margin:0;">A repeatable vetting playbook — what to ask, what to ignore, and what to test before handing over the keys.</p>
+            <span style="color:var(--accent-gold);font-size:var(--text-base);font-weight:600;margin-top:auto;">Get the playbook →</span>
           </a>
         </div>
         <div style="text-align:center;margin-top:32px;">
-          <a href="/blog/" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:1rem;display:inline-flex;align-items:center;gap:6px;">Browse all posts <span style="font-size:1.2em;">&rarr;</span></a>
+          <a href="/blog/" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:var(--text-md);display:inline-flex;align-items:center;gap:6px;">Browse all posts <span style="font-size:1.2em;">&rarr;</span></a>
         </div>
       </div>
     </section>
@@ -2290,6 +2540,264 @@
       .from-the-blog { padding: 80px 0; }
       .blog-card-home:hover { transform: translateY(-4px); border-color: var(--accent-gold) !important; }
     </style>
+
+    <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains inner HTML comments that would break a <!-- ... --> wrap. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
+    <template data-driver-phase-out="restore-when-driver-launches">
+    <!-- Driver Launch Fundraising Section -->
+    <section id="driver-fund-section" style="padding:72px 0;background:var(--bg-deep,#12161c);">
+      <div class="container" style="max-width:860px;margin:0 auto;padding:0 24px;">
+        <div style="background:linear-gradient(135deg,rgba(26,32,42,0.98),rgba(36,44,56,0.92));border:1px solid rgba(201,162,39,0.3);border-radius:24px;padding:48px 40px;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:-80px;right:-80px;width:260px;height:260px;background:radial-gradient(circle,rgba(201,162,39,0.09),transparent 65%);pointer-events:none;"></div>
+          <div style="position:absolute;bottom:-60px;left:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(56,189,248,0.06),transparent 65%);pointer-events:none;"></div>
+
+          <img src="assets/wefunder-cover.png" alt="My Car Concierge + MCC Driver — Three-sided automotive marketplace" style="width:100%;border-radius:14px;margin-bottom:24px;display:block;">
+          <div style="text-align:center;margin-bottom:36px;">
+            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:#c9a227;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:0.12em;padding:4px 14px;border-radius:999px;margin-bottom:16px;">Now Raising · Wefunder</span>
+            <h2 style="font-family:'Fraunces',serif;font-size:clamp(1.75rem,3vw,2.4rem);margin-bottom:14px;color:#f5f5f7;line-height:1.2;">Help Us Launch Vehicle Pickup &amp; Delivery</h2>
+            <p style="color:#a0a8b8;font-size:var(--text-md);max-width:600px;margin:0 auto;line-height:1.7;">We're raising funds to cover licensing, insurance, and driver onboarding so MCC can pick up and deliver your car to the shop. Back us and be part of the future of vehicle care.</p>
+          </div>
+
+          <!-- Milestone progress bars — populated by applyFundData() below -->
+          <div id="idx-milestones" style="display:grid;gap:12px;margin-bottom:20px;"></div>
+
+          <!-- Overall total summary -->
+          <div style="text-align:center;padding:10px 0 24px;border-top:1px solid rgba(160,168,184,0.08);">
+            <span style="color:#6b7280;font-size:var(--text-base);">Total: <strong id="idx-fund-raised" style="color:#c9a227;font-size:1.05rem;">$0 raised</strong> of $60,000 — <span id="idx-fund-pct">0%</span> to launch</span>
+          </div>
+
+          <!-- CTAs -->
+          <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+            <a id="idx-wefunder-btn" href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:14px 30px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#0a0a0f;font-weight:700;font-size:var(--text-base);border-radius:14px;text-decoration:none;transition:transform 0.2s,box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 28px rgba(201,162,39,0.4)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Back MCC on Wefunder
+            </a>
+            <a href="/drivers.html" style="display:inline-flex;align-items:center;gap:6px;padding:14px 28px;background:transparent;color:#f5f5f7;font-weight:600;font-size:var(--text-base);border:1px solid rgba(160,168,184,0.25);border-radius:14px;text-decoration:none;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.color='#c9a227';" onmouseout="this.style.borderColor='rgba(160,168,184,0.25)';this.style.color='#f5f5f7';">
+              Learn More About MCC Driver →
+            </a>
+          </div>
+
+          <!-- Direct donation row -->
+          <div style="margin-top:22px;text-align:center;" id="driver-fund-section-donate">
+            <div style="font-size:var(--text-sm);color:#6b7280;margin-bottom:8px;">Or support us directly</div>
+            <p style="font-size:var(--text-base);color:#a0a8b8;margin:0 auto 14px;max-width:480px;line-height:1.6;">Every dollar helps. Even $1 brings us closer to launching vehicle pickup in your neighborhood.</p>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;" id="idx-donate-btns">
+              <button onclick="idxDonate(100)"   style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$1</button>
+              <button onclick="idxDonate(500)"   style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$5</button>
+              <button onclick="idxDonate(1000)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$10</button>
+              <button onclick="idxDonate(2500)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$25</button>
+              <button onclick="idxDonate(5000)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$50</button>
+              <button onclick="idxDonate(10000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$100</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+              <label for="idx-custom-amount" style="font-size:var(--text-sm);color:#a0a8b8;white-space:nowrap;">Other: $</label>
+              <input type="number" id="idx-custom-amount" min="1" step="0.01" placeholder="Amount" style="width:88px;padding:7px 10px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:8px;color:#f5f5f7;font-size:var(--text-sm);outline:none;" onfocus="this.style.borderColor='rgba(201,162,39,0.5)';" onblur="this.style.borderColor='rgba(160,168,184,0.2)';" onkeydown="if(event.key==='Enter')idxDonateCustom();">
+              <button onclick="idxDonateCustom()" style="padding:7px 16px;background:rgba(201,162,39,0.15);border:1px solid rgba(201,162,39,0.4);border-radius:8px;color:#c9a227;font-size:var(--text-sm);font-weight:700;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,162,39,0.25)';" onmouseout="this.style.background='rgba(201,162,39,0.15)';">Donate</button>
+            </div>
+            <div style="font-size:0.8rem;color:#6b7280;margin-bottom:10px;">
+              Join <span id="idx-supporter-count">0</span> supporters backing this launch
+            </div>
+            <p style="font-size:var(--text-xs);color:#4b5563;margin-top:4px;line-height:1.5;">One-time support — not an investment. For equity, use Wefunder above.</p>
+          </div>
+          <p style="text-align:center;font-size:var(--text-sm);color:#6b7280;margin-top:14px;line-height:1.5;">Vehicle transport service is in development. Full launch pending regulatory approval and insurance certification. Sign up now to be first in line when we go live.</p>
+        </div>
+      </div>
+    </section>
+    </template>
+    <!-- /DRIVER-PHASE-OUT -->
+    <script>
+      (function() {
+        var DEFAULT_MILESTONES = [
+          { name: 'TNC Licensing & Legal', goal: 25000, description: 'Covers state permits and transportation attorney fees so we can legally operate' },
+          { name: 'Commercial Auto Insurance', goal: 18000, description: 'Year 1 hired & non-owned auto policy with $1.5M liability coverage' },
+          { name: 'Driver Onboarding & Training', goal: 10000, description: 'Background checks, training content, and certification program for our first drivers' },
+          { name: 'Marketing & Launch', goal: 7000, description: 'Driver recruitment, provider outreach, and launch campaign' }
+        ];
+
+        function computeMilestones(raised, milestones) {
+          var remaining = raised;
+          return milestones.map(function(m) {
+            var mRaised = Math.min(remaining, m.goal);
+            remaining = Math.max(0, remaining - m.goal);
+            var mPct = m.goal > 0 ? Math.min(100, Math.round((mRaised / m.goal) * 100)) : 0;
+            var status = mRaised >= m.goal ? 'funded' : mRaised > 0 ? 'in_progress' : 'not_started';
+            return { name: m.name, goal: m.goal, raised: mRaised, pct: mPct, status: status, description: m.description || '' };
+          });
+        }
+
+        function renderMilestones(host, computed) {
+          host.innerHTML = computed.map(function(m) {
+            var isF = m.status === 'funded', isP = m.status === 'in_progress';
+            var statusLabel = isF ? '✓ Funded!' : isP ? 'In progress' : 'Not started';
+            var statusColor = isF ? '#4ade80' : isP ? '#c9a227' : '#6b7280';
+            var barGrad = isF ? 'linear-gradient(90deg,#4ade80,#22c55e)' : 'linear-gradient(90deg,#c9a227,#e6b84a)';
+            var borderCol = isF ? 'rgba(74,222,128,0.2)' : isP ? 'rgba(201,162,39,0.2)' : 'rgba(160,168,184,0.1)';
+            return '<div style="background:rgba(20,26,36,0.6);border:1px solid ' + borderCol + ';border-radius:12px;padding:15px 17px;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (m.description ? '4px' : '8px') + ';">' +
+                '<span style="font-weight:700;font-size:var(--text-base);color:#f5f5f7;">' + m.name + '</span>' +
+                '<span style="font-size:var(--text-xs);font-weight:700;color:' + statusColor + ';white-space:nowrap;margin-left:10px;">' + statusLabel + '</span>' +
+              '</div>' +
+              (m.description ? '<div style="font-size:var(--text-sm);color:#6b7280;margin-bottom:9px;line-height:1.4;">' + m.description + '</div>' : '') +
+              '<div style="height:7px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;margin-bottom:5px;">' +
+                '<div style="height:100%;width:0%;background:' + barGrad + ';border-radius:999px;transition:width 1.2s ease;" data-target="' + m.pct + '"></div>' +
+              '</div>' +
+              '<div style="display:flex;justify-content:space-between;font-size:var(--text-xs);color:#6b7280;">' +
+                '<span>$' + m.raised.toLocaleString() + ' raised</span>' +
+                '<span>of $' + m.goal.toLocaleString() + '</span>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+          setTimeout(function() {
+            host.querySelectorAll('[data-target]').forEach(function(el) {
+              el.style.width = el.getAttribute('data-target') + '%';
+            });
+          }, 150);
+        }
+
+        function applyFundData(cfg) {
+          var raised  = cfg.DRIVER_FUND_RAISED      || 0;
+          var goal    = cfg.DRIVER_FUND_GOAL        || 60000;
+          var wef     = cfg.WEFUNDER_URL            || 'https://wefunder.com/mycarconcierge';
+          var donors  = cfg.DRIVER_FUND_DONOR_COUNT || 0;
+          var pct     = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+          var milestones = cfg.DRIVER_FUND_MILESTONES || DEFAULT_MILESTONES;
+          var computed   = computeMilestones(raised, milestones);
+
+          var mHost = document.getElementById('idx-milestones');
+          if (mHost) renderMilestones(mHost, computed);
+
+          var raEl  = document.getElementById('idx-fund-raised');
+          var pctEl = document.getElementById('idx-fund-pct');
+          var btnEl = document.getElementById('idx-wefunder-btn');
+          var cntEl = document.getElementById('idx-supporter-count');
+          if (raEl)  raEl.textContent  = '$' + raised.toLocaleString() + ' raised';
+          if (pctEl) pctEl.textContent = pct + '%';
+          if (btnEl) btnEl.href = wef;
+          if (cntEl) cntEl.textContent = donors.toLocaleString();
+        }
+        if (window.MCC_CONFIG) { applyFundData(window.MCC_CONFIG); }
+        window.addEventListener('mcc-config-loaded', function(e) { applyFundData(e.detail); });
+      })();
+
+      async function idxDonate(amountCents) {
+        var btns = document.querySelectorAll('#idx-donate-btns button');
+        var customBtn = document.querySelector('#driver-fund-section-donate button[onclick="idxDonateCustom()"]');
+        btns.forEach(function(b) { b.disabled = true; });
+        if (customBtn) customBtn.disabled = true;
+        try {
+          var res = await fetch('/api/support-donation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount_cents: amountCents })
+          });
+          var data = await res.json();
+          if (data.url) { window.location.href = data.url; return; }
+          alert('Could not start checkout. Please try again.');
+        } catch (e) {
+          alert('Could not connect to checkout. Please try again.');
+        }
+        btns.forEach(function(b) { b.disabled = false; });
+        if (customBtn) customBtn.disabled = false;
+      }
+
+      function idxDonateCustom() {
+        var input = document.getElementById('idx-custom-amount');
+        var val = parseFloat(input ? input.value : '');
+        if (!val || val < 1) { alert('Minimum donation is $1'); if (input) input.focus(); return; }
+        idxDonate(Math.round(val * 100));
+      }
+    </script>
+
+    <!-- Pre-launch waitlist / early access capture (Run Sequence Step 6) -->
+    <section id="waitlist-section" style="padding:80px 0;background:var(--bg-card);border-top:1px solid var(--border-subtle);">
+      <div class="container" style="max-width:640px;margin:0 auto;padding:0 24px;">
+        <div style="text-align:center;margin-bottom:36px;">
+          <span style="display:inline-block;padding:4px 16px;border-radius:100px;background:var(--accent-gold-soft);color:var(--accent-gold);font-size:0.78rem;font-weight:700;letter-spacing:0.06em;margin-bottom:16px;">EARLY ACCESS</span>
+          <h2 style="font-size:clamp(1.6rem,4vw,2.1rem);font-weight:700;margin-bottom:12px;line-height:1.25;">Be first. Get the founding deal.</h2>
+          <p style="color:var(--text-secondary);font-size:0.97rem;line-height:1.65;max-width:520px;margin:0 auto;">
+            <strong style="color:var(--text-primary);">Members:</strong> Free forever — early access &amp; founding benefits.<br>
+            <strong style="color:var(--text-primary);">Providers:</strong> Zero platform fees for 90 days + 50% lifetime referral commission.
+          </p>
+        </div>
+
+        <div id="waitlist-form-wrap">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <button type="button" id="wl-role-member" onclick="selectWaitlistRole('member')"
+              style="flex:1;min-width:160px;padding:13px 16px;border:2px solid var(--accent-gold);border-radius:var(--radius-md);background:var(--accent-gold-soft);color:var(--accent-gold);font-weight:600;font-size:0.95rem;cursor:pointer;transition:all 0.15s;">
+              I'm a Member
+            </button>
+            <button type="button" id="wl-role-provider" onclick="selectWaitlistRole('provider')"
+              style="flex:1;min-width:160px;padding:13px 16px;border:2px solid var(--border-subtle);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-weight:600;font-size:0.95rem;cursor:pointer;transition:all 0.15s;">
+              I'm a Provider / Shop
+            </button>
+          </div>
+          <input type="email" id="wl-email" placeholder="Your email address" required autocomplete="email"
+            style="display:block;width:100%;padding:14px 16px;border:1.5px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);color:var(--text-primary);font-size:1rem;box-sizing:border-box;margin-bottom:10px;">
+          <input type="text" id="wl-zip" placeholder="ZIP code (optional — helps us prioritize your area)" inputmode="numeric" maxlength="10"
+            style="display:block;width:100%;padding:14px 16px;border:1.5px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);color:var(--text-primary);font-size:1rem;box-sizing:border-box;margin-bottom:14px;">
+          <button type="button" id="wl-submit" onclick="submitWaitlist()"
+            style="display:block;width:100%;padding:15px 28px;background:var(--accent-gold);color:var(--bg-deep);font-size:1rem;font-weight:700;border:none;border-radius:var(--radius-md);cursor:pointer;transition:opacity 0.15s;">
+            Join Early Access
+          </button>
+          <div id="wl-error" style="display:none;margin-top:12px;padding:12px 16px;border-radius:var(--radius-md);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:var(--accent-red);font-size:0.9rem;text-align:center;"></div>
+        </div>
+
+        <div id="wl-success" style="display:none;text-align:center;padding:32px 20px;">
+          <div style="font-size:2rem;margin-bottom:12px;">✓</div>
+          <div style="font-size:1.2rem;font-weight:700;color:var(--accent-green);margin-bottom:8px;">You're on the list!</div>
+          <div style="color:var(--text-secondary);font-size:0.95rem;">We'll reach out when we launch in your area. Thanks for your interest!</div>
+        </div>
+      </div>
+
+      <script>
+        (function() {
+          var _wlRole = 'member';
+          window.selectWaitlistRole = function(role) {
+            _wlRole = role;
+            var m = document.getElementById('wl-role-member');
+            var p = document.getElementById('wl-role-provider');
+            if (!m || !p) return;
+            if (role === 'member') {
+              m.style.borderColor = 'var(--accent-gold)'; m.style.background = 'var(--accent-gold-soft)'; m.style.color = 'var(--accent-gold)';
+              p.style.borderColor = 'var(--border-subtle)'; p.style.background = 'transparent'; p.style.color = 'var(--text-secondary)';
+            } else {
+              p.style.borderColor = 'var(--accent-gold)'; p.style.background = 'var(--accent-gold-soft)'; p.style.color = 'var(--accent-gold)';
+              m.style.borderColor = 'var(--border-subtle)'; m.style.background = 'transparent'; m.style.color = 'var(--text-secondary)';
+            }
+          };
+          window.submitWaitlist = async function() {
+            var btn = document.getElementById('wl-submit');
+            var errEl = document.getElementById('wl-error');
+            var email = (document.getElementById('wl-email').value || '').trim();
+            var zip = (document.getElementById('wl-zip').value || '').trim();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+              errEl.textContent = 'Please enter a valid email address.';
+              errEl.style.display = 'block';
+              return;
+            }
+            errEl.style.display = 'none';
+            btn.disabled = true; btn.textContent = 'Joining…';
+            try {
+              var res = await fetch('/api/waitlist/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, intended_role: _wlRole, zip_code: zip || null, source: 'landing_page' })
+              });
+              var data = await res.json();
+              if (res.ok && data.success) {
+                document.getElementById('waitlist-form-wrap').style.display = 'none';
+                document.getElementById('wl-success').style.display = 'block';
+              } else {
+                throw new Error(data.error || 'Something went wrong');
+              }
+            } catch (err) {
+              errEl.textContent = err.message || 'Could not join — please try again.';
+              errEl.style.display = 'block';
+              btn.disabled = false; btn.textContent = 'Join Early Access';
+            }
+          };
+        })();
+      </script>
+    </section>
 
     <section class="cta-section">
       <div class="container">
@@ -2299,8 +2807,8 @@
             Join auto owners who manage everything—service, maintenance, learning, and shopping—in one place.
           </p>
           <div class="cta-buttons">
-            <a href="onboarding-member.html" class="btn btn-primary" data-i18n="landing.getStartedFree">Get Started Free</a>
-            <a href="how-it-works.html" class="btn btn-secondary" data-i18n="common.learnMore">Learn More</a>
+            <a href="onboarding-member.html" class="btn btn--primary" data-i18n="landing.getStartedFree">Get Started Free</a>
+            <a href="how-it-works.html" class="btn btn--secondary" data-i18n="common.learnMore">Learn More</a>
           </div>
         </div>
       </div>
@@ -2347,7 +2855,9 @@
           <div class="footer-section-content" id="footer-members">
             <a href="how-it-works.html">How It Works</a>
             <a href="/marketing/services.html">Services</a>
+            <!-- DRIVER-PHASE-OUT: restore when driver side launches
             <a href="rideshare.html">Rideshare Drivers</a>
+            -->
             <a href="onboarding-member.html">Create Account</a>
             <a href="login.html">Log In</a>
           </div>
@@ -2373,8 +2883,11 @@
           <a href="terms.html">Terms of Service</a>
           <a href="data-deletion.html">Data Deletion</a>
         </div>
-        <div style="max-width:600px;text-align:center;font-size:0.75rem;color:var(--text-muted);line-height:1.5;">
+        <div style="max-width:600px;text-align:center;font-size:var(--text-xs);color:var(--text-muted);line-height:1.5;">
           Marketplace only. We connect you with providers but do not guarantee workmanship.
+        </div>
+        <div style="font-size:var(--text-xs);color:var(--text-muted);text-align:center;">
+          Zanetis Holdings LLC &middot; Founded 2025 &middot; <a href="mailto:support@mycarconcierge.com" style="color:var(--text-muted);text-decoration:none;" onmouseover="this.style.color='var(--text-secondary)'" onmouseout="this.style.color='var(--text-muted)'">support@mycarconcierge.com</a>
         </div>
         <div class="footer-copy">
           © <span id="year"></span> My Car Concierge. All rights reserved.
@@ -2433,6 +2946,51 @@
       }
     });
     
+    // Hero social login helpers
+    function _heroOAuthReset(btnId, html) {
+      const btn = document.getElementById(btnId);
+      if (btn) { btn.disabled = false; btn.innerHTML = html; }
+    }
+
+    async function heroSignInWithApple() {
+      const btn = document.getElementById('hero-apple-btn');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'apple',
+          options: { redirectTo: window.location.origin + '/login.html?oauth=apple', scopes: 'name email' }
+        });
+        if (error) { console.error('Apple error:', error); _heroOAuthReset('hero-apple-btn', orig); }
+      } catch (e) { console.error('Apple error:', e); _heroOAuthReset('hero-apple-btn', orig); }
+    }
+
+    async function heroSignInWithGoogle() {
+      const btn = document.getElementById('hero-google-btn');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + '/login.html?oauth=google' }
+        });
+        if (error) { console.error('Google error:', error); _heroOAuthReset('hero-google-btn', orig); }
+      } catch (e) { console.error('Google error:', e); _heroOAuthReset('hero-google-btn', orig); }
+    }
+
+    async function heroSignInWithFacebook() {
+      const btn = document.getElementById('hero-facebook-btn');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: { redirectTo: window.location.origin + '/login.html?oauth=facebook', scopes: 'email,public_profile' }
+        });
+        if (error) { console.error('Facebook error:', error); _heroOAuthReset('hero-facebook-btn', orig); }
+      } catch (e) { console.error('Facebook error:', e); _heroOAuthReset('hero-facebook-btn', orig); }
+    }
+
     // Mobile menu functions
     function toggleMobileMenu() {
       const btn = document.querySelector('.mobile-menu-btn');
@@ -2479,12 +3037,12 @@
     window.addEventListener('resize', updateFooterAccessibility);
     document.addEventListener('DOMContentLoaded', updateFooterAccessibility);
   </script>
-  <script src="/footer.js"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
-  <script src="/mcc-config.js"></script>
-  <script src="/white-label-client.js"></script>
-  <script src="/chat-widget-base.js"></script>
-  <script src="/helpdesk-widget.js"></script>
+  <script src="footer.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
+  <script src="mcc-config.js"></script>
+  <script src="white-label-client.js"></script>
+  <script src="chat-widget-base.js"></script>
+  <script src="helpdesk-widget.js"></script>
   <script>
     function toggleTheme() {
       const html = document.documentElement;
@@ -2497,28 +3055,35 @@
       if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#f5f2ed';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
+    // Compact chip-mode: replace the language switcher's full native name
+    // ("English"/"Español"/...) with the 2-letter code ("EN"/"ES"/...) so
+    // the nav control reads as an icon-chip. Listens to i18n.js's existing
+    // 'languageChanged' event so the code refreshes on language switch.
+    //
+    // RACE NOTE: i18n.js's lang-option click handler does
+    //   await setLanguage(lang) → wrapper.querySelector('.current-lang').textContent = nativeName
+    // The 'languageChanged' event fires SYNC inside setLanguage, so a sync
+    // refreshLangChip listener runs BEFORE the inline .textContent write —
+    // which would then overwrite our code back to the full native name.
+    // Defer with setTimeout(0) so the chip refresh runs in the next
+    // macrotask, after the inline write resolves.
+    function refreshLangChip() {
+      try {
+        const code = (I18n.getCurrentLanguage() || 'EN').toUpperCase();
+        document.querySelectorAll(
+          '#language-switcher .current-lang, #mobile-language-switcher .current-lang'
+        ).forEach(el => { el.textContent = code; });
+      } catch (e) { /* I18n not ready yet */ }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
       I18n.createLanguageSwitcher('mobile-language-switcher');
-      
-      new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
+      refreshLangChip();
+      document.addEventListener('languageChanged', () => setTimeout(refreshLangChip, 0));
 
-      try {
-        const { count } = await supabaseClient
-          .from('profiles')
-          .select('id', { count: 'exact', head: true });
-        const bar = document.getElementById('social-proof-bar');
-        const txt = document.getElementById('social-proof-text');
-        if (bar && txt && count !== null) {
-          if (count >= 10) {
-            txt.textContent = count + ' members already managing their rides on My Car Concierge';
-          } else {
-            txt.textContent = 'Join our founding community — early members get exclusive benefits';
-          }
-          bar.style.display = 'flex';
-        }
-      } catch (_) {}
+      new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
     });
 
     // Founder Modal Functions
@@ -2570,7 +3135,7 @@
     </div>
   </div>
 
-  <script src="/utils.js"></script>
+  <script src="utils.js"></script>
   <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
@@ -2581,28 +3146,31 @@
   </script>
   <script src="analytics-tracker.js" defer></script>
   <!-- Facebook SDK for JavaScript (Task #182) -->
+  <!-- Not loaded in native iOS/Android builds — App Store Guideline 5.1.2. -->
   <div id="fb-root"></div>
   <script>
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: '1210351411006961',
-        cookie: true,
-        xfbml: true,
-        version: 'v23.0'
-      });
-      FB.AppEvents.logPageView();
-    };
-    (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = 'https://connect.facebook.net/en_US/sdk.js';
-      js.async = true;
-      js.defer = true;
-      js.crossOrigin = 'anonymous';
-      fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId: '1210351411006961',
+          cookie: true,
+          xfbml: true,
+          version: 'v23.0'
+        });
+        FB.AppEvents.logPageView();
+      };
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s); js.id = id;
+        js.src = 'https://connect.facebook.net/en_US/sdk.js';
+        js.async = true;
+        js.defer = true;
+        js.crossOrigin = 'anonymous';
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+    }
   </script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

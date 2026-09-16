@@ -48,10 +48,11 @@ function showInstallButton() {
 
   const banner = document.createElement('div');
   banner.id = 'pwa-install-banner';
+  const _bannerBottom = document.body.classList.contains('has-bottom-nav') ? '80px' : '20px';
   banner.innerHTML = `
     <div style="
       position: fixed;
-      bottom: 20px;
+      bottom: ${_bannerBottom};
       left: 50%;
       transform: translateX(-50%);
       background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);

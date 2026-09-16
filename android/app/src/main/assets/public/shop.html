@@ -5,9 +5,10 @@
   <title id="page-title">Shop Profile – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" id="page-meta-desc" content="Book auto services at this shop via My Car Concierge." />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <script src="/supabaseclient.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <script src="supabaseclient.js" defer></script>
+  <link rel="stylesheet" href="/logo-lockup.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -27,61 +28,61 @@
       --radius-xl: 24px;
       --radius-md: 12px;
     }
-    body { font-family: 'Outfit', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
     a { color: var(--accent-gold); text-decoration: none; }
     nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid var(--border-subtle); background: rgba(18,22,28,0.95); }
     .nav-logo { display: flex; align-items: center; gap: 10px; }
     .nav-logo img { height: 36px; border-radius: 8px; }
-    .nav-logo-text { font-family: 'Playfair Display', serif; font-size: 1rem; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
-    .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
+    .nav-logo-text { font-family: 'Fraunces', serif; font-size: var(--text-md); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: var(--text-base); font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
+    .btn--secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
 
     .hero-banner { background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 70%); padding: 60px 32px 40px; text-align: center; }
-    .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
-    .shop-name { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 8px; }
-    .shop-location { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 16px; }
+    .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: var(--text-4xl); font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
+    .shop-name { font-family: 'Fraunces', serif; font-size: var(--text-4xl); margin-bottom: 8px; }
+    .shop-location { color: var(--text-secondary); font-size: var(--text-base); margin-bottom: 16px; }
     .shop-badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
-    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: var(--text-sm); font-weight: 600; }
     .badge-gold { background: rgba(201,162,39,0.15); color: var(--accent-gold); border: 1px solid rgba(201,162,39,0.3); }
     .badge-green { background: rgba(52,211,153,0.12); color: var(--accent-green); border: 1px solid rgba(52,211,153,0.3); }
     .badge-teal { background: rgba(34,211,238,0.12); color: var(--accent-teal); border: 1px solid rgba(34,211,238,0.3); }
     .rating-row { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 8px; }
-    .stars { color: var(--accent-gold); font-size: 1rem; letter-spacing: 1px; }
-    .rating-number { font-size: 1.1rem; font-weight: 700; }
-    .rating-count { color: var(--text-muted); font-size: 0.85rem; }
+    .stars { color: var(--accent-gold); font-size: var(--text-md); letter-spacing: 1px; }
+    .rating-number { font-size: var(--text-lg); font-weight: 700; }
+    .rating-count { color: var(--text-muted); font-size: var(--text-sm); }
 
     .main { max-width: 900px; margin: 0 auto; padding: 32px 24px 80px; }
     .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
     @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
 
     .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px; }
-    .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 16px; }
+    .card-title { font-size: var(--text-md); font-weight: 600; margin-bottom: 16px; }
     .category-tags { display: flex; gap: 8px; flex-wrap: wrap; }
-    .category-tag { padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 100px; font-size: 0.82rem; color: var(--text-secondary); }
+    .category-tag { padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 100px; font-size: var(--text-sm); color: var(--text-secondary); }
     .review-item { padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
     .review-item:last-child { border-bottom: none; }
     .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .reviewer-name { font-weight: 600; font-size: 0.9rem; }
+    .reviewer-name { font-weight: 600; font-size: var(--text-base); }
     .review-date { font-size: 0.8rem; color: var(--text-muted); }
-    .review-text { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+    .review-text { font-size: var(--text-base); color: var(--text-secondary); line-height: 1.6; }
 
     /* BOOKING FORM */
     .booking-card { background: linear-gradient(145deg, rgba(201,162,39,0.1), var(--bg-card)); border: 1px solid rgba(201,162,39,0.3); border-radius: var(--radius-xl); padding: 28px; position: sticky; top: 80px; }
-    .booking-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
-    .booking-card p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 20px; }
+    .booking-card h3 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 6px; }
+    .booking-card p { font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 20px; }
     .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 0.83rem; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary); }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 6px; color: var(--text-secondary); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: var(--text-base); }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: rgba(201,162,39,0.5); }
     .form-textarea { min-height: 80px; resize: vertical; }
     .form-select { appearance: none; }
 
     .loading { text-align: center; padding: 80px 24px; color: var(--text-muted); }
     .error-state { text-align: center; padding: 80px 24px; }
-    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 10px; color: #fff; z-index: 9999; font-family: 'Outfit', sans-serif; }
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 10px; color: #fff; z-index: 9999; font-family: 'Inter', sans-serif; }
     .toast-success { background: #34d399; color: #022c22; }
     .toast-error { background: #f87171; }
   </style>
@@ -109,22 +110,29 @@
 <body>
 
 <nav>
-  <a href="/" class="nav-logo">
-    <img src="/logo.png" alt="My Car Concierge" />
-    <span class="nav-logo-text">My Car Concierge</span>
-  </a>
+  <div class="nav-logo">
+    <a href="/" class="mcc-logo" aria-label="MyCarConcierge home">
+  <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
+  <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g transform="translate(0,1302) scale(0.1,-0.1)">
+      <path fill="#f5f0e6" d="M7030 8083 c-19 -2 -170 -24 -335 -48 -375 -55 -437 -61 -820 -80 -331 -17 -401 -28 -475 -73 -166 -102 -140 -370 49 -491 176 -113 413 -141 874 -105 398 31 584 11 657 -72 52 -60 43 -68 -95 -76 -233 -14 -345 -44 -700 -190 -435 -179 -508 -194 -711 -143 -180 45 -1110 370 -1364 477 -350 147 -416 166 -537 154 -245 -25 -394 -237 -300 -429 39 -79 43 -81 509 -321 227 -117 460 -238 518 -268 525 -277 1302 -667 1395 -701 175 -62 436 -82 635 -48 41 7 239 41 440 76 935 164 1043 177 1284 156 167 -15 296 -40 424 -82 51 -17 95 -29 97 -27 4 4 363 1089 450 1362 35 107 42 142 33 148 -7 5 -83 45 -168 90 -85 45 -194 103 -242 129 -589 326 -910 480 -1098 527 -148 37 -367 52 -520 35z"/>
+      <path fill="#c7a466" d="M9314 7451 c5 -8 2 -11 -9 -9 -21 4 -106 -229 -97 -264 3 -14 1 -19 -5 -15 -7 5 -9 -1 -5 -15 3 -13 1 -19 -5 -15 -12 7 -106 -280 -96 -296 3 -5 2 -7 -4 -4 -9 6 -80 -204 -77 -230 1 -7 -3 -13 -8 -13 -6 0 -8 -6 -5 -14 3 -8 2 -16 -3 -18 -5 -2 -11 -14 -12 -28 -2 -14 -5 -27 -8 -30 -9 -8 -174 -513 -174 -532 0 -10 -4 -18 -9 -18 -4 0 -5 -5 -1 -11 3 -6 2 -14 -4 -18 -7 -4 -13 -18 -14 -31 -2 -14 -6 -27 -9 -30 -12 -11 -141 -419 -137 -436 2 -11 11 -18 21 -18 9 1 14 -3 10 -9 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 12 4 20 3 17 -1 -6 -11 293 -103 307 -95 6 4 8 3 5 -3 -8 -12 59 -34 81 -26 11 5 13 3 7 -6 -6 -10 -2 -11 15 -6 16 5 20 4 15 -5 -5 -9 -2 -10 12 -6 11 4 31 2 44 -3 14 -6 18 -10 9 -11 -18 -2 158 -60 182 -60 23 0 41 35 32 63 -3 12 -3 18 2 14 10 -9 126 331 118 344 -3 5 0 9 7 9 7 0 9 8 6 21 -3 12 -3 18 0 15 9 -9 213 606 207 624 -3 8 -2 11 2 7 10 -9 306 883 299 901 -3 7 0 10 5 7 6 -3 10 4 9 17 0 13 -3 18 -5 11 -4 -8 -11 -7 -23 5 -10 9 -16 21 -13 26 2 4 -6 5 -18 1 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -17 -5 -21 -4 -15 6 6 9 2 11 -13 7 -14 -4 -20 -2 -16 4 5 7 -2 9 -19 6 -16 -3 -24 -1 -20 5 3 5 -3 6 -17 2 -14 -4 -20 -3 -16 3 7 12 -40 25 -56 16 -6 -4 -8 -3 -5 3 7 11 -255 98 -290 96 -13 0 -20 4 -17 9 4 6 -2 7 -16 3 -14 -4 -20 -3 -16 3 7 12 -80 35 -96 26 -6 -4 -8 -3 -5 3 4 6 -4 14 -17 17 -13 3 -32 9 -42 13 -12 4 -15 3 -10 -6z m-82 -1634 c9 -1 15 -3 13 -5 -2 -3 7 -14 22 -25 105 -83 37 -267 -100 -267 -45 0 -102 24 -121 51 -7 10 -16 16 -20 12 -4 -4 -4 1 0 11 6 14 4 17 -6 11 -8 -5 -11 -3 -8 6 3 8 1 26 -3 42 -5 19 -2 39 9 65 9 20 17 44 17 52 0 8 5 15 10 16 21 2 45 17 39 25 -3 5 2 6 10 3 9 -3 16 -2 16 4 0 8 23 8 122 -1z"/>
+    </g>
+  </svg>
+</a>
+  </div>
   <div style="display:flex; gap:10px;">
-    <a href="/" class="btn btn-outline" style="padding:8px 16px; font-size:0.83rem;">Find More Shops</a>
-    <a href="/signup-member.html" class="btn btn-primary" style="padding:8px 16px; font-size:0.83rem;">Join Free</a>
+    <a href="/" class="btn btn--secondary" style="padding:8px 16px; font-size:var(--text-sm);">Find More Shops</a>
+    <a href="/signup-member.html" class="btn btn--primary" style="padding:8px 16px; font-size:var(--text-sm);">Join Free</a>
   </div>
 </nav>
 
 <div id="loading-state" class="loading">Loading shop profile…</div>
 <div id="not-found-state" class="error-state" style="display:none;">
-  <div style="font-size:3rem; margin-bottom:16px;">🔍</div>
+  <div style="font-size:var(--text-display); margin-bottom:16px;">🔍</div>
   <h2>Shop not found</h2>
   <p style="color:var(--text-muted); margin-top:8px;">This shop profile doesn't exist or isn't publicly listed.</p>
-  <a href="/providers-directory.html" class="btn btn-primary" style="margin-top:24px;">Browse All Shops</a>
+  <a href="/providers-directory.html" class="btn btn--primary" style="margin-top:24px;">Browse All Shops</a>
 </div>
 
 <div id="shop-content" style="display:none;">
@@ -146,7 +154,7 @@
         <!-- About -->
         <div class="card" id="about-card" style="display:none;">
           <div class="card-title">About This Shop</div>
-          <p id="shop-bio" style="color:var(--text-secondary); font-size:0.95rem; line-height:1.7;"></p>
+          <p id="shop-bio" style="color:var(--text-secondary); font-size:var(--text-base); line-height:1.7;"></p>
         </div>
 
         <!-- Services -->
@@ -171,7 +179,7 @@
         <div class="card">
           <div class="card-title">Customer Reviews <span id="review-count-label" style="font-weight:400; color:var(--text-muted);"></span></div>
           <div id="shop-reviews">
-            <p style="color:var(--text-muted); font-size:0.9rem;">No reviews yet. Be the first to book!</p>
+            <p style="color:var(--text-muted); font-size:var(--text-base);">No reviews yet. Be the first to book!</p>
           </div>
         </div>
       </div>
@@ -218,16 +226,16 @@
               <label class="form-label">Details (optional)</label>
               <textarea class="form-textarea" id="book-details" placeholder="Describe the issue or any additional details…"></textarea>
             </div>
-            <button type="submit" class="btn btn-gold" id="book-submit-btn" style="width:100%; justify-content:center; padding:13px;">
+            <button type="submit" class="btn btn--primary" id="book-submit-btn" style="width:100%; justify-content:center; padding:13px;">
               Request Service
             </button>
           </form>
-          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:12px; text-align:center;">
+          <p style="font-size:var(--text-sm); color:var(--text-muted); margin-top:12px; text-align:center;">
             By submitting, you agree to our <a href="/terms.html">Terms</a>. The shop will follow up to confirm.
           </p>
         </div>
         <div style="text-align:center; margin-top:12px;">
-          <a href="/providers-directory.html" style="font-size:0.83rem; color:var(--text-muted);">← Browse more shops</a>
+          <a href="/providers-directory.html" style="font-size:var(--text-sm); color:var(--text-muted);">← Browse more shops</a>
         </div>
       </div>
     </div>
@@ -343,10 +351,10 @@
 
     const infoEl = document.getElementById('shop-info');
     let info = '';
-    if (shop.phone) info += `<div style="font-size:0.9rem;"><strong>📞</strong> <a href="tel:${escHtml(shop.phone)}" style="color:var(--text-secondary);">${escHtml(shop.phone)}</a></div>`;
+    if (shop.phone) info += `<div style="font-size:var(--text-base);"><strong>📞</strong> <a href="tel:${escHtml(shop.phone)}" style="color:var(--text-secondary);">${escHtml(shop.phone)}</a></div>`;
     const addrParts = [shop.address, shop.city, shop.state].filter(Boolean).map(escHtml).join(', ');
-    if (addrParts) info += `<div style="font-size:0.9rem;"><strong>📍</strong> <span style="color:var(--text-secondary);">${addrParts}</span></div>`;
-    if (shop.hourly_rate) info += `<div style="font-size:0.9rem;"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${escHtml(String(shop.hourly_rate))}/hr</span></div>`;
+    if (addrParts) info += `<div style="font-size:var(--text-base);"><strong>📍</strong> <span style="color:var(--text-secondary);">${addrParts}</span></div>`;
+    if (shop.hourly_rate) info += `<div style="font-size:var(--text-base);"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${escHtml(String(shop.hourly_rate))}/hr</span></div>`;
 
     // Render business hours if available
     const hoursEl = document.getElementById('shop-hours-section');
@@ -381,7 +389,7 @@
           <div class="review-header">
             <span class="reviewer-name">${escHtml(r.member_name || 'Customer')}</span>
             <div>
-              <span style="color:var(--accent-gold);font-size:0.85rem;">${'★'.repeat(Math.min(5, Math.max(0, r.rating || 5)))}</span>
+              <span style="color:var(--accent-gold);font-size:var(--text-sm);">${'★'.repeat(Math.min(5, Math.max(0, r.rating || 5)))}</span>
               <span class="review-date" style="margin-left:8px;">${escHtml(new Date(r.created_at).toLocaleDateString())}</span>
             </div>
           </div>

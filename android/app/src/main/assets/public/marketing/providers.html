@@ -19,7 +19,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
@@ -67,7 +67,7 @@
     html { scroll-behavior: smooth; }
     body {
       min-height: 100vh;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       line-height: 1.6;
@@ -145,7 +145,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -157,7 +157,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -182,7 +182,7 @@
     }
 
     .hero h1 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(2.2rem, 4vw, 3.2rem);
       font-weight: 500;
       line-height: 1.15;
@@ -200,7 +200,7 @@
     .hero-subtitle {
       max-width: 620px;
       margin: 0 auto 40px;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
       line-height: 1.7;
     }
@@ -218,7 +218,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -227,24 +227,24 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #c49a45 100%);
       color: #0a0a0f;
       box-shadow: 0 8px 32px rgba(212, 168, 85, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-medium);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
     }
@@ -256,25 +256,25 @@
       background-clip: text;
     }
 
-    [data-theme="light"] .btn-primary {
+    [data-theme="light"] .btn--primary {
       background: linear-gradient(135deg, #b8942d, #d4a63a);
       color: #ffffff;
       box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
       font-weight: 600;
     }
 
-    [data-theme="light"] .btn-primary:hover {
+    [data-theme="light"] .btn--primary:hover {
       background: linear-gradient(135deg, #a6852a, #c49a35);
       box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
     }
 
-    [data-theme="light"] .btn-secondary {
+    [data-theme="light"] .btn--secondary {
       background: #ffffff;
       color: #1e3a5f;
       border: 2px solid #1e3a5f;
     }
 
-    [data-theme="light"] .btn-secondary:hover {
+    [data-theme="light"] .btn--secondary:hover {
       background: #1e3a5f;
       color: #ffffff;
       border-color: #1e3a5f;
@@ -317,7 +317,7 @@
 
     .section-label {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: var(--accent-blue);
@@ -325,7 +325,7 @@
     }
 
     .section-header h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 500;
       letter-spacing: -0.01em;
@@ -368,14 +368,14 @@
     }
 
     .benefit-card h3 {
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 10px;
     }
 
     .benefit-card p {
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       line-height: 1.6;
     }
 
@@ -388,7 +388,7 @@
     }
 
     .earnings-section h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.6rem, 3vw, 2.2rem);
       font-weight: 500;
       margin-bottom: 16px;
@@ -412,7 +412,7 @@
     }
 
     .earnings-stat .value {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: 2.5rem;
       font-weight: 600;
       color: var(--accent-gold);
@@ -420,7 +420,7 @@
     }
 
     .earnings-stat .label {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
     }
 
@@ -446,19 +446,19 @@
       justify-content: center;
       margin: 0 auto 20px;
       font-weight: 700;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       color: var(--accent-blue);
     }
 
     .process-step h3 {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 10px;
     }
 
     .process-step p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       line-height: 1.6;
     }
 
@@ -474,7 +474,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--accent-green);
       margin-bottom: 16px;
     }
@@ -490,7 +490,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
     }
 
@@ -513,7 +513,7 @@
     }
 
     .cta-box h2 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(1.6rem, 3vw, 2.2rem);
       font-weight: 500;
       margin-bottom: 16px;
@@ -521,7 +521,7 @@
 
     .cta-box p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       margin-bottom: 32px;
       max-width: 500px;
       margin-left: auto;
@@ -553,7 +553,7 @@
     }
 
     .footer-links a {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
@@ -564,7 +564,7 @@
     }
 
     .footer-copy {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -586,75 +586,28 @@
       }
     }
 
-    .onboarding-banner {
-      position: relative;
-      z-index: 101;
-      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
-      color: #0a0a0f;
-      text-align: center;
-      padding: 10px 48px 10px 20px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      line-height: 1.4;
-    }
-    .onboarding-banner a {
-      color: #0a0a0f;
-      font-weight: 700;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .onboarding-banner a:hover { opacity: 0.8; }
-    .onboarding-banner .banner-dismiss {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: #0a0a0f;
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 4px 8px;
-      line-height: 1;
-      opacity: 0.7;
-      transition: opacity 0.2s;
-    }
-    .onboarding-banner .banner-dismiss:hover { opacity: 1; }
-    [data-theme="light"] .onboarding-banner {
-      background: linear-gradient(135deg, #b8942d, #d4a63a);
-      color: #ffffff;
-    }
-    [data-theme="light"] .onboarding-banner a { color: #ffffff; }
-    [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
-    @media (max-width: 600px) {
-      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
-    }
   </style>
 </head>
 <body>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
-    We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
-    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </div>
-  <script>
-    if (!localStorage.getItem('onboardingBannerDismissed')) {
-      document.getElementById('onboardingBanner').style.display = '';
-    }
-  </script>
-
   <header>
     <div class="container">
-      <a href="/index.html" class="brand">
-        <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
-      </a>
+      <a href="/index.html" class="mcc-logo" aria-label="MyCarConcierge home">
+  <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
+  <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g transform="translate(0,1302) scale(0.1,-0.1)">
+      <path fill="#f5f0e6" d="M7030 8083 c-19 -2 -170 -24 -335 -48 -375 -55 -437 -61 -820 -80 -331 -17 -401 -28 -475 -73 -166 -102 -140 -370 49 -491 176 -113 413 -141 874 -105 398 31 584 11 657 -72 52 -60 43 -68 -95 -76 -233 -14 -345 -44 -700 -190 -435 -179 -508 -194 -711 -143 -180 45 -1110 370 -1364 477 -350 147 -416 166 -537 154 -245 -25 -394 -237 -300 -429 39 -79 43 -81 509 -321 227 -117 460 -238 518 -268 525 -277 1302 -667 1395 -701 175 -62 436 -82 635 -48 41 7 239 41 440 76 935 164 1043 177 1284 156 167 -15 296 -40 424 -82 51 -17 95 -29 97 -27 4 4 363 1089 450 1362 35 107 42 142 33 148 -7 5 -83 45 -168 90 -85 45 -194 103 -242 129 -589 326 -910 480 -1098 527 -148 37 -367 52 -520 35z"/>
+      <path fill="#c7a466" d="M9314 7451 c5 -8 2 -11 -9 -9 -21 4 -106 -229 -97 -264 3 -14 1 -19 -5 -15 -7 5 -9 -1 -5 -15 3 -13 1 -19 -5 -15 -12 7 -106 -280 -96 -296 3 -5 2 -7 -4 -4 -9 6 -80 -204 -77 -230 1 -7 -3 -13 -8 -13 -6 0 -8 -6 -5 -14 3 -8 2 -16 -3 -18 -5 -2 -11 -14 -12 -28 -2 -14 -5 -27 -8 -30 -9 -8 -174 -513 -174 -532 0 -10 -4 -18 -9 -18 -4 0 -5 -5 -1 -11 3 -6 2 -14 -4 -18 -7 -4 -13 -18 -14 -31 -2 -14 -6 -27 -9 -30 -12 -11 -141 -419 -137 -436 2 -11 11 -18 21 -18 9 1 14 -3 10 -9 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 12 4 20 3 17 -1 -6 -11 293 -103 307 -95 6 4 8 3 5 -3 -8 -12 59 -34 81 -26 11 5 13 3 7 -6 -6 -10 -2 -11 15 -6 16 5 20 4 15 -5 -5 -9 -2 -10 12 -6 11 4 31 2 44 -3 14 -6 18 -10 9 -11 -18 -2 158 -60 182 -60 23 0 41 35 32 63 -3 12 -3 18 2 14 10 -9 126 331 118 344 -3 5 0 9 7 9 7 0 9 8 6 21 -3 12 -3 18 0 15 9 -9 213 606 207 624 -3 8 -2 11 2 7 10 -9 306 883 299 901 -3 7 0 10 5 7 6 -3 10 4 9 17 0 13 -3 18 -5 11 -4 -8 -11 -7 -23 5 -10 9 -16 21 -13 26 2 4 -6 5 -18 1 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -17 -5 -21 -4 -15 6 6 9 2 11 -13 7 -14 -4 -20 -2 -16 4 5 7 -2 9 -19 6 -16 -3 -24 -1 -20 5 3 5 -3 6 -17 2 -14 -4 -20 -3 -16 3 7 12 -40 25 -56 16 -6 -4 -8 -3 -5 3 7 11 -255 98 -290 96 -13 0 -20 4 -17 9 4 6 -2 7 -16 3 -14 -4 -20 -3 -16 3 7 12 -80 35 -96 26 -6 -4 -8 -3 -5 3 4 6 -4 14 -17 17 -13 3 -32 9 -42 13 -12 4 -15 3 -10 -6z m-82 -1634 c9 -1 15 -3 13 -5 -2 -3 7 -14 22 -25 105 -83 37 -267 -100 -267 -45 0 -102 24 -121 51 -7 10 -16 16 -20 12 -4 -4 -4 1 0 11 6 14 4 17 -6 11 -8 -5 -11 -3 -8 6 3 8 1 26 -3 42 -5 19 -2 39 9 65 9 20 17 44 17 52 0 8 5 15 10 16 21 2 45 17 39 25 -3 5 2 6 10 3 9 -3 16 -2 16 4 0 8 23 8 122 -1z"/>
+    </g>
+  </svg>
+</a>
       <nav>
         <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
         <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
         <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
-        <a href="/login.html" class="btn-login">Log In</a>
+        <a href="/login.html" class="btn--primary">Log In</a>
       </nav>
     </div>
   </header>
@@ -668,8 +621,8 @@
           Join a vetted network of automotive professionals. Receive detailed service requests from vehicle owners who are ready to hire. Build lasting customer relationships.
         </p>
         <div class="hero-cta">
-          <a href="/signup-provider.html" class="btn btn-primary">Apply Now</a>
-          <a href="#benefits" class="btn btn-secondary">Learn More</a>
+          <a href="/signup-provider.html" class="btn btn--primary">Apply Now</a>
+          <a href="#benefits" class="btn btn--secondary">Learn More</a>
         </div>
       </div>
     </section>
@@ -759,7 +712,7 @@
             <li>Service capabilities</li>
             <li>Location verification</li>
           </ul>
-          <p style="margin-top: 12px; font-size: 0.9rem; opacity: 0.8;">Optional: Complete voluntary background checks for yourself and your team to earn the "Background Verified" badge and stand out to members.</p>
+          <p style="margin-top: 12px; font-size: var(--text-base); opacity: 0.8;">Optional: Complete voluntary background checks for yourself and your team to earn the "Background Verified" badge and stand out to members.</p>
         </div>
       </div>
     </section>
@@ -775,36 +728,36 @@
           <span class="section-label">MCC Verified</span>
           <h2>Verified providers book more jobs</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           The MCC Verified badge tells customers your team is background-checked and trustworthy. It&rsquo;s the fastest way to build credibility on the platform &mdash; and verified providers see higher bid acceptance rates and more repeat customers.
         </p>
         <!-- NOSONAR S7924 — colored card backgrounds use brand-spec rgba tints; text-secondary maintains hierarchy. Manual contrast check confirms ≥ 3:1 for normal-weight body text at this size. -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Comprehensive Screening</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Comprehensive Screening</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               National criminal records, sex offender registry, and identity verification &mdash; handled by our accredited partner.
             </p>
           </div>
           <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Always Current</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Always Current</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Annual renewals keep your badge up to date. We send reminders at 60, 30, 14, and 7 days before expiration &mdash; you&rsquo;ll never be caught off guard.
             </p>
           </div>
           <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Simple Compliance</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Simple Compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Your provider dashboard shows exactly where you stand: who&rsquo;s verified, who&rsquo;s expiring, and what to do next.
             </p>
           </div>
         </div>
         <div style="text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-          <a href="/signup-provider.html" class="btn btn-primary">Start Your Verification &rarr;</a>
-          <a href="/providers.html#compliance" class="btn btn-secondary">Manage Your Team &rarr;</a>
+          <a href="/signup-provider.html" class="btn btn--primary">Start Your Verification &rarr;</a>
+          <a href="/providers.html#compliance" class="btn btn--secondary">Manage Your Team &rarr;</a>
         </div>
       </div>
     </section>
@@ -814,35 +767,35 @@
           <span class="section-label">MCC Verificado</span>
           <h2>Los proveedores verificados consiguen más trabajos</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           La insignia MCC Verificado les indica a los clientes que tu equipo cuenta con verificación de antecedentes y es de confianza. Es la forma más rápida de generar credibilidad en la plataforma &mdash; y los proveedores verificados obtienen más ofertas aceptadas y más clientes recurrentes.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Verificación integral</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Verificación integral</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Antecedentes penales a nivel nacional, registro de delincuentes sexuales y verificación de identidad &mdash; gestionados por nuestro socio acreditado.
             </p>
           </div>
           <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Siempre vigente</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Siempre vigente</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Las renovaciones anuales mantienen tu insignia al día. Te enviamos recordatorios 60, 30, 14 y 7 días antes del vencimiento &mdash; nunca te tomarán por sorpresa.
             </p>
           </div>
           <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Cumplimiento sencillo</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Tu panel de proveedor muestra exactamente cuál es tu situación: quién está verificado, a quién le va a vencer y qué hacer a continuación.
             </p>
           </div>
         </div>
         <div style="text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-          <a href="/signup-provider.html" class="btn btn-primary">Inicia tu Verificación &rarr;</a>
-          <a href="/providers.html#compliance" class="btn btn-secondary">Administra tu Equipo &rarr;</a>
+          <a href="/signup-provider.html" class="btn btn--primary">Inicia tu Verificación &rarr;</a>
+          <a href="/providers.html#compliance" class="btn btn--secondary">Administra tu Equipo &rarr;</a>
         </div>
       </div>
     </section>
@@ -860,36 +813,36 @@
           <span class="section-label">Earn the Badge</span>
           <h2>Earn the badge customers trust</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           MCC Verified providers get more visibility, more bids, and more repeat customers. Background checks are fast, affordable, and handled right inside your dashboard.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Stand out in search</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Stand out in search</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Verified providers are highlighted in search results and recommended first to customers in your area.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Build instant trust</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Build instant trust</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               78% of vehicle owners say they&rsquo;re more likely to choose a provider with verified background checks.*
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Simple compliance</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Simple compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Add your team, initiate checks with one click, and we handle the rest &mdash; including renewal reminders so you never lose your badge.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Affordable</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Affordable</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Background checks start at <span data-bgc-price>$70</span> per employee, per year. A small investment that pays for itself with your first extra booking.
             </p>
           </div>
         </div>
-        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Placeholder stat &mdash; replace with actual survey/data when available</p>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:var(--text-sm);">*Placeholder stat &mdash; replace with actual survey/data when available</p>
       </div>
     </section>
     <section class="section" id="mcc-verified-pitch-es" data-mcc-lang="es" hidden style="background:rgba(0,0,0,0.04);">
@@ -898,36 +851,36 @@
           <span class="section-label">Obtén la insignia</span>
           <h2>Obtén la insignia en la que los clientes confían</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           Los proveedores MCC Verificados tienen más visibilidad, más ofertas y más clientes recurrentes. Las verificaciones de antecedentes son rápidas, accesibles y se gestionan directamente desde tu panel.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Destácate en las búsquedas</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Destácate en las búsquedas</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Los proveedores verificados se destacan en los resultados de búsqueda y se recomiendan primero a los clientes de tu zona.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Genera confianza al instante</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Genera confianza al instante</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               El 78 % de los propietarios de vehículos dice que es más probable que elija a un proveedor con verificación de antecedentes.*
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Cumplimiento sencillo</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Agrega a tu equipo, inicia las verificaciones con un clic y nosotros nos encargamos del resto &mdash; incluyendo los recordatorios de renovación para que nunca pierdas tu insignia.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Accesible</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Accesible</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Las verificaciones de antecedentes empiezan en <span data-bgc-price>$70</span> por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
             </p>
           </div>
         </div>
-        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:var(--text-sm);">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
       </div>
     </section>
 
@@ -937,8 +890,8 @@
           <h2>Ready to Grow Your Business?</h2>
           <p>List your services on My Car Concierge to get matched with vehicle owners actively searching for the work you do.</p>
           <div class="cta-buttons">
-            <a href="/signup-provider.html" class="btn btn-primary">Apply to Join</a>
-            <a href="/provider-info.html" class="btn btn-secondary">Learn More</a>
+            <a href="/signup-provider.html" class="btn btn--primary">Apply to Join</a>
+            <a href="/provider-info.html" class="btn btn--secondary">Learn More</a>
           </div>
         </div>
       </div>

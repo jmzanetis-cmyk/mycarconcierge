@@ -177,7 +177,7 @@
     css.textContent =
       '.mcc-bgc-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.66);z-index:9998;display:flex;align-items:center;justify-content:center;padding:18px;}' +
       '.mcc-bgc-modal{background:#1a1f29;color:#e8eaed;border:1px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:640px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);}' +
-      '.mcc-bgc-modal h2{font-family:"Playfair Display",Georgia,serif;font-size:1.55rem;margin:0 0 12px;font-weight:600;color:#fff;}' +
+      '.mcc-bgc-modal h2{font-family:"Fraunces",Georgia,serif;font-size:1.55rem;margin:0 0 12px;font-weight:600;color:#fff;}' +
       '.mcc-bgc-modal p{line-height:1.55;color:#c8ccd6;margin:0 0 14px;}' +
       '.mcc-bgc-modal .mcc-bgc-label{font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#d4a855;margin-top:14px;display:block;}' +
       '.mcc-bgc-modal .mcc-bgc-detail{margin:6px 0 0;color:#e8eaed;font-size:0.95rem;line-height:1.5;}' +

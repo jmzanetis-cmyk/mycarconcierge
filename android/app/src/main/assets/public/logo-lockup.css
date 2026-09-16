@@ -1,0 +1,96 @@
+/* ==========================================================================
+   Logo Lockup — standalone bundle for pages that DO NOT link shared-styles.css.
+   The MCC codebase is split between pages that use shared-styles.css globally
+   and pages that ship their entire styling inline in a per-page <style> block.
+   This file delivers the .mcc-logo lockup rules + the --logo-box theme token
+   to that second group so the live-text wordmark + glove lockup renders
+   correctly on every page.
+
+   IMPORTANT: rules below are byte-identical copies of the corresponding
+   blocks in www/shared-styles.css (lines 59-61, 119-121, 1957-2000). If you
+   change one, change both — drift between the two files is what this asset
+   exists to avoid.
+   ========================================================================== */
+
+/* Dark theme (default) — slightly lighter navy so the box stays visible
+   against a near-navy page bg in dark mode. */
+:root {
+  --logo-box: #0e1d33;
+}
+
+/* Light theme override — deeper navy for max contrast against the bright
+   cream/white page background. */
+[data-theme="light"] {
+  --logo-box: #0a1628;
+}
+
+/* Brand Lockup — navy box, cream Fraunces wordmark + cream/gold glove mark.
+   The wordmark and glove stay cream in both themes (they sit on the navy
+   box, so they don't flip). Only the navy-box bg shade flips via --logo-box
+   so the box stays visible against the page bg in both modes. */
+.mcc-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--logo-box, #0a1628);
+  border: 1px solid rgba(199, 164, 102, 0.35);
+  text-decoration: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.mcc-logo:hover {
+  border-color: #c7a466;
+  box-shadow: 0 0 0 1px rgba(199, 164, 102, 0.5),
+              0 0 14px 2px rgba(199, 164, 102, 0.45);
+}
+.mcc-logo-word {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+  color: #f5f0e6;
+  line-height: 1;
+  white-space: nowrap;
+}
+.mcc-logo-word-light { font-weight: 400; }
+.mcc-logo-word-bold { font-weight: 700; color: #c7a466; }
+.mcc-logo-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+
+/* Fit the wordmark lockup into the 260-px dashboard sidebar without clipping.
+   The Inter-weight-split wordmark (see commit 6399a13) renders wider than the
+   previous Fraunces treatment and clipped the glove mark against the sidebar's
+   right edge. Wider elsewhere (login, marketing, blog) — sidebar-scoped only. */
+.sidebar .mcc-logo      { padding: 6px 10px; gap: 6px; }
+.sidebar .mcc-logo-word { font-size: 1.05rem; }
+.sidebar .mcc-logo-mark { height: 18px; }
+
+/* Shared sidebar logo row on member/provider dashboards. Wraps .mcc-logo +
+   optional sibling (theme-toggle) in a flex row that WRAPS instead of overlapping
+   when the row is too narrow. Previously the two files used inline
+   "justify-content: space-between" which forced the theme-toggle to overlap the
+   logo's glove SVG when the two items exceeded the ~220-px sidebar row budget. */
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 8px 16px;
+}
+
+/* Hero variant: larger lockup for landing-page hero placements
+   (founders, member-founder, provider-pilot, service-credits, founder-dashboard). */
+.mcc-logo--hero {
+  padding: 18px 28px;
+  gap: 14px;
+  border-radius: 16px;
+}
+.mcc-logo--hero .mcc-logo-word {
+  font-size: 2.2rem;
+}
+.mcc-logo--hero .mcc-logo-mark {
+  height: 40px;
+}

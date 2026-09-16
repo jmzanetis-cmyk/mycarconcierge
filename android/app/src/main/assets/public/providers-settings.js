@@ -9,17 +9,34 @@ function escHtml(str) {
 
 // ========== PROFILE MANAGEMENT ==========
 async function saveProviderProfile() {
+  // Certifications — TEXT column, comma-separated. Combine #certifications-grid
+  // checkboxes with the free-text #profile-other-certs (also comma-separated).
+  const certBoxes = Array.from(
+    document.querySelectorAll('#certifications-grid input[type="checkbox"]:checked')
+  ).map(c => c.value);
+  const otherCertsRaw = document.getElementById('profile-other-certs')?.value || '';
+  const otherCertsList = otherCertsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  const allCerts = [...certBoxes, ...otherCertsList];
+
+  // Services offered — text[] ARRAY column. Just the checked services-grid values.
+  const services = Array.from(
+    document.querySelectorAll('#services-grid input[type="checkbox"]:checked')
+  ).map(c => c.value);
+
   const fields = {
-    business_name: document.getElementById('profile-business-name')?.value,
-    phone: document.getElementById('profile-phone')?.value,
-    address: document.getElementById('profile-address')?.value,
-    city: document.getElementById('profile-city')?.value,
-    state: document.getElementById('profile-state')?.value,
-    zip_code: document.getElementById('profile-zip-code')?.value,
-    bio: document.getElementById('profile-bio')?.value,
-    hourly_rate: Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
+    business_name:     document.getElementById('profile-business-name')?.value,
+    phone:             document.getElementById('profile-phone')?.value,
+    full_name:         document.getElementById('profile-full-name')?.value,
+    street_address:    document.getElementById('profile-street-address')?.value,
+    city:              document.getElementById('profile-city')?.value,
+    state:             document.getElementById('profile-state')?.value?.toUpperCase(),
+    zip_code:          document.getElementById('profile-zip-code')?.value,
+    description:       document.getElementById('profile-description')?.value,
+    years_in_business: document.getElementById('profile-years')?.value,
+    certifications:    allCerts.length > 0 ? allCerts.join(', ') : '',
+    services_offered:  services
   };
-  
+
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const resp = await fetch('/api/provider/profile/save', {
@@ -30,17 +47,32 @@ async function saveProviderProfile() {
       },
       body: JSON.stringify(fields)
     });
-    const result = await resp.json();
+    const result = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(result.error || 'Save failed');
 
     providerProfile = { ...providerProfile, ...fields };
     if (result.slug) providerProfile.directory_slug = result.slug;
 
-    showToast('Profile saved!', 'success');
-    
+    // Surface geocoding outcome so the provider knows the distance-gate is
+    // wired. precision:null means Nominatim couldn't resolve either the
+    // street or the ZIP centroid — same signal the persistent banner in the
+    // Business Address block reads on load. Keep the two in sync.
+    const geocodedOk = result.precision === 'street' || result.precision === 'zip';
+    const precisionToast = geocodedOk
+      ? (result.precision === 'street'
+          ? 'Profile saved — address geocoded for nearby-job matching.'
+          : 'Profile saved — using ZIP for matching (add a street address for more precise matches).')
+      : "Profile saved — but address couldn't be geocoded. Provider matching will be limited; add a ZIP or correct the address.";
+    showToast(precisionToast, geocodedOk ? 'success' : 'warning');
+    const geocodeBanner = document.getElementById('profile-geocode-banner');
+    if (geocodeBanner) {
+      const hasAddress = !!(fields.street_address || fields.city || fields.state || fields.zip_code);
+      geocodeBanner.style.display = (hasAddress && !geocodedOk) ? '' : 'none';
+    }
+
     const displayName = fields.business_name || providerProfile.full_name || 'Provider';
     document.getElementById('user-name').textContent = displayName;
-    
+
   } catch (err) {
     console.error('Save profile error:', err);
     showToast('Failed to save profile', 'error');
@@ -56,7 +88,7 @@ async function loadMatchPreferences() {
       headers: { 'Authorization': 'Bearer ' + session.access_token }
     });
     if (!resp.ok) return;
-    const prefs = await resp.json();
+    const prefs = await resp.json().catch(() => null);
     if (!prefs) return;
 
     const cats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
@@ -135,7 +167,7 @@ async function saveMatchPreferences() {
         matches_paused_until: pausedUntilIso
       })
     });
-    const result = await resp.json();
+    const result = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(result.error || 'Save failed');
     showToast('Match preferences saved!', 'success');
     if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(result.preferences || result);
@@ -185,6 +217,390 @@ window.saveMatchPreferences = saveMatchPreferences;
 window.toggleMatchPausedUntilRow = toggleMatchPausedUntilRow;
 window.resumeMatchesFromBanner = resumeMatchesFromBanner;
 window.updateMatchPauseBanner = updateMatchPauseBanner;
+
+// ========== RATE CARD (Phase 2 auto-bid redesign) ==========
+// State: the catalog + the caller's rate card. Both are fetched once on
+// panel open and kept in memory so per-row saves render optimistically
+// (server truth is re-read only on error). rateCardById maps item_key →
+// saved row so the render can distinguish "not on my card" from "priced".
+let rateCardCatalog = null;         // { categories: [{slug,label,items:[...]}, ...] }
+let rateCardByItemKey = new Map();  // item_key → server row
+let rateCardPendingKeys = new Set(); // item_keys currently in "add mode"
+                                     // (row shown but not yet saved)
+
+function _rateCardShowError(msg) {
+  const box = document.getElementById('rate-card-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+function _rateCardAuthHeaders(session) {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + session.access_token,
+  };
+}
+
+async function loadRateCard() {
+  const container = document.getElementById('rate-card-groups');
+  if (!container) return;
+  _rateCardShowError('');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    // Catalog is public (no auth required), but sending the header is cheap
+    // and matches the pattern used by other endpoints for consistency.
+    const [menuRes, cardRes] = await Promise.all([
+      fetch('/api/service-menu'),
+      fetch('/api/provider/rate-card', { headers: { 'Authorization': 'Bearer ' + session.access_token } }),
+    ]);
+    if (!menuRes.ok) throw new Error('service menu load failed');
+    if (!cardRes.ok) throw new Error('rate card load failed');
+
+    rateCardCatalog = await menuRes.json();
+    const cardPayload = await cardRes.json();
+    rateCardByItemKey = new Map();
+    for (const it of cardPayload.items || []) rateCardByItemKey.set(it.item_key, it);
+
+    renderRateCard();
+  } catch (err) {
+    console.error('loadRateCard error:', err);
+    _rateCardShowError('Could not load rate card. Refresh to try again.');
+  }
+}
+
+function renderRateCard() {
+  const container = document.getElementById('rate-card-groups');
+  const emptyEl = document.getElementById('rate-card-empty');
+  if (!container || !rateCardCatalog) return;
+  container.innerHTML = '';
+
+  // Only render categories that actually have priceable items in the current
+  // seed. Categories with items:[] would just be dead cards.
+  const categories = (rateCardCatalog.categories || []).filter(c => (c.items || []).length > 0);
+
+  const hasAnyPriced = rateCardByItemKey.size > 0;
+  if (emptyEl) emptyEl.style.display = hasAnyPriced ? 'none' : '';
+
+  for (const cat of categories) {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-weight:600;color:var(--accent-gold);font-size:var(--text-base);';
+    title.textContent = cat.label;
+    header.appendChild(title);
+    card.appendChild(header);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    for (const item of cat.items) {
+      list.appendChild(_renderRateCardRow(item));
+    }
+    card.appendChild(list);
+    container.appendChild(card);
+  }
+}
+
+function _renderRateCardRow(menuItem) {
+  const row = document.createElement('div');
+  row.dataset.itemKey = menuItem.item_key;
+  const saved = rateCardByItemKey.get(menuItem.item_key);
+  const isPending = rateCardPendingKeys.has(menuItem.item_key);
+
+  // Unpriced + not-in-add-mode: compact one-liner with an Add button.
+  if (!saved && !isPending) {
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+    row.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);">' + escHtml(menuItem.label) + '</span>';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn--secondary';
+    addBtn.style.cssText = 'padding:4px 12px;font-size:var(--text-sm);';
+    addBtn.textContent = '+ Add';
+    addBtn.onclick = () => {
+      rateCardPendingKeys.add(menuItem.item_key);
+      renderRateCard();
+      // Focus the new price input after render.
+      setTimeout(() => {
+        const el = document.querySelector('[data-item-key="' + CSS.escape(menuItem.item_key) + '"] .rate-price-input');
+        if (el) el.focus();
+      }, 0);
+    };
+    row.appendChild(addBtn);
+    return row;
+  }
+
+  // Priced OR pending: full editable row.
+  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+
+  const labelEl = document.createElement('div');
+  labelEl.style.cssText = 'font-size:var(--text-sm);color:var(--text-primary);';
+  labelEl.textContent = menuItem.label;
+  row.appendChild(labelEl);
+
+  const priceWrap = document.createElement('div');
+  priceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;';
+  priceWrap.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);">$</span>';
+  const priceInput = document.createElement('input');
+  priceInput.type = 'number';
+  priceInput.className = 'form-input rate-price-input';
+  priceInput.min = '1';
+  priceInput.step = '1';
+  priceInput.placeholder = '0';
+  priceInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  priceInput.value = saved ? String(Math.round(saved.price_cents / 100)) : '';
+  priceInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  priceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') priceInput.blur(); });
+  priceWrap.appendChild(priceInput);
+  row.appendChild(priceWrap);
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'form-input rate-type-input';
+  typeSelect.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  typeSelect.innerHTML = '<option value="fixed">Fixed</option><option value="starting_at">Starting at</option>';
+  typeSelect.value = (saved && saved.price_type) || 'fixed';
+  typeSelect.addEventListener('change', () => _rateCardMaybeSave(menuItem, row));
+  row.appendChild(typeSelect);
+
+  const condsInput = document.createElement('input');
+  condsInput.type = 'text';
+  condsInput.className = 'form-input rate-conds-input';
+  condsInput.maxLength = 500;
+  condsInput.placeholder = 'Conditions (optional)';
+  condsInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  condsInput.value = (saved && saved.conditions) || '';
+  condsInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  row.appendChild(condsInput);
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const activeLabel = document.createElement('label');
+  activeLabel.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer;';
+  const activeInput = document.createElement('input');
+  activeInput.type = 'checkbox';
+  activeInput.className = 'rate-active-input';
+  activeInput.checked = saved ? !!saved.active : true;
+  activeInput.addEventListener('change', () => _rateCardMaybeSave(menuItem, row));
+  activeLabel.appendChild(activeInput);
+  activeLabel.appendChild(document.createTextNode('Active'));
+  actions.appendChild(activeLabel);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn btn--secondary';
+  removeBtn.style.cssText = 'padding:4px 10px;font-size:var(--text-sm);color:var(--accent-red);';
+  removeBtn.textContent = 'Remove';
+  removeBtn.onclick = () => _rateCardRemove(menuItem);
+  actions.appendChild(removeBtn);
+  row.appendChild(actions);
+
+  return row;
+}
+
+async function _rateCardMaybeSave(menuItem, rowEl) {
+  const priceEl = rowEl.querySelector('.rate-price-input');
+  const typeEl = rowEl.querySelector('.rate-type-input');
+  const condsEl = rowEl.querySelector('.rate-conds-input');
+  const activeEl = rowEl.querySelector('.rate-active-input');
+  if (!priceEl) return;
+
+  const raw = priceEl.value.trim();
+  if (!raw) {
+    // Pending row cleared to empty → cancel add without a save.
+    if (rateCardPendingKeys.has(menuItem.item_key) && !rateCardByItemKey.has(menuItem.item_key)) {
+      rateCardPendingKeys.delete(menuItem.item_key);
+      renderRateCard();
+    }
+    return;
+  }
+  const dollars = Number(raw);
+  if (!Number.isFinite(dollars) || dollars < 1 || dollars > 100000) {
+    showToast('Enter a price between $1 and $100,000', 'error');
+    return;
+  }
+  const priceCents = Math.round(dollars * 100);
+  const priceType = typeEl && typeEl.value === 'starting_at' ? 'starting_at' : 'fixed';
+  const conditions = condsEl && condsEl.value.trim() ? condsEl.value.trim().slice(0, 500) : null;
+  const active = activeEl ? !!activeEl.checked : true;
+
+  const saved = rateCardByItemKey.get(menuItem.item_key);
+  if (saved
+      && saved.price_cents === priceCents
+      && saved.price_type === priceType
+      && (saved.conditions || null) === conditions
+      && !!saved.active === active) {
+    // No-op — nothing changed since last save.
+    return;
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/rate-card', {
+      method: 'POST',
+      headers: _rateCardAuthHeaders(session),
+      body: JSON.stringify({
+        item_key: menuItem.item_key,
+        price_cents: priceCents,
+        price_type: priceType,
+        conditions,
+        active,
+      }),
+    });
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok || !payload.item) throw new Error(payload.error || 'save failed');
+    rateCardByItemKey.set(menuItem.item_key, payload.item);
+    rateCardPendingKeys.delete(menuItem.item_key);
+    showToast('Rate saved', 'success');
+    renderRateCard();
+  } catch (err) {
+    console.error('rate card save error:', err);
+    showToast('Could not save this rate — try again', 'error');
+  }
+}
+
+async function _rateCardRemove(menuItem) {
+  // If the row is only a pending add (never actually saved), skip the API call.
+  if (!rateCardByItemKey.has(menuItem.item_key)) {
+    rateCardPendingKeys.delete(menuItem.item_key);
+    renderRateCard();
+    return;
+  }
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/rate-card?item_key=' + encodeURIComponent(menuItem.item_key), {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + session.access_token },
+    });
+    if (!resp.ok) throw new Error('delete failed');
+    rateCardByItemKey.delete(menuItem.item_key);
+    rateCardPendingKeys.delete(menuItem.item_key);
+    showToast('Removed', 'success');
+    renderRateCard();
+  } catch (err) {
+    console.error('rate card remove error:', err);
+    showToast('Could not remove this rate — try again', 'error');
+  }
+}
+
+window.loadRateCard = loadRateCard;
+// ========== END RATE CARD ==========
+
+// ========== AUTO-BID ACTIVITY (Phase 7 auto-bid redesign) ==========
+// Ledger (GET /api/auto-bid-ledger) is read-only — see that file's own
+// header comment. The daily cap (GET/PATCH /api/auto-bid-daily-cap) is a
+// separate, small write path. Loaded together since they render into the
+// same card, but kept as two requests because they're two different
+// backend concerns (activity stats vs. a notification preference) — same
+// separation the endpoints themselves keep.
+
+function _autoBidActivityShowError(msg) {
+  const box = document.getElementById('auto-bid-activity-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+async function loadAutoBidActivity() {
+  const panel = document.getElementById('auto-bid-activity-panel');
+  if (!panel) return;
+  _autoBidActivityShowError('');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    const headers = { 'Authorization': 'Bearer ' + session.access_token };
+    const [ledgerRes, capRes] = await Promise.all([
+      fetch('/api/auto-bid-ledger', { headers }),
+      fetch('/api/auto-bid-daily-cap', { headers }),
+    ]);
+    if (!ledgerRes.ok) throw new Error('ledger load failed');
+    if (!capRes.ok) throw new Error('daily cap load failed');
+
+    const ledger = await ledgerRes.json();
+    const cap = await capRes.json();
+
+    renderAutoBidActivity(ledger);
+    const capInput = document.getElementById('ab-daily-cap-input');
+    if (capInput) capInput.value = (cap && typeof cap.daily_cap === 'number') ? cap.daily_cap : '';
+  } catch (err) {
+    console.error('loadAutoBidActivity error:', err);
+    _autoBidActivityShowError('Could not load auto-bid activity. Refresh to try again.');
+  }
+}
+
+function renderAutoBidActivity(ledger) {
+  const emptyEl = document.getElementById('auto-bid-activity-empty');
+  const statsEl = document.getElementById('auto-bid-activity-stats');
+  if (!emptyEl || !statsEl || !ledger || !ledger.all_time) return;
+
+  const allTime = ledger.all_time;
+  if (allTime.total === 0) {
+    emptyEl.style.display = '';
+    statsEl.style.display = 'none';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  statsEl.style.display = '';
+
+  const totalEl = document.getElementById('ab-activity-total');
+  const confirmedEl = document.getElementById('ab-activity-confirmed');
+  const pendingEl = document.getElementById('ab-activity-pending');
+  const sevenDayEl = document.getElementById('ab-activity-7day');
+  const confirmedAmountEl = document.getElementById('ab-activity-confirmed-amount');
+
+  if (totalEl) totalEl.textContent = String(allTime.total);
+  if (confirmedEl) confirmedEl.textContent = String(allTime.confirmed);
+  if (pendingEl) pendingEl.textContent = String(allTime.pending);
+  if (sevenDayEl) sevenDayEl.textContent = String((ledger.last_7_days && ledger.last_7_days.total) || 0);
+  if (confirmedAmountEl) {
+    const dollars = Math.round((ledger.confirmed_prefilled_amount_cents || 0) / 100);
+    confirmedAmountEl.textContent = allTime.confirmed > 0
+      ? `Prefilled amount across your ${allTime.confirmed} confirmed bid${allTime.confirmed === 1 ? '' : 's'}: $${dollars.toLocaleString()} (the amount pre-filled at confirm time — if you edited a bid before confirming, the actual amount may differ).`
+      : '';
+  }
+}
+
+async function saveAutoBidDailyCap() {
+  const input = document.getElementById('ab-daily-cap-input');
+  const savedMsg = document.getElementById('ab-daily-cap-saved-msg');
+  if (!input) return;
+  _autoBidActivityShowError('');
+
+  const raw = input.value.trim();
+  const dailyCap = raw === '' ? null : parseInt(raw, 10);
+  if (dailyCap !== null && (!Number.isInteger(dailyCap) || dailyCap <= 0)) {
+    _autoBidActivityShowError('Daily cap must be a whole number greater than 0, or blank for unlimited.');
+    return;
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const resp = await fetch('/api/auto-bid-daily-cap', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ daily_cap: dailyCap }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || 'save failed');
+    }
+    if (savedMsg) {
+      savedMsg.style.display = '';
+      setTimeout(() => { savedMsg.style.display = 'none'; }, 2500);
+    }
+  } catch (err) {
+    console.error('saveAutoBidDailyCap error:', err);
+    _autoBidActivityShowError('Could not save your daily cap — try again.');
+  }
+}
+
+window.loadAutoBidActivity = loadAutoBidActivity;
+window.saveAutoBidDailyCap = saveAutoBidDailyCap;
+// ========== END AUTO-BID ACTIVITY ==========
 
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
@@ -503,15 +919,20 @@ async function loadBackgroundCheckStatus(opts = {}) {
 
   if (!providerContainer && !teamContainer && !dashCard) return;
 
+  // 2026-09-11: reinstated. bgc-provider-status.js (/api/provider/bgc/status/:id)
+  // now backs this -- previously dead-called at /api/bgcheck/status/:id (see
+  // git history for the "Audit Batch 2 (2026-07-16)" placeholder this
+  // replaced). ClearChecks/BackgroundChecks.com is the live vendor (Checkr
+  // was retired) -- confirmed with Jordan 2026-09-11.
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const effectiveId = providerProfile?.team_provider_id || currentUser?.id;
-    const response = await fetch(`/api/bgcheck/status/${effectiveId}`, {
+    const response = await fetch(`/api/provider/bgc/status/${effectiveId}`, {
       headers: { 'Authorization': `Bearer ${session?.access_token}` }
     });
 
     if (!response.ok) throw new Error('Failed to fetch background check status');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     const lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // ---- Provider's own check ----
@@ -551,7 +972,7 @@ async function loadBackgroundCheckStatus(opts = {}) {
           ${pc.invitation_url && ['initiated','pending'].includes(pc.status) ? `
             <div style="margin-top:12px;padding:12px 14px;background:var(--accent-gold-soft);border:1px solid rgba(201,162,39,0.3);border-radius:var(--radius-md);font-size:0.85rem;">
               <strong style="color:var(--accent-gold);">Action needed:</strong> Complete your application at BackgroundChecks.com.
-              <a href="${pc.invitation_url}" target="_blank" rel="noopener" class="btn btn-sm btn-gold" style="margin-left:12px;">Open Application</a>
+              <a href="${pc.invitation_url}" target="_blank" rel="noopener" class="btn btn-sm btn-gold" style="margin-inline-start:12px;">Open Application</a>
             </div>` : ''}
           <div style="margin-top:14px;display:flex;gap:8px;">
             <button class="btn btn-secondary btn-sm" onclick="loadBackgroundCheckStatus()">${mccIcon('refresh-cw', 14)} Refresh</button>
@@ -632,10 +1053,20 @@ async function loadBackgroundCheckStatus(opts = {}) {
   } catch (err) {
     console.error('Error loading background check status:', err);
     if (!opts?.silent) {
-      const errMsg = `<div style="padding:16px;color:var(--text-muted);font-size:0.9rem;">Unable to load check status. Please try again.</div>`;
-      if (providerContainer) providerContainer.innerHTML = errMsg;
-      if (teamContainer) teamContainer.innerHTML = errMsg;
-      if (dashCard) dashCard.innerHTML = `<div style="font-size:0.85rem;color:var(--text-muted);">Unable to load</div>`;
+      // Fail gracefully for App Store submission — keep each surface visible as an entry
+      // point to verification; only the error string is swapped for a neutral, actionable
+      // label. The dashboard card also renders the Start Check button so it stays
+      // actionable. The 404 root cause is a separate concern; this block only handles UI.
+      const neutralMsg = `<div style="padding:16px;color:var(--text-muted);font-size:0.9rem;">Get verified — complete setup for your trust badge.</div>`;
+      if (providerContainer) providerContainer.innerHTML = neutralMsg;
+      if (teamContainer) teamContainer.innerHTML = neutralMsg;
+      if (dashCard) {
+        dashCard.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="font-size:0.85rem;color:var(--text-muted);">Get verified — complete setup for your trust badge.</div>
+            <button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">${mccIcon('shield', 14)} Start Check</button>
+          </div>`;
+      }
     }
   }
 }
@@ -738,7 +1169,7 @@ async function submitBackgroundCheck() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const providerId = providerProfile?.team_provider_id || currentUser?.id;
-    const response = await fetch('/api/bgcheck/initiate', {
+    const response = await fetch('/api/provider/bgc/initiate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -759,7 +1190,7 @@ async function submitBackgroundCheck() {
       })
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Failed to initiate background check');
 
     closeModal('background-check-modal');
@@ -782,6 +1213,9 @@ async function submitBackgroundCheck() {
 }
 
 async function viewBgCheckReport(checkId) {
+  // 2026-09-11: reinstated. bgc-provider-report-url.js
+  // (/api/provider/bgc/report-url/:id) now backs this -- previously
+  // dead-called at /api/bgcheck/report-url/:id.
   const modal = document.getElementById('bg-report-viewer-modal');
   const iframe = document.getElementById('bg-report-viewer-iframe');
   const loader = document.getElementById('bg-report-viewer-loader');
@@ -797,10 +1231,10 @@ async function viewBgCheckReport(checkId) {
 
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const response = await fetch(`/api/bgcheck/report-url/${checkId}`, {
+    const response = await fetch(`/api/provider/bgc/report-url/${checkId}`, {
       headers: { 'Authorization': `Bearer ${session?.access_token}` }
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Unable to load report');
 
     if (!data.reportUrl) {
@@ -843,7 +1277,7 @@ async function loadVerificationBadgeStatus() {
     });
     
     if (!response.ok) throw new Error('Failed to fetch verification status');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     const badgeIcon = data.badgeEarned ? '✅' : `${mccIcon('lock', 14)}`;
     const badgeColor = data.badgeEarned ? 'var(--accent-green)' : 'var(--text-muted)';
@@ -890,6 +1324,7 @@ async function loadVerificationBadgeStatus() {
               <span>${data.verifiedEmployees}/${data.totalEmployees}</span>
             </div>
             <div style="background:var(--bg-input);border-radius:var(--radius-full);height:8px;overflow:hidden;">
+              <!-- RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506. -->
               <div style="background:linear-gradient(90deg, var(--accent-green), #4ade80);height:100%;width:${data.totalEmployees > 0 ? (data.verifiedEmployees / data.totalEmployees * 100) : 0}%;transition:width 0.3s ease;"></div>
             </div>
           </div>
@@ -897,7 +1332,7 @@ async function loadVerificationBadgeStatus() {
         
         ${pendingHtml}
         
-        <div style="margin-top:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+        <div style="margin-top:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
           <div style="display:flex;align-items:flex-start;gap:10px;">
             <span style="font-size:1.1rem;">${mccIcon('lightbulb', 14)}</span>
             <div style="font-size:0.85rem;color:var(--text-secondary);">
@@ -1032,6 +1467,36 @@ async function loadLoyaltyNetwork() {
   ]);
 }
 
+// Advance the POS check-in wizard to step N (1-6). Toggles .active on the
+// stepper header dot AND on the corresponding #pos-step-N content div,
+// marks earlier steps .completed for the progress checkmark, and updates
+// the #pos-stepper-fill progress bar width proportionally. Called at
+// walkin-save step-1 (:1922) and OTP-verify success (:1966); both call
+// sites currently `typeof`-guard the call so the wizard silently stayed on
+// step 1 until this function was defined. See providers.html:5877 for the
+// stepper DOM shape.
+function posGoToStep(step) {
+  const n = Math.max(1, Math.min(6, Number(step) || 1));
+  const stepper = document.getElementById('pos-stepper');
+  if (!stepper) return;
+  // Header dots.
+  stepper.querySelectorAll('.pos-step').forEach(el => {
+    const idx = Number(el.dataset.step) || 0;
+    el.classList.remove('active', 'completed');
+    if (idx < n) el.classList.add('completed');
+    else if (idx === n) el.classList.add('active');
+  });
+  // Progress bar fill — 6 steps → 5 gaps → each gap is 20% of total width.
+  const fill = document.getElementById('pos-stepper-fill');
+  if (fill) fill.style.width = ((n - 1) / 5 * 100) + '%';
+  // Content panels.
+  for (let i = 1; i <= 6; i++) {
+    const panel = document.getElementById('pos-step-' + i);
+    if (!panel) continue;
+    panel.classList.toggle('active', i === n);
+  }
+}
+
 async function loadLoyaltyQrCode() {
   const container = document.getElementById('loyalty-qr-container');
   if (!container) return;
@@ -1048,8 +1513,8 @@ async function loadLoyaltyQrCode() {
       </div>
     `;
     
-    if (typeof QRCreator !== 'undefined') {
-      QRCreator.render({
+    if (typeof QrCreator !== 'undefined') {
+      QrCreator.render({
         text: referralLink,
         radius: 0.4,
         ecLevel: 'M',
@@ -1130,8 +1595,8 @@ async function loadProviderReferrals() {
   try {
     const { data } = await supabaseClient
       .from('provider_referrals')
-      .select('*, referred:referred_id(business_name, full_name, email)')
-      .eq('referrer_id', currentUser.id)
+      .select('*, referred:referred_user_id(business_name, full_name, email)')
+      .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
     
     if (!data || data.length === 0) {
@@ -1190,9 +1655,9 @@ async function toggleQrCheckin(enabled) {
       },
       body: JSON.stringify({ enabled })
     });
-    
-    const data = await response.json();
-    
+
+    const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to update QR check-in setting');
     }
@@ -1240,7 +1705,7 @@ async function toggleDirectoryOptIn() {
       body: JSON.stringify({ opt_in: optIn })
     });
 
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to update');
 
     providerProfile.directory_opt_in = data.directory_opt_in;
@@ -1443,7 +1908,11 @@ async function loadProviderPushPreferences() {
     const resp = await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await resp.json();
+    if (!resp.ok) {
+      console.warn('[loadProviderPushPreferences] notification-preferences returned', resp.status);
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
     const prefs = data.preferences || {};
     PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
       const el = document.getElementById(id);
@@ -1488,7 +1957,11 @@ async function loadShopSubscription() {
     const res = await fetch(`${apiBase}/api/saas/shop-status`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadShopSubscription] /api/saas/shop-status returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const planBadge = document.getElementById('shop-sub-plan');
     const statusBadge = document.getElementById('shop-sub-status');
@@ -1541,12 +2014,17 @@ async function loadShopSubscription() {
 }
 
 function openShopUpgradeModal() {
+  // Feature gate (ships dark for launch). Server enforces too.
+  if (!window._mccFlags?.shop_saas_enabled) {
+    if (typeof showToast === 'function') showToast('Shop subscription plans are coming soon.', 'info');
+    return;
+  }
   const plan = window._shopSaasData?.plan || 'none';
   const modalHtml = `
     <div id="shop-upgrade-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
       <div style="background:#1a2029;border:1px solid rgba(201,162,39,0.3);border-radius:20px;max-width:580px;width:100%;padding:32px;max-height:90vh;overflow-y:auto;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 style="font-family:'Playfair Display',serif;font-size:1.4rem;">Shop Subscription Plans</h3>
+          <h3 style="font-family:'Fraunces',serif;font-size:1.4rem;">Shop Subscription Plans</h3>
           <button onclick="document.getElementById('shop-upgrade-modal').remove()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:1.4rem;line-height:1;">&times;</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">
@@ -1580,7 +2058,12 @@ async function selectShopPlan(planKey) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ product: 'shop', plan: planKey })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      document.getElementById('shop-upgrade-modal')?.remove();
+      showToast(data.error || 'Failed to start checkout', 'error');
+      return;
+    }
     document.getElementById('shop-upgrade-modal')?.remove();
     if (data.url) {
       window.location.href = data.url;
@@ -1601,7 +2084,11 @@ async function loadMarketplaceVisibility() {
     const res = await fetch(`${apiBase}/api/provider/marketplace-visibility`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadMarketplaceVisibility] /api/provider/marketplace-visibility returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
     const toggle = document.getElementById('marketplace-visible-toggle');
     const shopOnlyToggle = document.getElementById('shop-only-mode-toggle');
     const statusText = document.getElementById('marketplace-status-text');
@@ -1653,7 +2140,11 @@ async function walkinLookupByPhone() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-lookup phone] returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const renderCustomerCard = (c) => {
       const vehicles = c.vehicles || [];
@@ -1697,7 +2188,11 @@ async function walkinLookupByName() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?name=${encodeURIComponent(name)}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-lookup name] returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const renderCustomerCard = (c) => {
       const vehicles = c.vehicles || [];
@@ -1754,7 +2249,11 @@ async function loadShopOnboardingChecklist() {
     const res = await fetch(`${apiBase}/api/shop/onboarding-status`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadShopOnboardingChecklist] /api/shop/onboarding-status returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
     renderShopOnboardingChecklist(data.steps || {});
   } catch (err) {
     console.error('[Onboarding] Load error:', err);
@@ -1784,6 +2283,7 @@ function renderShopOnboardingChecklist(steps) {
         <span style="font-size:0.82rem;color:#6b7280;">${completed}/${total} complete</span>
       </div>
       <div style="height:6px;background:rgba(160,168,184,0.15);border-radius:3px;">
+        <!-- RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506. -->
         <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#c9a227,#e8bc5a);border-radius:3px;transition:width 0.4s;"></div>
       </div>
     </div>
@@ -1827,7 +2327,11 @@ async function posLookupCustomer() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
       headers: session ? { 'Authorization': `Bearer ${session.access_token}` } : {}
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-save step1] walkin-lookup returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     // Move to step 2 - verify/info step
     if (typeof posGoToStep === 'function') posGoToStep(2);
@@ -1905,7 +2409,7 @@ async function loadBusinessHours() {
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
       <div style="width:100px;font-size:0.88rem;font-weight:600;">${DAY_LABELS[day]}</div>
       <input type="checkbox" id="hours-closed-${day}" ${h.closed ? 'checked' : ''} onchange="toggleDayClosed('${day}')" style="width:16px;height:16px;accent-color:var(--accent-gold);" title="Closed">
-      <label for="hours-closed-${day}" style="font-size:0.82rem;color:var(--text-muted);margin-right:8px;">Closed</label>
+      <label for="hours-closed-${day}" style="font-size:0.82rem;color:var(--text-muted);margin-inline-end:8px;">Closed</label>
       <div id="hours-time-${day}" style="display:flex;align-items:center;gap:8px;${h.closed ? 'opacity:0.3;pointer-events:none;' : ''}">
         <input type="time" id="hours-open-${day}" value="${h.open || '09:00'}" class="form-input" style="padding:6px 8px;font-size:0.85rem;width:120px;">
         <span style="color:var(--text-muted);font-size:0.85rem;">–</span>
@@ -1949,103 +2453,3 @@ async function saveBusinessHours() {
 }
 // ========== END BUSINESS HOURS EDITOR ==========
 
-// ========== AUTO-BID SETTINGS ==========
-async function loadAutoBidSettings() {
-  if (typeof currentUser === 'undefined' || !currentUser) return;
-  try {
-    const res = await fetch('/api/auto-bid/settings', {
-      headers: { 'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session?.access_token }
-    });
-    if (!res.ok) return;
-    const d = await res.json();
-    const enabled = d.auto_bid_enabled || false;
-    const toggle = document.getElementById('auto-bid-toggle');
-    const slider = document.getElementById('auto-bid-slider');
-    const thumb = document.getElementById('auto-bid-thumb');
-    const label = document.getElementById('auto-bid-status-label');
-    if (toggle) toggle.checked = enabled;
-    applyAutoBidToggleStyle(enabled, slider, thumb, label);
-    const dist = document.getElementById('ab-max-distance');
-    if (dist) dist.value = d.auto_bid_max_distance_miles || 25;
-    const pct = document.getElementById('ab-pct');
-    if (pct) {
-      pct.value = d.auto_bid_percent_of_estimate || 85;
-      const pctLabel = document.getElementById('ab-pct-label');
-      if (pctLabel) pctLabel.textContent = (d.auto_bid_percent_of_estimate || 85) + '%';
-    }
-    const types = d.auto_bid_service_types || [];
-    document.querySelectorAll('.ab-svc-chip').forEach(chip => {
-      chip.classList.toggle('active', types.includes(chip.dataset.type));
-    });
-    await updateAutoBidPreview();
-  } catch (e) {
-    console.error('Auto-bid load error', e);
-  }
-}
-
-function applyAutoBidToggleStyle(on, slider, thumb, label) {
-  if (!slider || !thumb || !label) {
-    slider = document.getElementById('auto-bid-slider');
-    thumb = document.getElementById('auto-bid-thumb');
-    label = document.getElementById('auto-bid-status-label');
-  }
-  if (slider) slider.style.background = on ? 'var(--accent-gold)' : 'var(--bg-input)';
-  if (slider) slider.style.borderColor = on ? 'var(--accent-gold)' : 'var(--border-subtle)';
-  if (thumb) { thumb.style.left = on ? '24px' : '2px'; thumb.style.background = on ? 'var(--bg-deep)' : 'var(--text-muted)'; }
-  if (label) { label.textContent = on ? 'Enabled' : 'Disabled'; label.style.color = on ? 'var(--accent-gold)' : 'var(--text-muted)'; }
-}
-
-function onAutoBidToggle(checked) {
-  applyAutoBidToggleStyle(checked);
-}
-
-function toggleAbServiceType(el) {
-  el.classList.toggle('active');
-  updateAutoBidPreview();
-}
-
-async function updateAutoBidPreview() {
-  const countEl = document.getElementById('ab-preview-count');
-  if (!countEl) return;
-  try {
-    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
-    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
-    const params = new URLSearchParams({ max_distance: dist });
-    if (selected.length) params.set('service_types', selected.join(','));
-    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
-    const res = await fetch('/api/care-plans/preview?' + params, { headers: { 'Authorization': 'Bearer ' + token } });
-    if (!res.ok) { countEl.textContent = '—'; return; }
-    const d = await res.json();
-    const n10 = d.count_of_last_10 || 0;
-    countEl.textContent = `${n10} of the last 10 plans posted match your settings`;
-  } catch (e) {
-    countEl.textContent = '—';
-  }
-}
-
-async function saveAutoBidSettings() {
-  try {
-    const enabled = document.getElementById('auto-bid-toggle')?.checked || false;
-    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
-    const pct = Number.parseInt(document.getElementById('ab-pct')?.value || 85);
-    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
-    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
-    const res = await fetch('/api/auto-bid/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({
-        auto_bid_enabled: enabled,
-        auto_bid_max_distance_miles: dist,
-        auto_bid_percent_of_estimate: pct,
-        auto_bid_service_types: selected
-      })
-    });
-    if (!res.ok) throw new Error('Save failed');
-    showToast('Auto-bid settings saved!', 'success');
-  } catch (e) {
-    showToast('Failed to save auto-bid settings: ' + e.message, 'error');
-  }
-}
-// ========== END AUTO-BID SETTINGS ==========

@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Provider Club — My Car Concierge</title>
+  <script>
+    // Theme init (mirrors car-club-member.html:6-11).
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css?v=20260219">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-red: #f87171;
+      --accent-red-soft: rgba(248, 113, 113, 0.15);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    /* Header */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .header-club { display: flex; flex-direction: column; gap: 4px; }
+    .club-name {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 1.8rem;
+      color: var(--accent-gold);
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .header-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .header-provider { display: flex; align-items: center; gap: 16px; }
+    .provider-identity {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .sign-out-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .sign-out-btn:hover {
+      border-color: var(--accent-gold);
+      color: var(--text-primary);
+    }
+
+    /* Suspended banner */
+    .suspended-banner {
+      background: var(--accent-red-soft);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      color: var(--accent-red);
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      margin-bottom: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .suspended-banner-icon { font-size: 1.2rem; }
+
+    /* Two-column operate grid — tablet landscape */
+    .operate-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .operate-card {
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .operate-card h2 {
+      margin: 0 0 20px;
+      font-size: 1.4rem;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .operate-card-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Step-1 placeholders (steps 2 and 3 replace these) */
+    .placeholder {
+      width: 100%;
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--border-subtle);
+    }
+
+    /* State containers */
+    .state-loading, .state-empty {
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 80px 32px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .state-loading .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Punch flow (Step 2) */
+    .punch-container { width: 100%; padding: 8px; }
+    .punch-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #12161c;
+      border: none;
+      padding: 12px 28px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-large { padding: 16px 40px; font-size: 1.05rem; }
+    .btn-link {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 8px 12px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .btn-link:hover { color: var(--text-primary); }
+    .text-input {
+      width: 100%;
+      max-width: 320px;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 1rem;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .text-input:focus { border-color: var(--accent-gold); }
+    .input-label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      align-self: flex-start;
+      margin-left: max(calc(50% - 160px), 0px);
+    }
+    .qr-reader {
+      width: 100%;
+      max-width: 320px;
+      min-height: 260px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .scanning-hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin: 0;
+    }
+    .confirm-message { text-align: center; padding: 12px 0; }
+    .confirm-message p { margin: 0 0 8px; color: var(--text-primary); font-size: 1.1rem; }
+    .confirm-message .confirm-hint {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    .button-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Validate flow (Step 3) — reuses .text-input / .btn-primary / .btn-link /
+       .button-row / .confirm-message / .spinner from the Punch flow. */
+    .validate-container { width: 100%; padding: 8px; }
+    .validate-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    /* Voucher code input: monospace, letter-spaced, centered, uppercase.
+       Server also normalizes case at car-clubs.js:662, so this is a
+       display-and-defense-in-depth aid. */
+    .voucher-code-input {
+      text-transform: uppercase;
+      font-family: 'SF Mono', Menlo, Consolas, 'Roboto Mono', monospace;
+      letter-spacing: 0.15em;
+      text-align: center;
+      font-size: 1.2rem;
+    }
+    .voucher-code-input::placeholder {
+      letter-spacing: normal;
+      font-family: inherit;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      text-transform: none;
+    }
+    .state-loading p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+
+    .state-empty h2 {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin: 0 0 16px;
+      font-size: 1.6rem;
+    }
+    .state-empty p {
+      color: var(--text-secondary);
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .state-empty a {
+      color: var(--accent-gold);
+      text-decoration: none;
+    }
+    .state-empty a:hover { text-decoration: underline; }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-medium);
+      color: var(--text-primary);
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      font-size: 0.9rem;
+      animation: toastIn 0.2s ease;
+    }
+    .toast.error { border-color: rgba(248,113,113,0.5); }
+    .toast.success { border-color: rgba(52,211,153,0.5); }
+    @keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* iPhone portrait / narrow — stack columns. iPad (>=768pt both dims) keeps grid. */
+    @media (max-width: 767px) {
+      .operate-grid { grid-template-columns: 1fr; }
+      .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .container { padding: 16px; }
+    }
+
+    /* iPad tablet polish — scales the intake console for the primary
+       operational device. Additive over the base rules; phone unchanged. */
+    @media (min-width: 768px) and (min-height: 768px) {
+      .operate-card { min-height: 560px; padding: 36px; }
+      .operate-card h2 { font-size: 1.7rem; margin-bottom: 28px; }
+      .btn-primary { padding: 14px 32px; font-size: 1.05rem; }
+      .btn-large { padding: 20px 48px; font-size: 1.2rem; }
+      .btn-link { font-size: 1rem; padding: 12px 16px; }
+      .scanning-hint { font-size: 1rem; }
+      .confirm-message p { font-size: 1.25rem; }
+      .confirm-message .confirm-hint { font-size: 1rem; }
+      .qr-reader { max-width: 440px; min-height: 380px; }
+      .text-input { max-width: 420px; font-size: 1.1rem; padding: 14px 18px; }
+      .voucher-code-input { font-size: 1.6rem; letter-spacing: 0.2em; }
+      .input-label { font-size: 0.95rem; margin-left: max(calc(50% - 210px), 0px); }
+    }
+
+    /* iPad landscape (>=1024pt wide, e.g. 11" landscape 1194pt, 13" landscape
+       1366pt): center the operate console with a max-width so the two cards
+       don't strand in acres of empty gutter. Cards keep their proportion but
+       grow slightly taller for the extra vertical room the landscape shell
+       leaves after the compact header. */
+    @media (min-width: 1024px) and (min-height: 768px) {
+      .container { max-width: 1200px; padding: 40px 56px; }
+      .operate-grid { gap: 40px; }
+      .operate-card { min-height: 640px; padding: 44px; }
+      .operate-card h2 { font-size: 1.9rem; margin-bottom: 32px; }
+      .qr-reader { max-width: 520px; min-height: 440px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Initial loading state, hidden once /my-provider-clubs resolves -->
+    <div id="state-loading" class="state-loading">
+      <div class="spinner"></div>
+      <p>Loading your club…</p>
+    </div>
+
+    <!-- Empty state, shown when clubs: [] (no provisioned club OR flag off; deliberately indistinguishable per D4) -->
+    <div id="state-empty" class="state-empty" style="display:none;">
+      <h2>No club is set up yet</h2>
+      <p>
+        Contact <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a>
+        to get your Car Club provisioned.
+      </p>
+    </div>
+
+    <!-- Main frame, shown when clubs[0] present -->
+    <div id="state-main" style="display:none;">
+      <header class="page-header">
+        <div class="header-club">
+          <h1 id="club-name" class="club-name">Club</h1>
+          <span class="header-subtitle">Loyalty program operator console</span>
+        </div>
+        <div class="header-provider">
+          <span id="provider-identity" class="provider-identity"></span>
+          <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+        </div>
+      </header>
+
+      <!-- Shown only when club.is_active === false OR club.provider_suspended === true -->
+      <div id="suspended-banner" class="suspended-banner" style="display:none;">
+        <span class="suspended-banner-icon">⚠</span>
+        <span id="suspended-banner-message">Your club is suspended. Contact support to reactivate.</span>
+      </div>
+
+      <main class="operate-grid">
+        <!-- PUNCH column (Step 2 fills this) -->
+        <section class="operate-card">
+          <h2>Punch a Member</h2>
+          <div class="operate-card-body">
+            <div id="punch-body" class="punch-container">
+              <!-- IDLE (default) -->
+              <div id="punch-idle" class="punch-view">
+                <button class="btn-primary btn-large" onclick="startPunchScan()">Scan Member QR</button>
+                <button class="btn-link" onclick="showManualEntry()">Enter code manually</button>
+              </div>
+
+              <!-- SCANNING -->
+              <div id="punch-scanning" class="punch-view" style="display:none;">
+                <div id="qr-reader-punch" class="qr-reader"></div>
+                <p class="scanning-hint">Point camera at member's Check-In QR</p>
+                <button class="btn-link" onclick="cancelPunchScan()">Cancel</button>
+              </div>
+
+              <!-- MANUAL entry -->
+              <div id="punch-manual" class="punch-view" style="display:none;">
+                <label class="input-label" for="punch-manual-input">Member code</label>
+                <input type="text" id="punch-manual-input" class="text-input" placeholder="Paste or type code" autocomplete="off" spellcheck="false" />
+                <div class="button-row">
+                  <button class="btn-primary" onclick="previewManualPunch()">Preview</button>
+                  <button class="btn-link" onclick="cancelPunchManual()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- CONFIRM gate — BOTH scan and manual paths converge here. Generic
+                   "Award a punch to this member?" is intentional per Slice 3 pilot
+                   scope: pilot has one trusted provider (Chris) scanning members
+                   he can see in front of him, so a member-name preview would need
+                   either a new /member-by-token endpoint or a return-name mode on
+                   /punch — both out of pilot scope. Post-pilot nice-to-have in §9a. -->
+              <div id="punch-confirm" class="punch-view" style="display:none;">
+                <div class="confirm-message">
+                  <p><strong>Award a punch to this member?</strong></p>
+                  <p class="confirm-hint">This will add +1 point to their balance in this club.</p>
+                </div>
+                <div class="button-row">
+                  <button id="punch-confirm-btn" class="btn-primary btn-large" onclick="confirmPunch()">Confirm</button>
+                  <button class="btn-link" onclick="cancelPunchConfirm()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- SUBMITTING -->
+              <div id="punch-submitting" class="punch-view" style="display:none;">
+                <div class="spinner"></div>
+                <p style="color:var(--text-secondary);margin:0;">Recording punch…</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VALIDATE column (Step 3 fills this) -->
+        <section class="operate-card">
+          <h2>Validate a Voucher</h2>
+          <div class="operate-card-body">
+            <div id="validate-body" class="validate-container">
+              <!-- IDLE (default) — text input + Validate button -->
+              <div id="validate-idle" class="validate-view">
+                <label class="input-label" for="validate-input">Voucher code</label>
+                <input type="text" id="validate-input" class="text-input voucher-code-input"
+                       placeholder="Enter 8-char code"
+                       autocomplete="off" spellcheck="false" autocapitalize="characters" />
+                <button class="btn-primary btn-large" onclick="previewValidate()">Validate</button>
+              </div>
+
+              <!-- CONFIRM gate — the sole choke-point between "we have a code" and
+                   "we've fired POST /validate-voucher". Validation CONSUMES the
+                   voucher (marks status='fulfilled'), so a Confirm click is
+                   required to prevent double-consume / accidental submits.
+                   No pre-lookup or reward-name preview per pilot scope; §9a
+                   covers the preview as a post-pilot nice-to-have. -->
+              <div id="validate-confirm" class="validate-view" style="display:none;">
+                <div class="confirm-message">
+                  <p><strong>Redeem voucher <span id="validate-confirm-code"></span>?</strong></p>
+                  <p class="confirm-hint">This marks it as used — the member cannot redeem this code again.</p>
+                </div>
+                <div class="button-row">
+                  <button id="validate-confirm-btn" class="btn-primary btn-large" onclick="confirmValidate()">Confirm</button>
+                  <button class="btn-link" onclick="cancelValidateConfirm()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- SUBMITTING — buttons hidden entirely during flight (prevents
+                   double-consume by re-click). Returns to idle in the finally
+                   block of submitValidate. -->
+              <div id="validate-submitting" class="validate-view" style="display:none;">
+                <div class="spinner"></div>
+                <p style="color:var(--text-secondary);margin:0;">Validating…</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- External scripts -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js?v=20260219"></script>
+  <script src="mcc-config.js?v=20260219"></script>
+  <!-- html5-qrcode: pinned to match providers.html:35 byte-for-byte. Loaded now
+       so it's ready for Step 2's scanner wiring; not initialized here. -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+
+  <script>
+    // Page-scope state — populated on successful init.
+    let currentUser = null;   // Supabase session user
+    let currentClub = null;   // resolved from /api/car-club/my-provider-clubs → clubs[0]
+
+    // Toast helper (mirrors car-club-member.html shape).
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function getApiBase() {
+      return (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    }
+
+    // Token from JWT-verified Supabase session. Mirrors car-club-member.html:726-731.
+    async function getToken() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        return session?.access_token || null;
+      } catch (e) { return null; }
+    }
+
+    // apiFetch — mirrors car-club-member.html:733-744 exactly.
+    // Any 401-shaped case (missing token / expired session) → redirect to
+    // /login.html, same as the member surface does.
+    async function apiFetch(path, opts = {}) {
+      const token = await getToken();
+      if (!token) {
+        showToast('Please log in to continue', 'error');
+        window.location.href = '/login.html';
+        return null;
+      }
+      const base = getApiBase();
+      const res = await fetch(`${base}${path}`, {
+        ...opts,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(opts.headers || {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function signOut() {
+      try { await supabaseClient.auth.signOut(); } catch (_) {}
+      window.location.href = '/login.html';
+    }
+
+    // Render helpers.
+    function showLoadingState() {
+      document.getElementById('state-loading').style.display = '';
+      document.getElementById('state-empty').style.display = 'none';
+      document.getElementById('state-main').style.display = 'none';
+    }
+    function showEmptyState() {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-empty').style.display = '';
+      document.getElementById('state-main').style.display = 'none';
+    }
+    function showMainState() {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-empty').style.display = 'none';
+      document.getElementById('state-main').style.display = '';
+    }
+
+    function renderFrame(club, user) {
+      document.getElementById('club-name').textContent = club.name || 'Your Club';
+      // Provider identity: email preferred, uid fallback (some providers may be
+      // phone-only auth without a populated email).
+      const ident = user?.email || (user?.id ? `Provider ${user.id.slice(0, 8)}` : 'Signed in');
+      document.getElementById('provider-identity').textContent = ident;
+
+      // Optional theme-color tinting from the club's chosen color.
+      if (club.theme_color) {
+        document.getElementById('club-name').style.color = club.theme_color;
+      }
+
+      // Suspended / inactive banner. Rendered but the operate UI stays visible —
+      // Chris still needs to see this is his club (not silently 404 subsequent
+      // calls). Server enforces the guard: /punch and /validate-voucher will
+      // reject writes to an inactive/suspended club, so the UI can't
+      // accidentally succeed here.
+      const banner = document.getElementById('suspended-banner');
+      const msg = document.getElementById('suspended-banner-message');
+      if (club.provider_suspended === true) {
+        msg.textContent = 'This club is currently suspended. Contact support to reactivate.';
+        banner.style.display = '';
+      } else if (club.is_active === false) {
+        msg.textContent = 'This club is currently inactive.';
+        banner.style.display = '';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    // ==========================================================================
+    // PUNCH FLOW (Step 2, plan §5 pilot design).
+    //
+    // State machine: idle → (scan | manual) → confirm → submitting → idle.
+    //
+    // Confirm-gate audit — BOTH input paths route through showPunchConfirmGate();
+    // Confirm-button click (confirmPunch) is the ONLY caller of submitPunch();
+    // submitPunch is the ONLY caller of POST /api/car-club/punch. No path fires
+    // /punch without an explicit Confirm click.
+    //   scan   → onPunchScanned    → showPunchConfirmGate → (Confirm click) → confirmPunch → submitPunch
+    //   manual → previewManualPunch → showPunchConfirmGate → (Confirm click) → confirmPunch → submitPunch
+    //
+    // The confirm prompt is deliberately generic ("Award a punch to this
+    // member?" — no name lookup). Rationale: pilot per D1 has one trusted
+    // provider (Chris) scanning members he can see; a name preview would need
+    // either a new /member-by-token endpoint or a return-name mode on /punch,
+    // both out of pilot scope. Post-pilot nice-to-have in plan §9a.
+    // ==========================================================================
+
+    let punchScanner = null;         // Html5Qrcode instance while scanning
+    let pendingPunchToken = null;    // token awaiting confirmation
+
+    function showPunchView(viewId) {
+      ['punch-idle', 'punch-scanning', 'punch-manual', 'punch-confirm', 'punch-submitting'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (id === viewId) ? '' : 'none';
+      });
+    }
+
+    async function startPunchScan() {
+      if (typeof Html5Qrcode === 'undefined') {
+        showToast('QR scanner library not loaded. Refresh the page.', 'error');
+        return;
+      }
+      showPunchView('punch-scanning');
+      try {
+        punchScanner = new Html5Qrcode('qr-reader-punch');
+        await punchScanner.start(
+          { facingMode: 'environment' },   // matches providers.js:9862 POS pattern
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onPunchScanned,
+          () => {}   // silently swallow per-frame decode errors (matches POS pattern)
+        );
+      } catch (err) {
+        console.error('Punch scanner start error:', err);
+        showToast('Could not start camera. Check permissions.', 'error');
+        showPunchView('punch-idle');
+      }
+    }
+
+    async function stopPunchScanner() {
+      if (punchScanner) {
+        try { await punchScanner.stop(); await punchScanner.clear(); } catch (_) {}
+        punchScanner = null;
+      }
+    }
+
+    async function cancelPunchScan() {
+      await stopPunchScanner();
+      showPunchView('punch-idle');
+    }
+
+    // Scanner callback. Ignores non-MCC QRs (keeps scanning silently). On a
+    // valid MCC check-in QR, strips the prefix and routes to the confirm gate.
+    // DOES NOT call submitPunch directly — must go through Confirm click.
+    async function onPunchScanned(decodedText) {
+      if (!punchScanner) return;   // late-frame guard after we've advanced
+      if (!decodedText || !decodedText.startsWith('mcc:checkin:')) {
+        return;                    // not our QR — keep scanning
+      }
+      const qrToken = decodedText.replace('mcc:checkin:', '');
+      await stopPunchScanner();
+      showPunchConfirmGate(qrToken);
+    }
+
+    function showManualEntry() {
+      const input = document.getElementById('punch-manual-input');
+      if (input) input.value = '';
+      showPunchView('punch-manual');
+      setTimeout(() => { if (input) input.focus(); }, 100);
+    }
+
+    function cancelPunchManual() {
+      showPunchView('punch-idle');
+    }
+
+    // Manual-entry preview. Accepts either a raw token OR a full
+    // "mcc:checkin:<token>" paste (a member sometimes shows the QR text on
+    // their screen rather than the code itself). DOES NOT call submitPunch
+    // directly — must go through Confirm click.
+    function previewManualPunch() {
+      const input = document.getElementById('punch-manual-input');
+      const raw = ((input && input.value) || '').trim();
+      if (!raw) {
+        showToast('Enter a member code first.', 'error');
+        return;
+      }
+      const qrToken = raw.startsWith('mcc:checkin:') ? raw.replace('mcc:checkin:', '') : raw;
+      showPunchConfirmGate(qrToken);
+    }
+
+    // SHARED CONFIRM GATE — the single choke-point between "we have a token"
+    // and "we've fired POST /punch". Both scan and manual paths converge here.
+    // No other caller sets pendingPunchToken.
+    function showPunchConfirmGate(qrToken) {
+      pendingPunchToken = qrToken;
+      showPunchView('punch-confirm');
+    }
+
+    function cancelPunchConfirm() {
+      pendingPunchToken = null;
+      showPunchView('punch-idle');
+    }
+
+    // ONLY caller of submitPunch. Triggered exclusively by the Confirm
+    // button's onclick handler in the DOM.
+    async function confirmPunch() {
+      const token = pendingPunchToken;
+      if (!token) {
+        // Defensive — shouldn't happen since the button is only visible when
+        // pendingPunchToken is set. If it does, bail cleanly to idle.
+        showPunchView('punch-idle');
+        return;
+      }
+      pendingPunchToken = null;
+      await submitPunch(token);
+    }
+
+    // ONLY caller of POST /api/car-club/punch. Called exclusively from
+    // confirmPunch(). If either invariant breaks in a future edit, the
+    // confirm-gate design breaks — audit checkpoints in this file.
+    async function submitPunch(qrToken) {
+      if (!currentClub) {
+        showToast('Club not loaded.', 'error');
+        showPunchView('punch-idle');
+        return;
+      }
+      showPunchView('punch-submitting');
+      try {
+        const result = await apiFetch('/api/car-club/punch', {
+          method: 'POST',
+          body: JSON.stringify({ club_id: currentClub.id, qr_token: qrToken })
+        });
+        if (result && result.success) {
+          showToast('+1 point recorded', 'success');
+        } else {
+          // apiFetch throws on !res.ok, so we only reach here on 2xx with an
+          // unexpected shape. Toast something positive; the row is on record.
+          showToast('Punch recorded.', 'success');
+        }
+      } catch (e) {
+        console.error('Punch error:', e);
+        showToast(e.message || 'Failed to record punch.', 'error');
+      } finally {
+        showPunchView('punch-idle');
+      }
+    }
+
+    // ==========================================================================
+    // VALIDATE FLOW (Step 3, plan §5 pilot design).
+    //
+    // State machine: idle → confirm → submitting → idle.
+    //
+    // Confirm-gate audit — the manual input path routes through
+    // showValidateConfirmGate(); the Confirm button (confirmValidate) is the
+    // ONLY caller of submitValidate(); submitValidate is the ONLY caller of
+    // POST /api/car-club/validate-voucher. No path fires the endpoint without
+    // an explicit Confirm click — mirrors the punch flow's D2 confirm-gate.
+    //   input → Validate click → previewValidate → showValidateConfirmGate
+    //         → Confirm click → confirmValidate → submitValidate → POST
+    //
+    // The endpoint CONSUMES the voucher (atomic UPDATE sets status='fulfilled'),
+    // so the Confirm click is what prevents double-consume / accidental submits.
+    // The endpoint's own atomic WHERE status='issued' clause rejects a repeat
+    // POST even if the confirm-gate is bypassed by some future edit — but we
+    // route through it anyway for UX and audit clarity.
+    //
+    // No pre-lookup, no reward-name preview, no member-name preview. Server
+    // response fields (id, club_id, member_id, reward_id, point_cost,
+    // voucher_code, redeemed_at, fulfilled_at) are all UUIDs + numerics —
+    // point_cost is the only field with immediate UX value, surfaced in the
+    // success toast. Reward/member-name preview logged in plan §9a as
+    // post-pilot nice-to-have.
+    //
+    // Failure mapping: the endpoint deliberately collapses all failure modes
+    // (bad code / wrong provider / already fulfilled / cancelled) into a
+    // single 404 with the message "Invalid or already-used voucher code" —
+    // this is the leak-prevention design at car-clubs.js:684-693 that stops
+    // an attacker with a valid provider token from probing whether a voucher
+    // exists on another provider's club. We surface that message verbatim
+    // (already plain-language and honest) with a generic fallback if it's
+    // ever absent.
+    // ==========================================================================
+
+    let pendingVoucherCode = null;
+
+    function showValidateView(viewId) {
+      ['validate-idle', 'validate-confirm', 'validate-submitting'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (id === viewId) ? '' : 'none';
+      });
+    }
+
+    // Read input, trim + uppercase (server also normalizes at car-clubs.js:662).
+    // DOES NOT call submitValidate directly — routes through the shared
+    // confirm gate.
+    function previewValidate() {
+      const input = document.getElementById('validate-input');
+      const raw = ((input && input.value) || '').trim().toUpperCase();
+      if (!raw) {
+        showToast('Enter a voucher code first.', 'error');
+        return;
+      }
+      showValidateConfirmGate(raw);
+    }
+
+    // SHARED CONFIRM GATE — the single choke-point between "we have a code"
+    // and "we've fired POST /validate-voucher". No other caller sets
+    // pendingVoucherCode.
+    function showValidateConfirmGate(code) {
+      pendingVoucherCode = code;
+      const codeSpan = document.getElementById('validate-confirm-code');
+      if (codeSpan) codeSpan.textContent = code;
+      showValidateView('validate-confirm');
+    }
+
+    function cancelValidateConfirm() {
+      pendingVoucherCode = null;
+      showValidateView('validate-idle');
+    }
+
+    // ONLY caller of submitValidate. Triggered exclusively by the Confirm
+    // button's onclick handler in the DOM.
+    async function confirmValidate() {
+      const code = pendingVoucherCode;
+      if (!code) {
+        // Defensive — shouldn't happen since the button is only visible when
+        // pendingVoucherCode is set. If it does, bail cleanly to idle.
+        showValidateView('validate-idle');
+        return;
+      }
+      pendingVoucherCode = null;
+      await submitValidate(code);
+    }
+
+    // ONLY caller of POST /api/car-club/validate-voucher. Called exclusively
+    // from confirmValidate(). If either invariant breaks in a future edit,
+    // the confirm-gate design breaks — audit checkpoints in this file.
+    async function submitValidate(code) {
+      showValidateView('validate-submitting');
+      try {
+        const result = await apiFetch('/api/car-club/validate-voucher', {
+          method: 'POST',
+          body: JSON.stringify({ voucher_code: code })
+        });
+        if (result && result.success && result.redemption) {
+          const cost = result.redemption.point_cost;
+          const suffix = (typeof cost === 'number')
+            ? ` · ${cost} point${cost === 1 ? '' : 's'}`
+            : '';
+          showToast(`Voucher redeemed ✓${suffix}`, 'success');
+        } else {
+          // apiFetch throws on !res.ok; a 2xx with an unexpected shape lands
+          // here. Toast something positive; the row is on record.
+          showToast('Voucher redeemed ✓', 'success');
+        }
+        // Clear the input on success so Chris can immediately validate the
+        // next voucher without a manual clear.
+        const input = document.getElementById('validate-input');
+        if (input) input.value = '';
+      } catch (e) {
+        console.error('Validate error:', e);
+        // Endpoint's collapsed 404 sends "Invalid or already-used voucher
+        // code" — plain-language and honest. Use it verbatim if present;
+        // fall back to a generic phrasing otherwise.
+        showToast(e.message || 'Couldn’t validate this code.', 'error');
+      } finally {
+        showValidateView('validate-idle');
+      }
+    }
+
+    async function init() {
+      showLoadingState();
+
+      // Step 1a: session check. Mirrors providers-core.js:172-176.
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = '/login.html';
+        return;
+      }
+      currentUser = session.user;
+
+      // Step 1b: resolve the provider's club.
+      let data;
+      try {
+        data = await apiFetch('/api/car-club/my-provider-clubs');
+      } catch (e) {
+        console.error('Failed to load provider clubs:', e);
+        showToast('Could not load your club. Please refresh.', 'error');
+        return;
+      }
+      if (!data) return; // apiFetch already redirected on missing token
+
+      const clubs = data.clubs || [];
+      if (clubs.length === 0) {
+        // Intentional: single empty state serves BOTH "no provisioned club"
+        // AND "flag off" — my-provider-clubs deliberately returns identical
+        // {clubs:[]} for both to hide the gated feature's existence. Adding
+        // flag-off-specific messaging would break that don't-reveal
+        // property. "Contact support" is the correct routing for either case.
+        showEmptyState();
+        return;
+      }
+
+      // Pilot uses the first club (per D4: admin/SQL provisions one per
+      // provider). If a provider ever has multiple, we operate on clubs[0]
+      // and a follow-up feature can add a club switcher.
+      currentClub = clubs[0];
+      renderFrame(currentClub, currentUser);
+      showMainState();
+    }
+
+    // Wait briefly for supabaseClient to initialize (mirrors the
+    // car-club-member.html pattern at :1643-1647), then run init.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(init, 300));
+    } else {
+      setTimeout(init, 300);
+    }
+  </script>
+
+</body>
+</html>

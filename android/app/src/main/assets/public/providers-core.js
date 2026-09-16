@@ -2,12 +2,17 @@
 // Essential initialization, state management, auth, and module loading
 
 // ========== MODULE LOADER ==========
-const loadedModules = {};
+// Pre-populated: providers-settings.js is loaded statically by providers.html
+// (script tag, not via this loader), so its top-level const declarations have
+// already run. Without this entry, loadModule('settings') would re-inject the
+// same <script> and re-evaluating `const DAY_LABELS = …` (and BUSINESS_DAYS)
+// at top level throws SyntaxError: Can't create duplicate variable.
+const loadedModules = { settings: true };
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `/providers-${name}.js`;
+    script.src = `/providers-${name}.js?v=20260914d`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
@@ -44,6 +49,8 @@ function loadModuleForSection(section) {
     case 'pos-analytics':
     case 'pos-integration':
       return loadModule('analytics');
+    case 'my-documents':
+      return loadModule('documents');
     case 'settings':
     case 'profile':
     case 'team':
@@ -173,8 +180,12 @@ async function checkAccessAuthorization() {
     const response = await fetch(`${apiBase}/api/auth/check-access`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const result = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[checkAccessAuthorization] /api/auth/check-access returned', response.status);
+      return true; // fail-open on a degraded auth check (matches existing catch behavior)
+    }
+    const result = await response.json().catch(() => ({}));
+
     if (!result.authorized && result.reason === '2fa_required') {
       window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
       return false;
@@ -262,7 +273,17 @@ async function initializeProviderDashboard(user) {
     loadProviderProfile(),
     loadSubscription(),
     loadPosIntegrationStatus(),
-    loadPerformance()
+    loadPerformance(),
+    // Phase 2/3/7 auto-bid redesign panels (Match Preferences, Rate Card,
+    // Auto-Bid Activity) live in the 'profile' section. providers-settings.js
+    // is loaded statically (see loadModule's own comment above), so these
+    // are safe to call directly here without a loadModule() wrapper — same
+    // as every other call in this Promise.all. Guarded with typeof checks
+    // for defensive parity with the rest of this function, in case the
+    // settings module is ever changed to load asynchronously later.
+    (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
+    (typeof loadRateCard === 'function' ? loadRateCard() : Promise.resolve()),
+    (typeof loadAutoBidActivity === 'function' ? loadAutoBidActivity() : Promise.resolve())
   ]);
   
   updateStats();
@@ -346,6 +367,29 @@ async function showSection(id) {
   if (id === 'bids' && typeof loadBidInsights === 'function') {
     loadBidInsights();
   }
+  // Browse Packages must (re)load when its section becomes visible. The open-
+  // packages feed is fetched once at app init while this section is still
+  // display:none; on WebKit (native WKWebView) cards whose innerHTML was set
+  // inside a hidden container are not reflowed when the section is later shown,
+  // so they render at zero height. Loading on show — like every other section
+  // above — renders the cards while the section is visible. (2026-09-14)
+  if (id === 'browse' && typeof loadOpenPackages === 'function') {
+    // Load-on-show (cards render while the section is visible so WebKit lays
+    // them out with real height). Then nudge a body-overflow toggle: on native
+    // WKWebView the grown document's scroll contentSize isn't recomputed until
+    // a relayout is forced, so the page can't scroll until the user opens the
+    // menu (which toggles body overflow). Reproduce that toggle programmatically
+    // so Browse Packages scrolls immediately on landing. (2026-09-14)
+    Promise.resolve(loadOpenPackages()).then(() => {
+      requestAnimationFrame(() => {
+        const b = document.body;
+        const prev = b.style.overflow;
+        b.style.overflow = 'hidden';
+        void b.offsetHeight; // force reflow
+        b.style.overflow = prev;
+      });
+    });
+  }
   if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
     loadProviderNotificationSettings();
     if (typeof loadProviderPushPreferences === 'function') {
@@ -364,10 +408,22 @@ async function showSection(id) {
   if (id === 'overview' && typeof loadShopOnboardingChecklist === 'function') {
     loadShopOnboardingChecklist();
   }
+  if (id === 'my-documents' && typeof loadMyDocuments === 'function') {
+    loadMyDocuments();
+  }
 }
 
 // ========== CORE UTILITY FUNCTIONS ==========
+// 2s de-dupe: drop a toast whose (msg, type) matches the previous one within
+// 2000ms. Keeps rapid double-taps on moderation buttons from stacking two
+// identical toasts. Module-scoped via window so it works across all callers.
+if (typeof window._mccProviderLastToast === 'undefined') window._mccProviderLastToast = { key: null, at: 0 };
 function showToast(message, type = 'success') {
+  const key = type + '|' + String(message);
+  const now = Date.now();
+  if (key === window._mccProviderLastToast.key && (now - window._mccProviderLastToast.at) < 2000) return;
+  window._mccProviderLastToast.key = key;
+  window._mccProviderLastToast.at = now;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
@@ -438,12 +494,21 @@ function formatPickup(pickup) {
   return labels[pickup] || pickup || 'Standard';
 }
 
+// package-details-modal has a bespoke iPad split-view treatment (see the
+// #package-details-modal rules in providers.html): at ≥1024/768pt it renders
+// as a persistent right drawer, and .main needs padding-right reserved so
+// the drawer doesn't overlap the browse list. Prior version used CSS :has()
+// to reflow .main, but IPHONEOS_DEPLOYMENT_TARGET=14.0 predates :has() (added
+// iOS 15.4), so any real iPad on iOS 14.0-15.3 wouldn't reflow. Toggling a
+// body class from the JS layer works everywhere the app can install.
 function openModal(id) {
   document.getElementById(id).classList.add('active');
+  if (id === 'package-details-modal') document.body.classList.add('drawer-open');
 }
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
+  if (id === 'package-details-modal') document.body.classList.remove('drawer-open');
 }
 
 // ========== DELETE ACCOUNT ==========
@@ -490,9 +555,12 @@ async function confirmDeleteAccount() {
         'Authorization': `Bearer ${session.access_token}`
       }
     });
-    
-    const result = await response.json();
-    
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || `Failed to delete account (${response.status})`);
+    }
+
     if (result.success) {
       // Sign out and redirect
       await supabaseClient.auth.signOut();
@@ -515,23 +583,44 @@ window.openDeleteAccountModal = openDeleteAccountModal;
 window.confirmDeleteAccount = confirmDeleteAccount;
 
 // ========== STATS UPDATE ==========
+// Toggle the "zero-state hint" span next to a stat: shown when value === 0,
+// hidden otherwise. Kept as a local helper so both updateStats (this file)
+// and the reviews-rating render in providers.js can call it with matching
+// semantics. Fails silently if the hint element is missing.
+function toggleStatZeroHint(hintId, value) {
+  const el = document.getElementById(hintId);
+  if (!el) return;
+  el.style.display = value === 0 ? '' : 'none';
+}
+
 function updateStats() {
-  document.getElementById('stat-open').textContent = openPackages.length;
-  document.getElementById('stat-bids').textContent = myBids.filter(b => b.status === 'pending').length;
-  document.getElementById('stat-won').textContent = myBids.filter(b => b.status === 'accepted').length;
-  
+  const openCount = openPackages.length;
+  const pendingCount = myBids.filter(b => b.status === 'pending').length;
+  const wonCount = myBids.filter(b => b.status === 'accepted').length;
+  document.getElementById('stat-open').textContent = openCount;
+  document.getElementById('stat-bids').textContent = pendingCount;
+  document.getElementById('stat-won').textContent = wonCount;
+  toggleStatZeroHint('stat-open-hint', openCount);
+  toggleStatZeroHint('stat-bids-hint', pendingCount);
+  toggleStatZeroHint('stat-won-hint', wonCount);
+
   const totalCredits = (providerProfile?.bid_credits || 0) + (providerProfile?.free_trial_bids || 0);
   document.getElementById('stat-credits').textContent = totalCredits;
-  
+
   const dashboardCredits = document.getElementById('dashboard-bid-credits');
   if (dashboardCredits) dashboardCredits.textContent = totalCredits;
-  
+
   const browseCredits = document.getElementById('browse-credits-count');
   if (browseCredits) browseCredits.textContent = totalCredits;
-  
+
   const uniqueMembers = new Set(openPackages.map(p => p.member_id)).size;
   document.getElementById('stat-members-nearby').textContent = uniqueMembers;
+  toggleStatZeroHint('stat-members-nearby-hint', uniqueMembers);
 }
+
+// Exposed on window so providers.js's rating render (loadReviews) can call it
+// for the review-count zero state, without duplicating the DOM logic.
+window.toggleStatZeroHint = toggleStatZeroHint;
 
 // ========== BASIC POS STATUS ==========
 async function loadPosIntegrationStatus() {
@@ -544,11 +633,16 @@ async function loadPosIntegrationStatus() {
 async function loadCloverStatus() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const headers = session?.access_token 
-      ? { 'Authorization': `Bearer ${session.access_token}` } 
+    const headers = session?.access_token
+      ? { 'Authorization': `Bearer ${session.access_token}` }
       : {};
     const response = await fetch(`/api/clover/status/${currentUser.id}`, { headers });
-    const data = await response.json();
+    if (!response.ok) {
+      console.warn('[loadCloverStatus] /api/clover/status returned', response.status);
+      updateCloverUI({ connected: false });
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
     cloverConnectionStatus = data;
     updateCloverUI(data);
   } catch (error) {
@@ -560,12 +654,18 @@ async function loadCloverStatus() {
 async function loadSquareStatus() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const headers = session?.access_token 
-      ? { 'Authorization': `Bearer ${session.access_token}` } 
+    const headers = session?.access_token
+      ? { 'Authorization': `Bearer ${session.access_token}` }
       : {};
     const response = await fetch(`/api/pos/connections/${currentUser.id}`, { headers });
-    const data = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[loadSquareStatus] /api/pos/connections returned', response.status);
+      squareConnectionStatus = { connected: false };
+      updateSquareUI(squareConnectionStatus);
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+
     const squareConnection = data.connections?.find(c => c.pos_provider === 'square');
     if (squareConnection) {
       squareConnectionStatus = { connected: true, ...squareConnection };
@@ -692,7 +792,7 @@ function renderEarnings() {
           ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
         </div>
         <div style="font-size:0.8rem;color:var(--text-muted);">
-          ${p.status === 'held' ? mccIcon('clock', 16) + ' In Escrow' : p.status === 'released' ? mccIcon('check', 16) + ' Released' : p.status === 'refunded' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refunded' : p.status}
+          ${p.status === 'held' ? mccIcon('clock', 16) + ' Payment Held' : p.status === 'released' ? mccIcon('check', 16) + ' Released' : p.status === 'refunded' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refunded' : p.status}
         </div>
       </div>
     </div>
@@ -702,9 +802,14 @@ function renderEarnings() {
 // ========== REVIEWS ==========
 async function loadMyReviews() {
   try {
+    // Two-query stitch — the previous `profiles!reviews_member_id_fkey` embed
+    // referenced a constraint name that doesn't exist in prod (only
+    // provider_reviews_*_fkey constraints exist; there's no `reviews_*_fkey`).
+    // The plain `maintenance_packages(title)` embed stays — PostgREST resolves
+    // it via implicit FK introspection.
     const { data, error } = await supabaseClient
       .from('reviews')
-      .select('*, maintenance_packages(title), profiles!reviews_member_id_fkey(full_name)')
+      .select('*, maintenance_packages(title)')
       .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
     if (error) {
@@ -716,7 +821,21 @@ async function loadMyReviews() {
       }
       myReviews = [];
     } else {
-      myReviews = data || [];
+      const rows = data || [];
+      const memberIds = [...new Set(rows.map(r => r.member_id).filter(Boolean))];
+      let profilesById = {};
+      if (memberIds.length > 0) {
+        const { data: profs, error: profErr } = await supabaseClient
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', memberIds);
+        if (profErr) {
+          console.log('loadMyReviews profiles stitch error:', profErr.message);
+        } else {
+          profilesById = Object.fromEntries((profs || []).map(p => [p.id, p]));
+        }
+      }
+      myReviews = rows.map(r => ({ ...r, profiles: profilesById[r.member_id] || null }));
     }
     renderReviews();
   } catch (err) {
@@ -742,7 +861,10 @@ function renderReviews() {
         <span style="color:var(--accent-gold);">${mccIcon('star', 16).repeat(r.rating)}${mccIcon('star', 16).repeat(5-r.rating)}</span>
       </div>
       ${r.comment ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.comment}"</p>` : ''}
-      <div style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</span>
+        <button onclick="window.mccModeration && window.mccModeration.openReport({contentType:'review',contentId:'${r.id}',reportedUserId:'${r.member_id || ''}',subjectLabel:'this review'})" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:0;">Report</button>
+      </div>
     </div>
   `).join('');
 }
@@ -804,17 +926,65 @@ async function loadProviderProfile() {
 }
 
 function populateProfileForm(profile) {
-  const fields = ['business_name', 'phone', 'address', 'city', 'state', 'zip_code', 'bio', 'hourly_rate'];
+  // Generic scalar prefill — only fields whose HTML id matches the
+  // `profile-${db_col_with_underscores_to_hyphens}` convention.
+  // Off-convention ids (e.g. years_in_business → #profile-years) are
+  // handled explicitly below.
+  const fields = ['business_name', 'phone', 'full_name', 'street_address', 'city', 'state', 'zip_code', 'description'];
   fields.forEach(f => {
-    const el = document.getElementById(`profile-${f.replace('_', '-')}`);
+    const el = document.getElementById(`profile-${f.replaceAll('_', '-')}`);
     if (el) el.value = profile[f] || '';
   });
-  
+
+  // years_in_business → #profile-years (off-convention id).
+  const yearsEl = document.getElementById('profile-years');
+  if (yearsEl) {
+    yearsEl.value = profile.years_in_business != null ? String(profile.years_in_business) : '';
+  }
+
+  // Certifications — TEXT column, comma-separated. Split into a list; check the
+  // matching #certifications-grid boxes; put any unrecognized values back into
+  // the #profile-other-certs free-text input so a round-trip preserves them.
+  const certList = (profile.certifications || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  const knownCerts = new Set();
+  document.querySelectorAll('#certifications-grid input[type="checkbox"]').forEach(cb => {
+    knownCerts.add(cb.value);
+    cb.checked = certList.includes(cb.value);
+  });
+  const otherCertsEl = document.getElementById('profile-other-certs');
+  if (otherCertsEl) {
+    otherCertsEl.value = certList.filter(c => !knownCerts.has(c)).join(', ');
+  }
+
+  // Services offered — text[] ARRAY column. Tick the matching boxes.
+  const services = Array.isArray(profile.services_offered) ? profile.services_offered : [];
+  document.querySelectorAll('#services-grid input[type="checkbox"]').forEach(cb => {
+    cb.checked = services.includes(cb.value);
+  });
+
   if (typeof loadQrCheckinSetting === 'function') {
     loadQrCheckinSetting();
   }
   if (typeof initPublicProfileCard === 'function') {
     initPublicProfileCard();
+  }
+
+  // Persistent "didn't geocode" banner. Provider-profile-save runs Nominatim
+  // (street then ZIP centroid) on any address change and writes lat/lng back
+  // into profiles; a row with a saved address but null coords means the
+  // geocoder couldn't find anything — the distance filter treats null coords
+  // as permissive so jobs still show up, but the "3.2 mi away" prefill on
+  // notify won't work until it's resolved. Show the banner iff there's at
+  // least ONE address field filled in but no coords — a blank profile
+  // shouldn't nag the provider before they've entered anything.
+  const geocodeBanner = document.getElementById('profile-geocode-banner');
+  if (geocodeBanner) {
+    const hasAddress = !!(profile.street_address || profile.city || profile.state || profile.zip_code);
+    const hasCoords = profile.lat != null && profile.lng != null;
+    geocodeBanner.style.display = (hasAddress && !hasCoords) ? '' : 'none';
   }
 }
 
@@ -893,6 +1063,10 @@ function setupRealtimeSubscriptions() {
 async function loadCarClubCard() {
   const el = document.getElementById('car-club-card-content');
   if (!el) return;
+  // Feature gate: do not fire /api/car-club/my-club when car_club_programs_enabled is off.
+  // Fail-closed: if loadMccFlags is unavailable or the flag isn't true, skip the fetch.
+  if (typeof window.loadMccFlags === 'function') await window.loadMccFlags();
+  if (!window._mccFlags?.car_club_programs_enabled) return;
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
@@ -900,7 +1074,11 @@ async function loadCarClubCard() {
     const resp = await fetch(`${apiBase}/api/car-club/my-club`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await resp.json();
+    if (!resp.ok) {
+      console.warn('[loadCarClubCard] /api/car-club/my-club returned', resp.status);
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
     if (data.club) {
       const club = data.club;
       const rules = club.reward_rules || [];

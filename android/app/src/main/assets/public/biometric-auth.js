@@ -2,6 +2,14 @@ const BiometricAuth = (function() {
   const BIOMETRIC_ENABLED_KEY = 'mcc_biometric_enabled';
   const BIOMETRIC_USER_KEY = 'mcc_biometric_user_id';
   const SECURE_TOKEN_KEY = 'mcc_secure_token';
+  const SECURE_REFRESH_TOKEN_KEY = 'mcc_secure_refresh_token';
+
+  // Map numeric BiometryType enum from @aparajita/capacitor-biometric-auth to
+  // the string keys used by getBiometryTypeName (plugin returns 0-5, not strings)
+  function _normalizeBiometryType(type) {
+    const map = { 0: 'none', 1: 'touchId', 2: 'faceId', 3: 'fingerprint', 4: 'face', 5: 'iris' };
+    return (typeof type === 'number' ? map[type] : type) || 'unknown';
+  }
 
   function isCapacitor() {
     return typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
@@ -13,21 +21,12 @@ const BiometricAuth = (function() {
     }
 
     try {
-      if (Capacitor.Plugins && Capacitor.Plugins.BiometricAuth) {
-        const result = await Capacitor.Plugins.BiometricAuth.checkBiometry();
+      if (Capacitor.Plugins && Capacitor.Plugins.BiometricAuthNative) {
+        const result = await Capacitor.Plugins.BiometricAuthNative.checkBiometry();
         return {
           available: result.isAvailable,
-          biometryType: result.biometryType || 'unknown',
+          biometryType: _normalizeBiometryType(result.biometryType),
           reason: result.reason || null
-        };
-      }
-
-      if (typeof NativeBiometric !== 'undefined') {
-        const result = await NativeBiometric.isAvailable();
-        return {
-          available: result.isAvailable,
-          biometryType: result.biometryType || 'unknown',
-          reason: null
         };
       }
 
@@ -44,26 +43,12 @@ const BiometricAuth = (function() {
     }
 
     try {
-      if (Capacitor.Plugins && Capacitor.Plugins.BiometricAuth) {
-        await Capacitor.Plugins.BiometricAuth.authenticate({
+      if (Capacitor.Plugins && Capacitor.Plugins.BiometricAuthNative) {
+        await Capacitor.Plugins.BiometricAuthNative.authenticate({
           reason: reason,
-          title: 'My Car Concierge',
-          subtitle: reason,
           cancelTitle: 'Cancel',
           allowDeviceCredential: true,
           iosFallbackTitle: 'Use Passcode'
-        });
-        return { success: true };
-      }
-
-      if (typeof NativeBiometric !== 'undefined') {
-        await NativeBiometric.verifyIdentity({
-          reason: reason,
-          title: 'My Car Concierge',
-          subtitle: reason,
-          description: 'Sign in with biometrics',
-          useFallback: true,
-          fallbackTitle: 'Use Passcode'
         });
         return { success: true };
       }
@@ -75,13 +60,16 @@ const BiometricAuth = (function() {
     }
   }
 
-  async function enrollBiometric(userId, accessToken) {
+  async function enrollBiometric(userId, accessToken, refreshToken) {
     try {
       localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
       localStorage.setItem(BIOMETRIC_USER_KEY, userId);
 
       if (isCapacitor() && accessToken) {
         await storeSecureToken(accessToken);
+      }
+      if (isCapacitor() && refreshToken) {
+        await _storeSecureKey(SECURE_REFRESH_TOKEN_KEY, refreshToken);
       }
 
       return { success: true };
@@ -98,6 +86,7 @@ const BiometricAuth = (function() {
 
       if (isCapacitor()) {
         await removeSecureToken();
+        await _removeSecureKey(SECURE_REFRESH_TOKEN_KEY);
       }
 
       return { success: true };
@@ -115,77 +104,71 @@ const BiometricAuth = (function() {
     return localStorage.getItem(BIOMETRIC_USER_KEY);
   }
 
-  async function storeSecureToken(token) {
-    if (!isCapacitor()) {
-      return { success: false };
-    }
-
+  // Private key-parameterized storage helpers — Keychain-backed on native via
+  // SecureStoragePlugin, then Preferences, then localStorage as last resort.
+  // On native, SecureStoragePlugin (iOS Keychain) is always tried first, so
+  // tokens never end up in plain localStorage on a real device unless both
+  // SecureStoragePlugin and Preferences are absent (which shouldn't happen).
+  async function _storeSecureKey(key, token) {
+    if (!isCapacitor()) return { success: false };
     try {
       if (Capacitor.Plugins && Capacitor.Plugins.SecureStoragePlugin) {
-        await Capacitor.Plugins.SecureStoragePlugin.set({
-          key: SECURE_TOKEN_KEY,
-          value: token
-        });
+        await Capacitor.Plugins.SecureStoragePlugin.set({ key, value: token });
         return { success: true };
       }
-
       if (Capacitor.Plugins && Capacitor.Plugins.Preferences) {
-        await Capacitor.Plugins.Preferences.set({
-          key: SECURE_TOKEN_KEY,
-          value: token
-        });
+        await Capacitor.Plugins.Preferences.set({ key, value: token });
         return { success: true };
       }
-
-      localStorage.setItem(SECURE_TOKEN_KEY, token);
+      localStorage.setItem(key, token);
       return { success: true };
     } catch (error) {
-      console.warn('BiometricAuth: Error storing token securely:', error);
-      localStorage.setItem(SECURE_TOKEN_KEY, token);
+      console.warn('BiometricAuth: Error storing secure key:', error);
+      localStorage.setItem(key, token);
       return { success: true };
     }
   }
 
-  async function getSecureToken() {
-    if (!isCapacitor()) {
-      return { success: false, token: null };
-    }
-
+  async function _getSecureKey(key) {
+    if (!isCapacitor()) return { success: false, token: null };
     try {
       if (Capacitor.Plugins && Capacitor.Plugins.SecureStoragePlugin) {
-        const result = await Capacitor.Plugins.SecureStoragePlugin.get({ key: SECURE_TOKEN_KEY });
+        const result = await Capacitor.Plugins.SecureStoragePlugin.get({ key });
         return { success: true, token: result.value };
       }
-
       if (Capacitor.Plugins && Capacitor.Plugins.Preferences) {
-        const result = await Capacitor.Plugins.Preferences.get({ key: SECURE_TOKEN_KEY });
+        const result = await Capacitor.Plugins.Preferences.get({ key });
         return { success: true, token: result.value };
       }
-
-      const token = localStorage.getItem(SECURE_TOKEN_KEY);
+      const token = localStorage.getItem(key);
       return { success: !!token, token };
     } catch (error) {
-      console.warn('BiometricAuth: Error getting secure token:', error);
-      const token = localStorage.getItem(SECURE_TOKEN_KEY);
+      console.warn('BiometricAuth: Error getting secure key:', error);
+      const token = localStorage.getItem(key);
       return { success: !!token, token };
     }
   }
 
-  async function removeSecureToken() {
+  async function _removeSecureKey(key) {
     try {
       if (isCapacitor() && Capacitor.Plugins && Capacitor.Plugins.SecureStoragePlugin) {
-        await Capacitor.Plugins.SecureStoragePlugin.remove({ key: SECURE_TOKEN_KEY });
+        await Capacitor.Plugins.SecureStoragePlugin.remove({ key });
       } else if (isCapacitor() && Capacitor.Plugins && Capacitor.Plugins.Preferences) {
-        await Capacitor.Plugins.Preferences.remove({ key: SECURE_TOKEN_KEY });
+        await Capacitor.Plugins.Preferences.remove({ key });
       }
-      localStorage.removeItem(SECURE_TOKEN_KEY);
+      localStorage.removeItem(key);
       return { success: true };
     } catch (error) {
-      console.warn('BiometricAuth: Error removing token:', error);
-      localStorage.removeItem(SECURE_TOKEN_KEY);
+      console.warn('BiometricAuth: Error removing secure key:', error);
+      localStorage.removeItem(key);
       return { success: true };
     }
   }
+
+  // Public wrappers for the access token (kept for any external callers)
+  async function storeSecureToken(token) { return _storeSecureKey(SECURE_TOKEN_KEY, token); }
+  async function getSecureToken() { return _getSecureKey(SECURE_TOKEN_KEY); }
+  async function removeSecureToken() { return _removeSecureKey(SECURE_TOKEN_KEY); }
 
   function getBiometryTypeName(type) {
     const types = {
@@ -211,26 +194,32 @@ const BiometricAuth = (function() {
 
   async function performBiometricLogin(supabaseClient) {
     const authResult = await authenticate('Sign in to My Car Concierge');
-    
+
     if (!authResult.success) {
       return { success: false, error: authResult.error };
     }
 
     try {
+      // If a live session is already present (app was backgrounded, not cold-started)
+      // return it immediately — no token restore needed.
       const { data: { session }, error } = await supabaseClient.auth.getSession();
-      
       if (session && !error) {
         return { success: true, user: session.user, session };
       }
 
-      const tokenResult = await getSecureToken();
-      if (tokenResult.success && tokenResult.token) {
-        const { data, error: refreshError } = await supabaseClient.auth.setSession({
-          access_token: tokenResult.token,
-          refresh_token: tokenResult.token
+      // Cold start: restore session using the stored access + refresh tokens.
+      // Supabase will re-issue a fresh session using the refresh token, so login
+      // stays valid indefinitely rather than expiring with the access token (~1hr).
+      const accessResult = await _getSecureKey(SECURE_TOKEN_KEY);
+      const refreshResult = await _getSecureKey(SECURE_REFRESH_TOKEN_KEY);
+
+      if (accessResult.success && accessResult.token && refreshResult.success && refreshResult.token) {
+        const { data, error: restoreError } = await supabaseClient.auth.setSession({
+          access_token: accessResult.token,
+          refresh_token: refreshResult.token
         });
-        
-        if (data.session && !refreshError) {
+
+        if (data.session && !restoreError) {
           return { success: true, user: data.session.user, session: data.session };
         }
       }

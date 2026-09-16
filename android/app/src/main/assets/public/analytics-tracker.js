@@ -22,8 +22,9 @@
   }
 
   function track() {
-    var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
-    var url = apiBase + '/api/analytics/track';
+    // Task: admin-portal audit (2026-09-03) — /api/analytics/track now
+    // exists (netlify/functions/analytics.js + www/_redirects), so this is
+    // re-enabled after being a no-op since the 2026-07-16 audit.
     var payload = JSON.stringify({
       page: window.location.pathname,
       referrer: document.referrer || '',
@@ -31,15 +32,28 @@
       visitorId: vid
     });
 
+    var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    var url = apiBase + '/api/analytics/track';
+
+    // sendBeacon is fire-and-forget and survives page unload, so it's the
+    // right primary path for a tracking call; fall back to fetch with
+    // keepalive when it's unavailable or rejects the payload outright.
+    var sent = false;
     if (navigator.sendBeacon) {
-      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
-    } else {
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        keepalive: true
-      }).catch(function() {});
+      try {
+        var blob = new Blob([payload], { type: 'application/json' });
+        sent = navigator.sendBeacon(url, blob);
+      } catch (_e) { sent = false; }
+    }
+    if (!sent) {
+      try {
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(function() { /* best-effort — never let analytics break the page */ });
+      } catch (_e) { /* ignore */ }
     }
   }
 

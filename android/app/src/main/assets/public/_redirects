@@ -17,6 +17,9 @@
 /api/split/guest-pay/* /.netlify/functions/split-guest-pay/:splat 200
 /api/split/guest-confirm/* /.netlify/functions/split-guest-confirm/:splat 200
 /api/split/pay/* /.netlify/functions/split-pay/:splat 200
+/api/split/status/* /.netlify/functions/split-status/:splat 200
+/api/split/reactivate/* /.netlify/functions/split-reactivate/:splat 200
+/api/split/cancel/* /.netlify/functions/split-cancel/:splat 200
 /api/invitations/*/accept /.netlify/functions/accept-invitation/:splat 200
 /api/invitations/* /.netlify/functions/validate-invitation/:splat 200
 /api/provider-referral/lookup/* /.netlify/functions/referral-lookup/:splat 200
@@ -36,6 +39,7 @@
 /api/bids/provider-summary /.netlify/functions/bid-provider-summary 200
 /api/geocode /.netlify/functions/geocode 200
 /api/provider/profile/save /.netlify/functions/provider-profile-save 200
+/api/provider/profile/publish /.netlify/functions/provider-profile-publish 200
 /api/provider/packages /.netlify/functions/provider-packages 200
 /api/appointments/* /.netlify/functions/appointment-ical 200
 /api/ai/* /.netlify/functions/ai-member/:splat 200
@@ -106,9 +110,18 @@
 /api/webhooks/hubspot /.netlify/functions/hubspot-webhook 200
 /api/provider/match-preferences/resume /.netlify/functions/provider-match-preferences/resume 200
 /api/provider/match-preferences /.netlify/functions/provider-match-preferences 200
+/api/provider/rate-card /.netlify/functions/provider-rate-card 200
+/api/service-menu /.netlify/functions/service-menu 200
+/api/auto-bid-prefill /.netlify/functions/auto-bid-prefill 200
+/api/auto-bid-prefill/* /.netlify/functions/auto-bid-prefill 200
+/api/auto-bid-ledger /.netlify/functions/auto-bid-ledger 200
+/api/auto-bid-daily-cap /.netlify/functions/auto-bid-daily-cap 200
 /api/provider/initiate-background-check /.netlify/functions/initiate-background-check 200
 /api/provider/bgc/config /.netlify/functions/bgc-config 200
 /api/provider/bgc/decrypt-token /.netlify/functions/bgc-decrypt-token 200
+/api/provider/bgc/initiate /.netlify/functions/bgc-provider-initiate 200
+/api/provider/bgc/status/* /.netlify/functions/bgc-provider-status/:splat 200
+/api/provider/bgc/report-url/* /.netlify/functions/bgc-provider-report-url/:splat 200
 /api/admin/bgc/providers /.netlify/functions/bgc-admin 200
 /api/provider-bgc-compliance /.netlify/functions/provider-bgc-compliance 200
 /api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
@@ -175,6 +188,20 @@
 # White-label Tenants
 /api/admin/white-label/tenants /.netlify/functions/admin-white-label/tenants 200
 /api/admin/white-label/* /.netlify/functions/admin-white-label/:splat 200
+
+# White-label public config + tenant join (broken-client-caller cleanup, 2026-09-11)
+/api/white-label/config /.netlify/functions/white-label-config 200
+/api/tenant/config /.netlify/functions/white-label-config 200
+/api/white-label/tenant/join /.netlify/functions/white-label-join 200
+/api/white-label/apply /.netlify/functions/white-label-apply 200
+
+# White-label tenant admin portal (broken-client-caller cleanup, 2026-09-11)
+/api/tenant/me /.netlify/functions/tenant-portal/me 200
+/api/tenant/roster /.netlify/functions/tenant-portal/roster 200
+/api/tenant/roster/* /.netlify/functions/tenant-portal/roster/:splat 200
+/api/tenant/analytics /.netlify/functions/tenant-portal/analytics 200
+/api/tenant/loyalty-config /.netlify/functions/tenant-portal/loyalty-config 200
+/api/tenant/approval-workflow /.netlify/functions/tenant-portal/approval-workflow 200
 
 # AI API Usage & Keys
 /api/admin/api-usage /.netlify/functions/admin-api-usage 200
@@ -246,8 +273,6 @@
 /api/booking/* /.netlify/functions/booking 200
 
 # Feature: Car Clubs
-/api/auto-bid/settings /.netlify/functions/auto-bid 200
-/api/auto-bid/* /.netlify/functions/auto-bid 200
 /api/car-clubs /.netlify/functions/car-clubs 200
 /api/car-clubs/* /.netlify/functions/car-clubs 200
 /api/car-club/* /.netlify/functions/car-clubs 200
@@ -267,6 +292,7 @@
 # Feature: Member Founder earnings API
 /api/member-founder /.netlify/functions/member-founder-api 200
 /api/member-founder/* /.netlify/functions/member-founder-api 200
+/api/founder/campaign-stats /.netlify/functions/founder-campaign-stats 200
 
 # Feature: Vehicle Ownership Verification (VIN decode + registration AI verify)
 /api/vehicle/decode-vin /.netlify/functions/vehicle-verify/decode-vin 200
@@ -338,3 +364,6 @@
 # Feature: Tier 2 money-integrity fixes — Task: admin-portal audit
 /api/admin/payments/*  /.netlify/functions/admin-release-payment/:splat 200
 /api/admin/disputes/*  /.netlify/functions/admin-dispute-resolve/:splat 200
+
+# Feature: public booking-widget.js embed (broken-client-caller cleanup, 2026-09-11)
+/api/shop/book /.netlify/functions/shop-book 200

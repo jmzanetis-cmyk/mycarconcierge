@@ -458,6 +458,41 @@ class HelpdeskWidget extends ChatWidgetBase {
     messagesContainer.innerHTML = this.getWelcomeHTML(config);
   }
 
+  // Same isNetlify/isNativeApp branching handleSendMessage already needed
+  // for its POST — pulled out here so the feedback PATCH below can reuse it
+  // instead of re-deriving the same three cases.
+  getHelpdeskApiUrl() {
+    const isNetlify = window.location.hostname.includes('netlify') ||
+                      window.location.hostname === 'mycarconcierge.com' ||
+                      window.location.hostname === 'www.mycarconcierge.com';
+    const isNativeApp = window.Capacitor !== undefined || window.location.protocol === 'capacitor:';
+    if (isNetlify) return '/.netlify/functions/helpdesk';
+    if (isNativeApp) return 'https://www.mycarconcierge.com/.netlify/functions/helpdesk';
+    return '/api/helpdesk';
+  }
+
+  // 2026-09-09: overrides ChatWidgetBase's no-op default (see
+  // chat-widget-base.js) — this is the one widget with real server-side
+  // message persistence, so it's the one that should actually send
+  // feedback anywhere. Fire-and-forget: the "Thanks for the feedback!" UI
+  // swap and the localStorage write already happened in the base class
+  // before this runs, so a failed/slow request here can't affect what the
+  // person sees. message is null when this reply never got a messageId
+  // back (persistence failed server-side, or it's a message cached from
+  // before this feature shipped) — nothing to send feedback against, so
+  // just skip it rather than erroring.
+  onFeedbackGiven(feedback, message, msgIndex) {
+    if (!message || !message.messageId) return;
+    const apiUrl = this.getHelpdeskApiUrl();
+    fetch(apiUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: message.messageId, feedback })
+    }).catch((err) => {
+      console.error('[helpdesk] feedback send failed (non-fatal):', err);
+    });
+  }
+
   copyConversation() {
     if (this.messages.length === 0) return;
     const text = this.messages.map(m => {
@@ -563,20 +598,9 @@ class HelpdeskWidget extends ChatWidgetBase {
     this.showTypingIndicator();
     
     try {
-      const isNetlify = window.location.hostname.includes('netlify') || 
-                        window.location.hostname === 'mycarconcierge.com' ||
-                        window.location.hostname === 'www.mycarconcierge.com';
-      const isNativeApp = window.Capacitor !== undefined || window.location.protocol === 'capacitor:';
-      let apiUrl;
-      if (isNetlify) {
-        apiUrl = '/.netlify/functions/helpdesk';
-      } else if (isNativeApp) {
-        apiUrl = 'https://www.mycarconcierge.com/.netlify/functions/helpdesk';
-      } else {
-        apiUrl = '/api/helpdesk';
-      }
+      const apiUrl = this.getHelpdeskApiUrl();
       console.log('Helpdesk calling:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -599,7 +623,13 @@ class HelpdeskWidget extends ChatWidgetBase {
       this.hideTypingIndicator();
       
       if (data.reply) {
-        this.messages.push({ role: 'assistant', content: data.reply });
+        // messageId (added 2026-09-09) is the chat_messages row this reply
+        // was persisted as, if persistence succeeded — null if it didn't
+        // (Supabase hiccup, no conversationId, etc). Carried on the message
+        // object so onFeedbackGiven below has something to send a thumbs
+        // up/down against; a null messageId just means feedback on this
+        // particular reply silently stays local-only, same as before.
+        this.messages.push({ role: 'assistant', content: data.reply, messageId: data.messageId || null });
         this.addMessage('assistant', data.reply, true);
       } else if (data.error) {
         this.addMessage('assistant', 'Sorry, something went wrong. Please try again.');

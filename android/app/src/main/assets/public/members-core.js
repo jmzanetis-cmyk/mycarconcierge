@@ -100,6 +100,9 @@ function setThemeFromToggle(isLight) {
 
 document.addEventListener('DOMContentLoaded', () => {
   updateThemeIcon();
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    document.body.classList.add('has-bottom-nav');
+  }
 });
 
 // ========== GLOBAL WINDOW ASSIGNMENTS ==========
@@ -272,6 +275,11 @@ const serviceTypes = {
     '── Other Brands ──',
     'Manufacturer Scheduled Service',
     'Factory Recommended Maintenance'
+  ],
+  snow_removal: [
+    'Residential driveway clearing', 'Commercial lot clearing', 'Salting / de-icing',
+    'Sidewalk / walkway clearing', 'Roof snow removal', 'Seasonal contract (per-season)',
+    'Per-storm / on-call', 'Emergency / priority clearing'
   ],
   other: ['Custom request']
 };
@@ -497,12 +505,24 @@ window.addEventListener('load', async () => {
         const accepted = await TosModal.accept(supabaseClient, user.id);
         if (accepted) {
           await initializeDashboard();
+          const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+            .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+          if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
+            _show2FAGate();
+          }
         }
       });
       return;
     }
-    
+
     await initializeDashboard();
+
+    // Mandatory 2FA enrollment gate — runs after loadProfile() sets userProfile
+    const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+      .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+    if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
+      _show2FAGate();
+    }
   } catch (err) {
     console.error('Page initialization error:', err);
     showToast('Error loading page. Check console for details.', 'error');
@@ -523,7 +543,8 @@ async function initializeDashboard() {
     loadUpsellRequests(),
     loadConversations(),
     loadNotifications(),
-    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve()
+    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve(),
+    typeof loadCustodyFlag === 'function' ? loadCustodyFlag() : Promise.resolve()
   ]);
   
   updateStats();
@@ -579,7 +600,7 @@ function setupRealtimeSubscriptions() {
         const newMsg = payload.new;
         const msgHtml = `
           <div class="message received">
-            <div class="message-bubble">${newMsg.content}</div>
+            <div class="message-bubble">${escapeHtml(newMsg.content)}</div>
             <div class="message-time">${new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         `;
@@ -616,11 +637,12 @@ function setupRealtimeSubscriptions() {
       }
     })
 
-    // Upsell requests
+    // Upsell / additional work requests — Realtime channel now watches the
+    // canonical additional_work_requests table (see migration 20260901a).
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
-      table: 'upsell_requests',
+      table: 'additional_work_requests',
       filter: `member_id=eq.${currentUser.id}`
     }, async (payload) => {
       console.log('[REALTIME] New upsell request:', payload.new);
@@ -761,9 +783,10 @@ let vehiclePredictions = {};
 let _predictionsLoading = false;
 
 async function fetchVehiclePredictions(vehicleId) {
+  const empty = { health_summary: null, predictions: [], generated_at: null, cached: false };
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return null;
+    if (!session) { vehiclePredictions[vehicleId] = empty; return null; }
 
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
@@ -780,9 +803,11 @@ async function fetchVehiclePredictions(vehicleId) {
       };
       return vehiclePredictions[vehicleId];
     }
+    vehiclePredictions[vehicleId] = empty;
     return null;
   } catch (error) {
     console.error('Error fetching predictions:', error);
+    vehiclePredictions[vehicleId] = empty;
     return null;
   }
 }
@@ -834,7 +859,7 @@ function renderPredictionsSection(vehicleId) {
     return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
       <div class="prediction-item-left">
         <span class="prediction-urgency-dot" style="background:${config.color};"></span>
-        <div>
+        <div class="prediction-item-text">
           <div class="prediction-item-title">${escapeHtml(p.title)}</div>
           <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
         </div>
@@ -919,11 +944,18 @@ function renderVehicles() {
   grid.innerHTML = vehicles.map(v => {
     const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
     const trimInfo = v.trim_version ? `<span class="vehicle-trim">${escapeHtml(v.trim_version)}</span>` : '';
+    const recallCount = vehicleRecalls[v.id]?.activeCount || 0;
+    const recallBadge = recallCount > 0
+      ? `<span class="recall-badge" onclick="openRecallsModal('${v.id}')" title="${recallCount} active recall${recallCount > 1 ? 's' : ''}">⚠ ${recallCount} Recall${recallCount > 1 ? 's' : ''}</span>`
+      : '';
     return `
       <div class="vehicle-card" data-id="${v.id}">
         <div class="vehicle-card-header">
-          <h3>${escapeHtml(displayName)}</h3>
-          ${trimInfo}
+          <div class="vehicle-card-title-group">
+            <h3>${escapeHtml(displayName)}</h3>
+            ${trimInfo}
+          </div>
+          ${recallBadge}
         </div>
         <div class="vehicle-card-body">
           <p><strong>Year:</strong> ${v.year}</p>
@@ -934,8 +966,25 @@ function renderVehicles() {
           ${v.mileage ? `<p><strong>Mileage:</strong> ${v.mileage.toLocaleString()}</p>` : ''}
         </div>
         ${renderPredictionsSection(v.id)}
+        <div class="vehicle-obd-prompt">
+          <div class="vehicle-obd-prompt-text">
+            <strong>Check Engine Light?</strong>
+            <span>Upload diagnostic codes for AI-powered insights</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openOBDScanner('${v.id}')">📊 Scan</button>
+        </div>
+        ${!v.registration_verified ? `
+        <div class="vehicle-obd-prompt">
+          <div class="vehicle-obd-prompt-text">
+            <strong>Verify Vehicle Ownership</strong>
+            <span>Upload your registration to confirm you own this vehicle</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openRegistrationModal('${v.id}')">📋 Verify</button>
+        </div>
+        ` : ''}
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+          <button class="btn btn-sm" onclick="viewVehicleDetails('${v.id}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">Details</button>
           <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
           <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
         </div>
@@ -973,7 +1022,7 @@ function renderServiceHistory() {
           <div class="history-date">${date}</div>
           ${h.notes ? `<div class="history-notes">${escapeHtml(h.notes)}</div>` : ''}
         </div>
-        ${h.cost ? `<div class="history-cost">$${h.cost.toFixed(2)}</div>` : ''}
+        ${h.total_cost ? `<div class="history-cost">$${Number(h.total_cost).toFixed(2)}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -1016,7 +1065,18 @@ async function loadProfile() {
   } else {
     userProfile = data;
   }
-  
+
+  // Redirect non-members who don't have cross-role member access
+  const _role = userProfile?.role;
+  if (_role === 'provider' && !userProfile?.is_also_member) {
+    window.location.replace('providers.html');
+    return;
+  }
+  if (_role === 'driver') {
+    window.location.replace('driver-dispatch.html');
+    return;
+  }
+
   const name = userProfile?.full_name || 'Member';
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   document.getElementById('user-name').textContent = name;
@@ -1046,6 +1106,9 @@ async function loadProfile() {
   // Load notification preferences
   if (typeof loadNotificationPreferences === 'function') loadNotificationPreferences();
 
+  // Initialize biometric settings toggle (native only, no-op on web)
+  if (typeof initBiometricSettings === 'function') initBiometricSettings();
+
   // Show location reminder if ZIP not set
   if (!userProfile?.zip_code) {
     const status = document.getElementById('location-status');
@@ -1072,7 +1135,7 @@ async function checkFounderAccess() {
       .select('id, status')
       .eq('user_id', currentUser.id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
     
     if (founderRecord) {
       document.getElementById('founder-nav').style.display = 'block';
@@ -1085,17 +1148,18 @@ async function checkFounderAccess() {
 }
 
 function showFounderPromoBanner() {
-  const banner = document.getElementById('founder-promo-banner');
-  if (!banner) return;
-  const dismissed = localStorage.getItem('founderPromoDismissed');
+  const uid = currentUser?.id || 'anon';
+  const dismissed = localStorage.getItem(`founderPromoDismissed_${uid}`);
   if (dismissed) return;
-  banner.style.display = 'block';
+  const banner = document.getElementById('founder-promo-banner');
+  if (banner) banner.style.display = 'block';
 }
 
 window.dismissFounderPromo = function() {
+  const uid = currentUser?.id || 'anon';
   const banner = document.getElementById('founder-promo-banner');
   if (banner) banner.style.display = 'none';
-  localStorage.setItem('founderPromoDismissed', Date.now().toString());
+  localStorage.setItem(`founderPromoDismissed_${uid}`, Date.now().toString());
 };
 
 async function displayLoyaltyBadges(profile) {
@@ -1142,13 +1206,14 @@ async function displayLoyaltyBadges(profile) {
 async function checkProviderAccess() {
   try {
     const { data: providerRecord } = await supabaseClient
-      .from('service_providers')
+      .from('provider_applications')
       .select('id, status')
       .eq('user_id', currentUser.id)
-      .single();
-    
+      .eq('status', 'approved')
+      .maybeSingle();
+
     // Only show dual access if user has an approved provider record
-    if (providerRecord && providerRecord.status === 'approved') {
+    if (providerRecord) {
       document.getElementById('switch-portal-container').style.display = 'block';
     } else {
       document.getElementById('switch-portal-container').style.display = 'none';
@@ -1188,7 +1253,12 @@ async function loadVehicles() {
 }
 
 async function loadUpsellRequests() {
-  const { data } = await supabaseClient.from('upsell_requests')
+  // Read directly from additional_work_requests — RLS allows member SELECT
+  // where auth.uid() = member_id (see migration 20260901a). Server-side
+  // /api/upsell/mine exists too but the join to maintenance_packages+vehicles
+  // is simpler with supabase-js embeds; we go direct here and reserve the API
+  // for the write path where money is actually moving.
+  const { data } = await supabaseClient.from('additional_work_requests')
     .select('*, maintenance_packages(title, vehicles(year, make, model, fuel_injection_type))')
     .eq('member_id', currentUser.id)
     .order('created_at', { ascending: false });
@@ -1342,22 +1412,39 @@ function renderUpsells() {
   }).join('');
 }
 
+// upsellApi() — wrap fetch to /api/upsell/* with bearer auth + JSON.
+async function upsellApi(path, body) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers.Authorization = 'Bearer ' + session.access_token;
+  const resp = await fetch(apiBase + path, {
+    method: 'POST',
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
 async function acknowledgeUpdate(updateId) {
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    member_action: 'acknowledged',
-    responded_at: new Date().toISOString()
-  }).eq('id', updateId);
-  showToast('Update acknowledged. Provider has been notified.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'acknowledge' });
+    showToast('Update acknowledged. Provider has been notified.', 'success');
+  } catch (e) {
+    showToast('Could not acknowledge: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
 async function requestCallBack(updateId) {
-  await supabaseClient.from('upsell_requests').update({
-    call_requested: true,
-    member_action: 'call_me'
-  }).eq('id', updateId);
-  showToast('Call requested! Provider will call you shortly.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'request_call' });
+    showToast('Call requested! Provider will call you shortly.', 'success');
+  } catch (e) {
+    showToast('Could not send call request: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1369,13 +1456,15 @@ function openReplyModal(updateId, title) {
 }
 
 async function submitReply(updateId, reply) {
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    member_response: reply,
-    member_action: 'replied',
-    responded_at: new Date().toISOString()
-  }).eq('id', updateId);
-  showToast('Reply sent to provider!', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', {
+      action: 'reply',
+      member_response: reply,
+    });
+    showToast('Reply sent to provider!', 'success');
+  } catch (e) {
+    showToast('Could not send reply: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1392,58 +1481,182 @@ function getTimeRemaining(expiresAt) {
 
 async function approveUpsell(upsellId) {
   const upsell = upsellRequests.find(u => u.id === upsellId);
-  if (!confirm(`Approve this additional work for $${(upsell?.estimated_cost || 0).toFixed(2)}?\n\nThis amount will be added to your escrow payment.`)) return;
+  const amount = Number(upsell?.estimated_cost || 0);
+  if (!confirm(`Approve this additional work for $${amount.toFixed(2)}?\n\nYou'll authorize the charge on your card next — funds will be held (not charged) until the job is marked complete.`)) return;
 
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    responded_at: new Date().toISOString()
-  }).eq('id', upsellId);
-
-  // Update payment to add upsell amount
-  if (upsell?.package_id) {
-    const { data: payment } = await supabaseClient.from('payments')
-      .select('*')
-      .eq('package_id', upsell.package_id)
-      .single();
-    
-    if (payment) {
-      const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
-      const mccFee = newTotal * 0.075;
-      const providerAmount = newTotal - mccFee;
-      
-      await supabaseClient.rpc('member_approve_additional_work', {
-        p_payment_id: payment.id,
-        p_new_total: newTotal,
-        p_new_provider: providerAmount,
-        p_new_mcc_fee: mccFee
-      });
-    }
+  // Step 1 — server creates the supplemental manual-capture PI and returns
+  // its client_secret. Reviewer accounts skip Stripe entirely and get back
+  // { success: true, reviewer_mock: true } — treat as fully approved.
+  let approveResp;
+  try {
+    approveResp = await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/approve', {});
+  } catch (e) {
+    showToast('Could not start approval: ' + e.message, 'error');
+    return;
+  }
+  if (approveResp.reviewer_mock) {
+    showToast('Additional work approved (reviewer demo — no live charge).', 'success');
+    await loadUpsellRequests();
+    return;
+  }
+  if (!approveResp.client_secret) {
+    showToast('Approval initiated but no card authorization needed. Refreshing.', 'success');
+    await loadUpsellRequests();
+    return;
   }
 
-  showToast('Additional work approved. Payment updated.', 'success');
+  // Step 2 — mount Stripe.js card entry, confirm the PaymentIntent (holds funds).
+  const pi = await mountUpsellCardModal(approveResp.client_secret, {
+    title: upsell?.title || 'Additional work',
+    amount,
+  });
+  if (!pi) {
+    // User canceled or card errored. Server-side state stays authorization_pending
+    // until they retry (idempotent /approve returns the same client_secret).
+    return;
+  }
+  if (pi.status !== 'requires_capture' && pi.status !== 'succeeded') {
+    showToast('Card was not authorized. Please try again.', 'error');
+    return;
+  }
+
+  // Step 3 — tell the server the PI is now in requires_capture; server flips
+  // row to 'approved' and notifies provider.
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/confirm-authorization', {});
+  } catch (e) {
+    // PI is authorized in Stripe already, but our DB is behind. Surface the
+    // error but the funds are held — the server-side reconcile job (future)
+    // will pick it up. Don't lose the toast.
+    showToast('Card authorized, but sync failed: ' + e.message + '. Refresh to update.', 'error');
+    await loadUpsellRequests();
+    return;
+  }
+  showToast('Additional work approved. Funds are held securely until job completion.', 'success');
   await loadUpsellRequests();
+}
+
+// mountUpsellCardModal — compact card-entry overlay reusing the same Stripe
+// Elements pattern as members-care-plans.js:mountAcceptBidCard. Resolves the
+// Stripe PaymentIntent object (or null on cancel).
+async function mountUpsellCardModal(clientSecret, opts) {
+  if (typeof window.initStripe !== 'function') {
+    showToast('Payment system unavailable. Please refresh.', 'error');
+    return null;
+  }
+  const stripe = await window.initStripe();
+  if (!stripe) {
+    showToast('Payment system unavailable. Please refresh.', 'error');
+    return null;
+  }
+  const amountLabel = '$' + Number(opts?.amount || 0).toFixed(2);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop active';
+  overlay.id = 'upsell-authorize-modal';
+  overlay.style.zIndex = '10000';
+  overlay.innerHTML =
+    '<div class="modal" style="max-width:480px;">' +
+      '<div class="modal-header">' +
+        '<h3 class="modal-title">Authorize ' + amountLabel + '</h3>' +
+        '<button class="modal-close" id="upsell-auth-close">×</button>' +
+      '</div>' +
+      '<div class="modal-body">' +
+        '<p style="color:var(--text-secondary);margin:0 0 12px;">' +
+          'For: <strong>' + (opts?.title || 'Additional work').replace(/</g,'&lt;') + '</strong>' +
+        '</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.88rem;margin:0 0 16px;">' +
+          'This authorizes ' + amountLabel + ' on your card. Funds are held (not charged) until the job is marked complete.' +
+        '</p>' +
+        '<div id="upsell-card-element" style="padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);min-height:44px;"></div>' +
+        '<div id="upsell-card-errors" style="color:var(--accent-red);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button class="btn btn-secondary" id="upsell-auth-cancel">Cancel</button>' +
+        '<button class="btn btn-primary" id="upsell-auth-confirm" disabled aria-disabled="true">Authorize ' + amountLabel + '</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  return new Promise((resolve) => {
+    const isDark = !document.documentElement.classList.contains('light-theme');
+    const elements = stripe.elements({
+      appearance: {
+        theme: isDark ? 'night' : 'stripe',
+        variables: { colorPrimary: '#c9a227', borderRadius: '8px' },
+      },
+    });
+    const card = elements.create('card', {
+      style: {
+        base: {
+          color: isDark ? '#f5f5f7' : '#0f172a',
+          fontFamily: 'Inter, -apple-system, sans-serif',
+          fontSize: '16px',
+          '::placeholder': { color: '#6b7280' },
+        },
+        invalid: { color: '#f87171', iconColor: '#f87171' },
+      },
+    });
+    card.mount('#upsell-card-element');
+    const errEl = document.getElementById('upsell-card-errors');
+    const btn = document.getElementById('upsell-auth-confirm');
+    card.on('change', (ev) => {
+      if (errEl) errEl.textContent = ev.error ? ev.error.message : '';
+      if (btn) {
+        const ready = !!ev.complete && !ev.error;
+        btn.disabled = !ready;
+        btn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      }
+    });
+    const cleanup = () => { try { card.unmount(); } catch (_) {} overlay.remove(); };
+    const onCancel = () => { cleanup(); resolve(null); };
+    document.getElementById('upsell-auth-close').addEventListener('click', onCancel);
+    document.getElementById('upsell-auth-cancel').addEventListener('click', onCancel);
+    document.getElementById('upsell-auth-confirm').addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.textContent = 'Authorizing…';
+      try {
+        const result = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: { card },
+        });
+        if (result.error) {
+          if (errEl) errEl.textContent = result.error.message || 'Card declined.';
+          btn.disabled = false;
+          btn.setAttribute('aria-disabled', 'false');
+          btn.textContent = 'Authorize ' + amountLabel;
+          return;
+        }
+        cleanup();
+        resolve(result.paymentIntent);
+      } catch (e) {
+        if (errEl) errEl.textContent = e.message || 'Authorization failed';
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', 'false');
+        btn.textContent = 'Authorize ' + amountLabel;
+      }
+    });
+  });
 }
 
 async function declineUpsell(upsellId) {
   const upsell = upsellRequests.find(u => u.id === upsellId);
   const pkg = packages.find(p => p.id === upsell?.package_id);
   const originalBid = pkg?._acceptedBid?.amount || pkg?.accepted_bid_amount;
-  
+
   let confirmMsg = 'Decline this additional work?\n\n';
   if (originalBid) {
     confirmMsg += `You will only pay the original bid amount of $${originalBid.toFixed(2)}.\n\n`;
   }
   confirmMsg += 'The provider will complete only the originally agreed scope of work.';
-  
+
   if (!confirm(confirmMsg)) return;
 
-  await supabaseClient.from('upsell_requests').update({
-    status: 'declined',
-    member_action: 'declined',
-    responded_at: new Date().toISOString()
-  }).eq('id', upsellId);
-
-  showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {});
+    showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+  } catch (e) {
+    showToast('Could not decline: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1475,12 +1688,24 @@ async function rebidUpsell(upsellId, title, estimatedCost) {
   
   const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert(packageData).select().single();
 
-  // Update upsell request
-  await supabaseClient.from('upsell_requests').update({
-    status: 'rebid',
-    responded_at: new Date().toISOString(),
-    rebid_package_id: newPkg?.id
-  }).eq('id', upsellId);
+  // Rebid path re-uses the decline endpoint (which cancels any PI, if one
+  // exists) then stamps the rebid_package_id via a supabase-js update.
+  // Combining these in a dedicated /rebid endpoint would be cleaner; kept
+  // client-side for the Path C minimum-viable scope.
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {
+      member_response_note: 'Sent out for competing bids: ' + (newPkg?.id || ''),
+    });
+    if (newPkg?.id) {
+      await supabaseClient.from('additional_work_requests').update({
+        status: 'rebid',
+        rebid_package_id: newPkg.id,
+        updated_at: new Date().toISOString(),
+      }).eq('id', upsellId);
+    }
+  } catch (e) {
+    showToast('New package created but decline sync failed: ' + e.message, 'error');
+  }
 
   showToast('New package created for competitive bidding!', 'success');
   await loadUpsellRequests();
@@ -1551,32 +1776,96 @@ async function loadPackages() {
     await loadPackagePaymentStatuses();
   }
   
+  // Audit Batch 2 (2026-07-16): hide the Maintenance Packages nav item
+  // for members with zero packages. Purchase path is disabled (§1b escrow
+  // orphan); read-only view stays reachable for members who already have
+  // packages. Fail-open — if this errors, the nav stays visible.
+  try {
+    const packagesNav = document.getElementById('nav-item-packages');
+    if (packagesNav) {
+      packagesNav.style.display = (packages && packages.length > 0) ? '' : 'none';
+    }
+  } catch (_) { /* fail-open */ }
+
   renderPackages();
   renderRecentActivity();
   loadCrowdFundedProgress();
 }
 
 async function loadConversations() {
+  // Loading state: replace whatever's in the container (initial HTML default,
+  // stale empty-state, or a prior render) with a spinner so cold opens don't
+  // flash "No conversations yet" while the query is in flight. Skip if we
+  // already have real conversation cards — refresh-in-place, no flicker.
+  const _convoContainer = document.getElementById('conversations-list');
+  if (_convoContainer && !_convoContainer.querySelector('.conversation-card')) {
+    _convoContainer.innerHTML =
+      '<div class="empty-state" style="padding:24px;">' +
+      '<div class="empty-state-icon">' + mccIcon('message-square', 40) + '</div>' +
+      '<p style="color:var(--text-muted);">Loading conversations…</p></div>';
+  }
   try {
-    // Get all messages where user is sender or recipient
+    // Get all messages where user is sender or recipient.
+    // Note: the messages↔maintenance_packages FK is not exposed via PostgREST's
+    // schema cache, so we can't use a nested select. Fetch messages first, then
+    // fetch package titles in a second query keyed on package_id, and merge.
+    // Query correction only — no schema change.
     const { data: messages, error } = await supabaseClient
       .from('messages')
-      .select('*, maintenance_packages(id, title)')
+      .select('*')
       .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error loading conversations:', error);
+      // Split behavior by container state:
+      //   - Cards already rendered (refresh-in-place after a successful load):
+      //     keep them on screen and surface the failure via a toast. Clobbering
+      //     a good list with an error state on a transient refresh hiccup is
+      //     worse UX than a soft toast.
+      //   - Empty / loading-skeleton container (cold open failed): render an
+      //     actionable "Try again" state so the user isn't stuck on the
+      //     spinner.
+      if (_convoContainer && _convoContainer.querySelector('.conversation-card')) {
+        if (typeof showToast === 'function') {
+          showToast('Could not refresh conversations.', 'error');
+        }
+      } else if (_convoContainer) {
+        _convoContainer.innerHTML =
+          '<div class="empty-state" style="padding:24px;">' +
+          '<div class="empty-state-icon">' + mccIcon('alert-triangle', 40) + '</div>' +
+          '<p style="color:var(--text-muted);">Could not load conversations. ' +
+          '<a href="#" onclick="event.preventDefault();loadConversations();" ' +
+          'style="color:var(--accent-gold);text-decoration:underline;">Try again</a></p></div>';
+      }
       return;
     }
 
-    // Group by package_id and get the other party
+    // Second query: package titles for the packages referenced in these messages.
+    if (messages && messages.length > 0) {
+      const packageIds = [...new Set(messages.map(m => m.package_id).filter(Boolean))];
+      if (packageIds.length > 0) {
+        const { data: pkgs } = await supabaseClient
+          .from('maintenance_packages')
+          .select('id, title')
+          .in('id', packageIds);
+        const pkgById = new Map((pkgs || []).map(p => [p.id, p]));
+        for (const msg of messages) {
+          msg.maintenance_packages = pkgById.get(msg.package_id);
+        }
+      }
+    }
+
+    // Group by package_id and get the other party.
+    // provider_alias is denormalized onto provider-sent messages at insert time;
+    // pick the first non-null value in each thread. Threads where the provider
+    // has not yet replied fall back to Provider #XXXX until their first message.
     const conversationMap = new Map();
-    
+
     for (const msg of messages || []) {
       const key = msg.package_id;
       const otherPartyId = msg.sender_id === currentUser.id ? msg.recipient_id : msg.sender_id;
-      
+
       if (!conversationMap.has(key)) {
         conversationMap.set(key, {
           packageId: msg.package_id,
@@ -1584,41 +1873,51 @@ async function loadConversations() {
           otherPartyId,
           lastMessage: msg.content,
           lastMessageTime: msg.created_at,
-          unread: msg.recipient_id === currentUser.id && !msg.read_at
+          // Schema note: `messages.read` is a boolean, nullable, default false
+          // (verified via information_schema 2026-09-15). Prior code read a
+          // nonexistent `read_at` column → everything counted as unread and
+          // the header badge over-counted. Use !msg.read so null/undefined
+          // also count as unread — safer than msg.read === false, which
+          // would (incorrectly) treat null as "read".
+          unread: msg.recipient_id === currentUser.id && !msg.read,
+          providerAlias: msg.provider_alias || null,
         });
+      } else if (!conversationMap.get(key).providerAlias && msg.provider_alias) {
+        conversationMap.get(key).providerAlias = msg.provider_alias;
       }
     }
 
-    // Fetch provider alias for each conversation
-    const conversations = Array.from(conversationMap.values());
-    const providerIds = [...new Set(conversations.map(c => c.otherPartyId))];
-    
-    if (providerIds.length > 0) {
-      const { data: providers } = await supabaseClient
-        .from('profiles')
-        .select('id, provider_alias')
-        .in('id', providerIds);
+    let conversations = Array.from(conversationMap.values());
+    conversations.forEach(c => {
+      c.providerName = c.providerAlias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
+    });
 
-      const providerMap = new Map(providers?.map(p => [p.id, p]) || []);
-      
-      conversations.forEach(c => {
-        const provider = providerMap.get(c.otherPartyId);
-        // Use alias, never real business name
-        c.providerName = provider?.provider_alias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
-      });
+    // Hide conversations with blocked users (Apple Guideline 1.2 block).
+    // Use refresh() so cross-session mutations (unblock in another tab, admin
+    // clearing a stale row, DB-level delete) are picked up without an app
+    // reload — the prior `_blocked` set was a page-load snapshot.
+    if (window.mccModeration) {
+      try {
+        await (window.mccModeration.refresh || window.mccModeration.loadBlockedIds)();
+        conversations = conversations.filter(c => !window.mccModeration.isBlocked(c.otherPartyId));
+      } catch (e) { /* non-fatal: show all if block list unavailable */ }
     }
 
     renderConversations(conversations);
     
     // Update unread badge
     const unreadCount = conversations.filter(c => c.unread).length;
-    const badge = document.getElementById('message-count');
-    if (unreadCount > 0) {
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    // Update both the sidebar badge and the native header Messages badge.
+    ['message-count', 'header-message-count'].forEach((bid) => {
+      const badge = document.getElementById(bid);
+      if (!badge) return;
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
   } catch (err) {
     console.error('loadConversations error:', err);
   }
@@ -1633,7 +1932,7 @@ function renderConversations(conversations) {
   }
 
   container.innerHTML = conversations.map(c => `
-    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
+    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}', '${c.providerName}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div>
           <div style="font-weight:600;margin-bottom:2px;">${c.providerName}</div>
@@ -1882,6 +2181,7 @@ async function saveReminder() {
   }
   
   const reminderData = {
+    user_id: currentUser.id,
     vehicle_id: vehicleId,
     title: title,
     reminder_type: reminderType,
@@ -2692,24 +2992,43 @@ function setupEventListeners() {
 }
 
 // ========== MODULE LOADER ==========
-const loadedModules = {};
+// Pre-seed with modules that members.html loads STATICALLY at page init —
+// loadModule() would otherwise re-inject the same file on section-switch,
+// causing SyntaxError on top-level `let` redeclarations (e.g. vehiclePhotos
+// in members-vehicles.js; same class as _mccLeafletPromise / currentEscrowElements
+// noted in plan §1 line 32 and §8 line 353). Vestigial injection path retained
+// as-is for future dynamic modules — pre-seed just short-circuits the ones
+// that are already loaded.
+const loadedModules = {
+  vehicles: true,
+  packages: true,
+  'care-plans': true,
+  settings: true,
+  extras: true,
+};
+const pendingModules = {};
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
-  return new Promise((resolve, reject) => {
+  if (pendingModules[name]) return pendingModules[name];
+  const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = `/members-${name}.js`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
+      delete pendingModules[name];
       console.log(`[Module] Loaded ${name} module`);
       resolve();
     };
     script.onerror = (e) => {
+      delete pendingModules[name];
       console.error(`[Module] Failed to load ${name} module`, e);
       reject(e);
     };
     document.body.appendChild(script);
   });
+  pendingModules[name] = promise;
+  return promise;
 }
 
 function loadModuleForSection(section) {
@@ -2750,6 +3069,9 @@ function loadModuleForSection(section) {
       return loadModule('extras');
     case 'overview':
     case 'history':
+    case 'car-clubs':
+      // Static teaser section — Browse button navigates to /car-club-member.html;
+      // no dynamic module fetch needed inline.
       return Promise.resolve();
     default:
       console.error(`[Module] No module mapping for section: ${section}`);
@@ -2758,7 +3080,28 @@ function loadModuleForSection(section) {
 }
 
 // ========== NAVIGATION ==========
+// ========== MANDATORY 2FA GATE ==========
+function _show2FAGate() {
+  window._2faGateActive = true;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = '';
+  showSection('settings');
+}
+
+function _dismiss2FAGate() {
+  window._2faGateActive = false;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = 'none';
+  showSection('learn');
+}
+
 async function showSection(sectionId) {
+  // Block navigation away from settings while mandatory 2FA enrollment is pending
+  if (window._2faGateActive && sectionId !== 'settings') {
+    showToast('Please complete your 2FA setup before accessing other sections.', 'warning');
+    return;
+  }
+
   // Load required module first
   await loadModuleForSection(sectionId);
 
@@ -2769,6 +3112,8 @@ async function showSection(sectionId) {
   target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
+  document.querySelectorAll('.mobile-bottom-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.mobile-bottom-nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
   
   // Reset scroll position to top
@@ -2803,6 +3148,18 @@ async function showSection(sectionId) {
     if (typeof initPushNotifications === 'function') initPushNotifications();
     if (typeof loadLoginActivity === 'function') loadLoginActivity();
     if (typeof load2FAStatus === 'function') load2FAStatus();
+    // Reflect active booking guidance tile from localStorage
+    const _curGuidance = localStorage.getItem('mcc_booking_guidance') || 'full';
+    document.querySelectorAll('.guidance-tile').forEach(t => {
+      t.setAttribute('data-active', t.getAttribute('data-value') === _curGuidance ? 'true' : 'false');
+    });
+    // Load subscription/billing data
+    if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+    // Developer API Keys and Outreach Engine are admin/developer tools — hide from standard members
+    if (userProfile?.role === 'admin') {
+      if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+      if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
+    }
   }
   if (sectionId === 'order-history' && typeof loadOrderHistory === 'function') {
     loadOrderHistory();
@@ -2954,9 +3311,6 @@ function toggleSidebar() {
 function openVehicleModal() {
   document.getElementById('vehicle-modal').classList.add('active');
   
-  // Update verification UI when modal opens
-  updateVerificationUI();
-  
   // Reset all form fields
   ['v-year','v-make','v-model','v-trim','v-color','v-nickname','v-mileage','v-vin'].forEach(id => {
     const el = document.getElementById(id);
@@ -2985,7 +3339,7 @@ function openPackageModal() {
   const noVehicleHint = document.getElementById('p-vehicle-empty-hint');
   if (vehicles.length > 0) {
     pVehicleSelect.innerHTML = '<option value="">Select a vehicle...</option>' +
-      vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}</option>`).join('');
+      vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}${!v.registration_verified ? ' — registration required' : ''}</option>`).join('');
     if (vehicles.length === 1) {
       pVehicleSelect.value = vehicles[0].id;
     } else {
@@ -3000,6 +3354,7 @@ function openPackageModal() {
   }
   document.getElementById('package-modal').classList.add('active');
   if (typeof resetAiAssistant === 'function') resetAiAssistant();
+  if (typeof resetBudgetPicker === 'function') resetBudgetPicker();
   document.getElementById('p-title').value = '';
   document.getElementById('p-description').value = '';
   document.getElementById('p-category').value = 'maintenance';
@@ -3020,9 +3375,12 @@ function openPackageModal() {
   document.getElementById('p-oil-brand').value = '';
   
   
-  // Clear photos
+  // Clear photos — #package-photo-previews was removed from the modal markup in
+  // a prior pass; guard the reset so the modal-open reset flow doesn't throw
+  // (unguarded null.innerHTML halted every downstream reset after this line).
   pendingPackagePhotos = [];
-  document.getElementById('package-photo-previews').innerHTML = '';
+  const _packagePhotoPreviews = document.getElementById('package-photo-previews');
+  if (_packagePhotoPreviews) _packagePhotoPreviews.innerHTML = '';
   
   // Reset crowd-funded controls
   const crowdFundedCheckbox = document.getElementById('p-crowd-funded');
@@ -3092,8 +3450,12 @@ function handlePrivateJobToggle() {
     const crowdFundedSection = document.getElementById('crowd-funded-section');
     if (crowdFundedSection) crowdFundedSection.style.display = 'none';
   } else {
+    // Feature gate: crowdfunding ships dark — keep the section hidden if the
+    // flag isn't on, even when private-job is unchecked.
     const crowdFundedSection = document.getElementById('crowd-funded-section');
-    if (crowdFundedSection) crowdFundedSection.style.display = 'block';
+    if (crowdFundedSection) {
+      crowdFundedSection.style.display = window._mccFlags?.crowdfunding_enabled ? 'block' : 'none';
+    }
   }
 }
 
@@ -3127,7 +3489,16 @@ function formatPickup(pref) {
   return map[pref] || pref;
 }
 
+// 2s de-dupe: drop a toast whose (msg, type) matches the previous one within
+// 2000ms. Keeps rapid double-taps on moderation buttons from stacking two
+// identical toasts. Module-scoped so it works across all callers.
+if (typeof window._mccMemberLastToast === 'undefined') window._mccMemberLastToast = { key: null, at: 0 };
 function showToast(message, type = 'success') {
+  const key = type + '|' + String(message);
+  const now = Date.now();
+  if (key === window._mccMemberLastToast.key && (now - window._mccMemberLastToast.at) < 2000) return;
+  window._mccMemberLastToast.key = key;
+  window._mccMemberLastToast.at = now;
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
@@ -3251,6 +3622,8 @@ function escapeHtml(text) {
 
 // ========== CROWD-FUNDED PROGRESS LOADING ==========
 async function loadCrowdFundedProgress() {
+  // Feature gate: skip entirely when crowdfunding is off.
+  if (!window._mccFlags?.crowdfunding_enabled) return;
   if (!packages || !packages.length) return;
   const crowdFundedPkgs = packages.filter(p => p.crowd_funded);
   if (!crowdFundedPkgs.length) return;
@@ -3408,7 +3781,7 @@ async function mountContributeCardElement() {
     window._contributeStripe = stripeInstance;
     const elements = stripeInstance.elements();
     const style = {
-      base: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#f5f5f7', fontSize: '15px', fontFamily: "'Outfit', sans-serif", '::placeholder': { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' } },
+      base: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#f5f5f7', fontSize: '15px', fontFamily: "'Inter', sans-serif", '::placeholder': { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' } },
       invalid: { color: '#f87171' }
     };
     const card = elements.create('card', { style, hidePostalCode: true });
@@ -3423,6 +3796,8 @@ async function mountContributeCardElement() {
     });
   } catch (err) {
     console.error('[ContributeModal] Stripe init error:', err);
+    const errorEl = document.getElementById('contribute-card-error');
+    if (errorEl) { errorEl.textContent = 'Payment system unavailable. Please refresh and try again.'; errorEl.style.display = 'block'; }
   }
 }
 
@@ -3487,7 +3862,6 @@ async function submitContribution(packageId) {
 }
 
 // Reset community board when switching away from it
-const _origShowSection = typeof showSection === 'function' ? showSection : null;
 function patchShowSectionForCommunityBoard(fn) {
   return function(sectionId) {
     if (sectionId !== 'packages') {
@@ -3518,3 +3892,269 @@ window.loadCommunityBoard = loadCommunityBoard;
 window.openContributeModal = openContributeModal;
 window.submitContribution = submitContribution;
 window.loadCrowdFundedProgress = loadCrowdFundedProgress;
+
+// ========== TOTP 2FA FUNCTIONS ==========
+let totpPendingFactorId = null;
+
+async function load2FAStatus() {
+  if (!currentUser) return;
+
+  const loadingEl = document.getElementById('2fa-loading');
+  const contentEl = document.getElementById('2fa-content');
+
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (contentEl) contentEl.style.display = 'none';
+
+  try {
+    // Use the same signal as the login gate: a verified native TOTP factor.
+    const { data: factorsData } = await supabaseClient.auth.mfa.listFactors();
+    const enrolled = (factorsData?.totp || []).some(f => f.status === 'verified');
+    update2FADisplay(enrolled);
+  } catch (error) {
+    console.error('Error loading 2FA status:', error);
+    update2FADisplay(false);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'block';
+  }
+}
+
+function update2FADisplay(enrolled) {
+  const statusText  = document.getElementById('2fa-status-text');
+  const statusDesc  = document.getElementById('2fa-status-desc');
+  const statusBadge = document.getElementById('2fa-status-badge');
+  const enableSec   = document.getElementById('2fa-enable-section');
+  const disableSec  = document.getElementById('2fa-disable-section');
+
+  if (enrolled) {
+    if (statusText)  statusText.textContent  = '2FA is Enabled';
+    if (statusDesc)  statusDesc.textContent  = 'Your account is protected with an authenticator app.';
+    if (statusBadge) {
+      statusBadge.textContent        = 'Enabled';
+      statusBadge.style.background   = 'var(--accent-green-soft)';
+      statusBadge.style.color        = 'var(--accent-green)';
+    }
+    if (enableSec)  enableSec.style.display  = 'none';
+    if (disableSec) disableSec.style.display = 'block';
+  } else {
+    if (statusText)  statusText.textContent  = '2FA is Disabled';
+    if (statusDesc)  statusDesc.textContent  = 'Your account is protected by password only.';
+    if (statusBadge) {
+      statusBadge.textContent        = 'Disabled';
+      statusBadge.style.background   = 'rgba(239,95,95,0.15)';
+      statusBadge.style.color        = 'var(--accent-red)';
+    }
+    if (enableSec)  enableSec.style.display  = 'block';
+    if (disableSec) disableSec.style.display = 'none';
+    // Reset enroll UI to step 0 whenever status reloads to disabled
+    totpShowStep(0);
+  }
+}
+
+function totpShowStep(n) {
+  ['totp-enroll-step0', 'totp-enroll-step1', 'totp-backup-panel'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (i === n) ? 'block' : 'none';
+  });
+}
+
+function totpShowEnrollError(msg) {
+  const el = document.getElementById('totp-enroll-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function totpHideEnrollError() {
+  const el = document.getElementById('totp-enroll-error');
+  if (el) el.style.display = 'none';
+}
+
+function getTotpEnrollCode() {
+  let code = '';
+  for (let i = 1; i <= 6; i++) code += document.getElementById(`totp-enroll-${i}`)?.value || '';
+  return code;
+}
+
+function setupTotpEnrollInputs() {
+  // Clone to flush any stale listeners from a prior enroll attempt.
+  document.querySelectorAll('.totp-enroll-digit').forEach(input => {
+    const fresh = input.cloneNode(true);
+    input.parentNode.replaceChild(fresh, input);
+  });
+  const inputs = Array.from(document.querySelectorAll('.totp-enroll-digit'));
+  inputs.forEach((input, idx) => {
+    input.value = '';
+    input.addEventListener('input', (e) => {
+      const v = e.target.value.replace(/\D/g, '').slice(0, 1);
+      e.target.value = v;
+      if (v && idx < 5) inputs[idx + 1].focus();
+      const btn = document.getElementById('totp-confirm-btn');
+      if (btn) btn.disabled = getTotpEnrollCode().length !== 6;
+      totpHideEnrollError();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && idx > 0) inputs[idx - 1].focus();
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const digits = (e.clipboardData || window.clipboardData).getData('text')
+        .replace(/\D/g, '').slice(0, 6);
+      digits.split('').forEach((d, i) => { if (inputs[i]) inputs[i].value = d; });
+      if (digits.length > 0) inputs[Math.min(digits.length, 5)].focus();
+      const btn = document.getElementById('totp-confirm-btn');
+      if (btn) btn.disabled = getTotpEnrollCode().length !== 6;
+    });
+  });
+}
+
+async function startTotpEnroll() {
+  const btn = document.getElementById('totp-start-btn');
+  const orig = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `${mccIcon('clock', 14)} Starting...`; }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { showToast('Session expired. Please log in again.', 'error'); return; }
+
+    const res  = await fetch('/api/2fa/totp/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.factorId) {
+      showToast(data.error || 'Could not start enrollment. Please try again.', 'error');
+      return;
+    }
+
+    totpPendingFactorId = data.factorId;
+
+    // Render QR client-side using the already-loaded qrcode@1.5.3 library.
+    // QRCode.toCanvas() runs entirely in-browser — the TOTP secret never
+    // leaves the device, unlike the api.qrserver.com approach used elsewhere.
+    const canvas = document.getElementById('totp-qr-canvas');
+    if (canvas && typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(canvas, data.uri, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, (err) => {
+        if (err) console.error('QR render error:', err);
+      });
+    }
+
+    const secretEl = document.getElementById('totp-secret-display');
+    if (secretEl) secretEl.textContent = data.secret;
+
+    setupTotpEnrollInputs();
+    totpHideEnrollError();
+    totpShowStep(1);
+    setTimeout(() => document.getElementById('totp-enroll-1')?.focus(), 100);
+  } catch (err) {
+    console.error('startTotpEnroll error:', err);
+    showToast('Network error. Please try again.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+function cancelTotpEnroll() {
+  totpPendingFactorId = null;
+  totpHideEnrollError();
+  totpShowStep(0);
+}
+
+async function confirmTotpEnroll() {
+  const code = getTotpEnrollCode();
+  if (code.length !== 6) return;
+
+  const btn  = document.getElementById('totp-confirm-btn');
+  const orig = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `${mccIcon('clock', 14)} Verifying...`; }
+  totpHideEnrollError();
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { totpShowEnrollError('Session expired. Please log in again.'); return; }
+
+    const res  = await fetch('/api/2fa/totp/confirm-enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ factorId: totpPendingFactorId, code })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      if (res.status === 429) {
+        totpShowEnrollError(data.error || 'Too many attempts. Please wait before trying again.');
+      } else {
+        totpShowEnrollError(data.error || 'Invalid code. Please try again.');
+      }
+      return;
+    }
+
+    // Success: show backup codes panel (one-time display)
+    const grid = document.getElementById('totp-backup-codes-grid');
+    if (grid && Array.isArray(data.backupCodes)) {
+      grid.innerHTML = data.backupCodes.map(c =>
+        `<div style="padding:8px 10px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;font-size:0.95rem;letter-spacing:1px;user-select:all;">${c}</div>`
+      ).join('');
+    }
+
+    const ack = document.getElementById('totp-backup-ack');
+    const doneBtn = document.getElementById('totp-backup-done-btn');
+    if (ack) ack.checked = false;
+    if (doneBtn) doneBtn.disabled = true;
+
+    totpShowStep(2);
+  } catch (err) {
+    console.error('confirmTotpEnroll error:', err);
+    totpShowEnrollError('Network error. Please check your connection and try again.');
+  } finally {
+    if (btn) { btn.disabled = (getTotpEnrollCode().length !== 6); btn.innerHTML = orig; }
+  }
+}
+
+function toggleTotpBackupAck() {
+  const ack    = document.getElementById('totp-backup-ack');
+  const doneBtn = document.getElementById('totp-backup-done-btn');
+  if (doneBtn) doneBtn.disabled = !ack?.checked;
+}
+
+function acknowledgeBackupCodes() {
+  totpPendingFactorId = null;
+  totpShowStep(0);
+  if (window._2faGateActive) {
+    _dismiss2FAGate();
+  } else {
+    load2FAStatus();
+  }
+}
+
+
+window.startTotpEnroll = startTotpEnroll;
+window.cancelTotpEnroll = cancelTotpEnroll;
+window.confirmTotpEnroll = confirmTotpEnroll;
+window.acknowledgeBackupCodes = acknowledgeBackupCodes;
+window.toggleTotpBackupAck = toggleTotpBackupAck;
+
+// ========== LOGOUT ==========
+// Moved from members-settings.js: must be globally available immediately since the
+// Log Out button is in the sidebar and visible before the settings module ever loads.
+async function logout() {
+  try {
+    const storedToken = localStorage.getItem('mcc_fcm_token');
+    if (storedToken) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        fetch(`${apiBase}/api/push/unregister-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: storedToken })
+        }).catch(() => {});
+        localStorage.removeItem('mcc_fcm_token');
+      }
+    }
+  } catch {}
+  await supabaseClient.auth.signOut();
+  window.location.href = 'login.html';
+}
+window.logout = logout;

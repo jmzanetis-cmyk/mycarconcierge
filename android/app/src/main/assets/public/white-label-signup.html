@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Apply for Tenancy – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#12161c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #12161c; --bg-card: rgba(26, 32, 42, 0.95); --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7; --text-secondary: #a0a8b8; --text-muted: #6b7280;
+      --accent-gold: #c9a227; --accent-gold-soft: rgba(201, 162, 39, 0.15); --accent-teal: #2cc4b4;
+      --border-subtle: rgba(160, 168, 184, 0.15); --radius-md: 12px; --radius-lg: 16px;
+      --error: #f87171; --success: #34d399;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .wrap { width: 100%; max-width: 520px; }
+    .brand { text-align: center; margin-bottom: 24px; }
+    .brand img { height: 44px; border-radius: 8px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 32px; }
+    h2 { font-family: 'Fraunces', serif; font-size: 24px; margin-bottom: 6px; }
+    .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+    .progress { display: flex; gap: 6px; margin-bottom: 24px; }
+    .progress-step { flex: 1; height: 4px; border-radius: 2px; background: var(--border-subtle); }
+    .progress-step.active, .progress-step.done { background: var(--accent-gold); }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; }
+    .field input, .field select { width: 100%; padding: 11px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-elevated); color: var(--text-primary); font-size: 15px; font-family: inherit; }
+    .field input:focus, .field select:focus { outline: none; border-color: var(--accent-gold); }
+    .field-hint { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+    .field-hint.ok { color: var(--success); }
+    .field-hint.err { color: var(--error); }
+    .subdomain-row { display: flex; align-items: center; gap: 8px; }
+    .subdomain-row input { flex: 1; }
+    .subdomain-row .suffix { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
+    .plan-option { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .plan-option.selected { border-color: var(--accent-gold); background: var(--accent-gold-soft); }
+    .plan-option .name { font-weight: 600; font-size: 15px; }
+    .plan-option .desc { font-size: 13px; color: var(--text-secondary); }
+    .plan-option .price { font-weight: 700; font-size: 16px; }
+    .billing-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+    .billing-toggle button { flex: 1; padding: 9px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-elevated); color: var(--text-secondary); font-family: inherit; font-size: 13px; cursor: pointer; }
+    .billing-toggle button.active { background: var(--accent-gold); color: #12161c; border-color: var(--accent-gold); font-weight: 600; }
+    .review-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: 14px; }
+    .review-row .k { color: var(--text-secondary); }
+    .actions { display: flex; gap: 10px; margin-top: 22px; }
+    .btn { flex: 1; padding: 13px; border-radius: var(--radius-md); border: none; font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; }
+    .btn-primary { background: var(--accent-gold); color: #12161c; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .error-banner { display: none; background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.4); color: var(--error); padding: 12px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 16px; }
+    .card-step { display: none; }
+    .card-step.active { display: block; }
+    .already-logged-in { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="icons/icon-192.png" alt="My Car Concierge" /></div>
+    <div class="card">
+      <div class="progress">
+        <div class="progress-step active" id="ps-1"></div>
+        <div class="progress-step" id="ps-2"></div>
+        <div class="progress-step" id="ps-3"></div>
+        <div class="progress-step" id="ps-4"></div>
+      </div>
+      <div class="error-banner" id="error-banner"></div>
+
+      <div class="card-step active" id="step-1">
+        <h2>Apply for Tenancy</h2>
+        <p class="sub">First, let's create your account.</p>
+        <div id="already-logged-in-box" class="already-logged-in" style="display:none;">Signed in as <strong id="logged-in-email"></strong>. <a href="#" id="use-different-account" style="color:var(--accent-gold);">Use a different account</a></div>
+        <div id="account-fields">
+          <div class="field"><label>Your name</label><input type="text" id="s1-name" autocomplete="name" /></div>
+          <div class="field"><label>Email</label><input type="email" id="s1-email" autocomplete="email" /></div>
+          <div class="field"><label>Password</label><input type="password" id="s1-password" autocomplete="new-password" /><div class="field-hint">Minimum 8 characters. Already have an MCC account? <a href="login.html" style="color:var(--accent-gold);">Log in first</a>, then come back to this page.</div></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" onclick="nextStep(1)" style="width:100%;">Continue</button></div>
+      </div>
+
+      <div class="card-step" id="step-2">
+        <h2>Your business</h2>
+        <p class="sub">This becomes your tenant's identity on MCC.</p>
+        <div class="field"><label>Business name</label><input type="text" id="s2-business" /></div>
+        <div class="field">
+          <label>Subdomain</label>
+          <div class="subdomain-row"><input type="text" id="s2-subdomain" placeholder="acme" /><span class="suffix">.mycarconcierge.com</span></div>
+          <div class="field-hint" id="subdomain-hint">Lowercase letters, numbers, and hyphens only.</div>
+        </div>
+        <div class="field"><label>Support email (optional)</label><input type="email" id="s2-support-email" /></div>
+        <div class="field"><label>Support phone (optional)</label><input type="tel" id="s2-support-phone" /></div>
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="prevStep(2)">Back</button>
+          <button class="btn btn-primary" id="s2-continue" onclick="nextStep(2)">Continue</button>
+        </div>
+      </div>
+
+      <div class="card-step" id="step-3">
+        <h2>Choose your plan</h2>
+        <p class="sub">You can change plans later from your tenant portal.</p>
+        <div class="billing-toggle">
+          <button id="billing-monthly" class="active" onclick="setBilling('monthly')">Monthly</button>
+          <button id="billing-annual" onclick="setBilling('annual')">Annual (save ~20%)</button>
+        </div>
+        <div id="plan-options">Loading plans…</div>
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="prevStep(3)">Back</button>
+          <button class="btn btn-primary" onclick="nextStep(3)">Continue</button>
+        </div>
+      </div>
+
+      <div class="card-step" id="step-4">
+        <h2>Review &amp; pay</h2>
+        <p class="sub">You'll be taken to Stripe to complete payment. Your workspace is provisioned automatically once payment succeeds.</p>
+        <div id="review-box"></div>
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="prevStep(4)">Back</button>
+          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Continue to Payment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script>
+    var currentStep = 1;
+    var selectedPlan = null;
+    var selectedBilling = 'monthly';
+    var plansData = null;
+    var subdomainOk = false;
+    var accessToken = null;
+
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('canceled')) showError('Checkout was canceled. You can pick up right where you left off.');
+    var preselectPlan = params.get('plan');
+
+    function showError(msg) { var el = document.getElementById('error-banner'); el.textContent = msg; el.style.display = 'block'; el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    function clearError() { document.getElementById('error-banner').style.display = 'none'; }
+
+    function showStep(n) {
+      document.querySelectorAll('.card-step').forEach(function(s) { s.classList.remove('active'); });
+      document.getElementById('step-' + n).classList.add('active');
+      for (var i = 1; i <= 4; i++) {
+        var ps = document.getElementById('ps-' + i);
+        ps.className = i < n ? 'progress-step done' : (i === n ? 'progress-step active' : 'progress-step');
+      }
+      currentStep = n;
+      clearError();
+    }
+    function prevStep(from) { showStep(from - 1); }
+
+    async function waitForClient() {
+      var tries = 0;
+      while (typeof window.supabaseClient === 'undefined' && tries < 50) { await new Promise(function(r) { setTimeout(r, 100); }); tries++; }
+      return window.supabaseClient;
+    }
+
+    async function refreshSession() {
+      var client = await waitForClient();
+      if (!client) return null;
+      var res = await client.auth.getSession();
+      var session = res && res.data && res.data.session;
+      accessToken = session ? session.access_token : null;
+      return session;
+    }
+
+    (async function initAuthState() {
+      var session = await refreshSession();
+      if (session && session.user) {
+        document.getElementById('account-fields').style.display = 'none';
+        document.getElementById('already-logged-in-box').style.display = 'block';
+        document.getElementById('logged-in-email').textContent = session.user.email || '';
+      }
+    })();
+
+    document.getElementById('use-different-account').addEventListener('click', async function(e) {
+      e.preventDefault();
+      var client = await waitForClient();
+      if (client) await client.auth.signOut();
+      document.getElementById('account-fields').style.display = 'block';
+      document.getElementById('already-logged-in-box').style.display = 'none';
+      accessToken = null;
+    });
+
+    var subdomainDebounce = null;
+    document.getElementById('s2-subdomain').addEventListener('input', function() {
+      var val = this.value.trim().toLowerCase();
+      this.value = val;
+      subdomainOk = false;
+      var hint = document.getElementById('subdomain-hint');
+      if (subdomainDebounce) clearTimeout(subdomainDebounce);
+      if (!val) { hint.textContent = 'Lowercase letters, numbers, and hyphens only.'; hint.className = 'field-hint'; return; }
+      hint.textContent = 'Checking availability…'; hint.className = 'field-hint';
+      subdomainDebounce = setTimeout(async function() {
+        try {
+          var res = await fetch('/api/white-label/apply?check_subdomain=' + encodeURIComponent(val));
+          var data = await res.json();
+          if (data.available) { hint.textContent = val + '.mycarconcierge.com is available'; hint.className = 'field-hint ok'; subdomainOk = true; }
+          else { hint.textContent = data.reason || 'Not available'; hint.className = 'field-hint err'; }
+        } catch (e) { hint.textContent = 'Could not check availability -- you can still continue.'; hint.className = 'field-hint'; }
+      }, 500);
+    });
+
+    async function nextStep(from) {
+      clearError();
+
+      if (from === 1) {
+        var alreadyIn = document.getElementById('already-logged-in-box').style.display === 'block';
+        if (alreadyIn) { showStep(2); return; }
+
+        var name = document.getElementById('s1-name').value.trim();
+        var email = document.getElementById('s1-email').value.trim();
+        var password = document.getElementById('s1-password').value;
+        if (!name || !email || !password) return showError('Please fill in all fields.');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('Please enter a valid email address.');
+        if (password.length < 8) return showError('Password must be at least 8 characters.');
+
+        var client = await waitForClient();
+        if (!client) return showError('Could not connect -- please refresh and try again.');
+        var res = await client.auth.signUp({ email: email, password: password, options: { data: { full_name: name } } });
+        if (res.error) return showError(res.error.message || 'Could not create account.');
+        if (!res.data.session) {
+          // Email confirmation required by project settings -- can't continue until confirmed.
+          return showError('Check your email to confirm your account, then return to this page and continue.');
+        }
+        accessToken = res.data.session.access_token;
+        showStep(2);
+
+      } else if (from === 2) {
+        var business = document.getElementById('s2-business').value.trim();
+        var subdomain = document.getElementById('s2-subdomain').value.trim();
+        if (!business) return showError('Business name is required.');
+        if (!subdomain) return showError('Subdomain is required.');
+        if (!subdomainOk) return showError('Please choose an available subdomain.');
+        await loadPlans();
+        showStep(3);
+
+      } else if (from === 3) {
+        if (!selectedPlan) return showError('Please select a plan.');
+        renderReview();
+        showStep(4);
+      }
+    }
+
+    function setBilling(mode) {
+      selectedBilling = mode;
+      document.getElementById('billing-monthly').classList.toggle('active', mode === 'monthly');
+      document.getElementById('billing-annual').classList.toggle('active', mode === 'annual');
+      renderPlanOptions();
+    }
+
+    function money(cents) { return '$' + (cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+
+    async function loadPlans() {
+      if (plansData) return;
+      try {
+        var res = await fetch('/api/saas/plans');
+        var data = await res.json();
+        plansData = (data && data.plans && data.plans.white_label && data.plans.white_label.tiers) || {};
+        if (preselectPlan && plansData[preselectPlan]) selectedPlan = preselectPlan;
+        renderPlanOptions();
+      } catch (e) {
+        document.getElementById('plan-options').textContent = 'Could not load plans -- please refresh.';
+      }
+    }
+
+    function renderPlanOptions() {
+      var container = document.getElementById('plan-options');
+      if (!plansData) return;
+      var order = ['starter', 'pro', 'business'];
+      var html = '';
+      order.forEach(function(key) {
+        var tier = plansData[key];
+        if (!tier) return;
+        var price = selectedBilling === 'annual' ? tier.price_annual : tier.price_monthly;
+        var suffix = selectedBilling === 'annual' ? '/yr' : '/mo';
+        html += '<div class="plan-option' + (selectedPlan === key ? ' selected' : '') + '" onclick="selectPlan(\'' + key + '\')">';
+        html += '<div><div class="name">' + tier.name + '</div><div class="desc">' + (tier.limits && tier.limits.members ? tier.limits.members + ' members' : 'Unlimited members') + '</div></div>';
+        html += '<div class="price">' + money(price) + '<span style="font-size:12px;color:var(--text-muted);">' + suffix + '</span></div>';
+        html += '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function selectPlan(key) { selectedPlan = key; renderPlanOptions(); }
+
+    function renderReview() {
+      var tier = plansData[selectedPlan];
+      var price = selectedBilling === 'annual' ? tier.price_annual : tier.price_monthly;
+      var suffix = selectedBilling === 'annual' ? '/year' : '/month';
+      var html = '';
+      html += '<div class="review-row"><span class="k">Business</span><span>' + document.getElementById('s2-business').value.trim() + '</span></div>';
+      html += '<div class="review-row"><span class="k">Subdomain</span><span>' + document.getElementById('s2-subdomain').value.trim() + '.mycarconcierge.com</span></div>';
+      html += '<div class="review-row"><span class="k">Plan</span><span>' + tier.name + '</span></div>';
+      html += '<div class="review-row"><span class="k">Billing</span><span>' + money(price) + suffix + '</span></div>';
+      document.getElementById('review-box').innerHTML = html;
+    }
+
+    async function submitApplication() {
+      clearError();
+      if (!accessToken) { var s = await refreshSession(); if (!s) return showError('Your session expired -- please go back and sign in again.'); }
+      var btn = document.getElementById('submit-btn');
+      btn.disabled = true; btn.textContent = 'Starting checkout…';
+      try {
+        var res = await fetch('/api/white-label/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+          body: JSON.stringify({
+            business_name: document.getElementById('s2-business').value.trim(),
+            subdomain: document.getElementById('s2-subdomain').value.trim(),
+            support_email: document.getElementById('s2-support-email').value.trim() || undefined,
+            support_phone: document.getElementById('s2-support-phone').value.trim() || undefined,
+            plan: selectedPlan,
+            billing: selectedBilling,
+          }),
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not start checkout.');
+        window.location.href = data.url;
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Continue to Payment';
+        showError(e.message || 'Something went wrong. Please try again.');
+      }
+    }
+  </script>
+</body>
+</html>

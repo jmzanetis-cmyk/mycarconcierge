@@ -19,8 +19,12 @@ function isDestinationPackage(p) {
   return p.category === 'destination_service' || p.is_destination_service === true || p.pickup_preference === 'destination_service';
 }
 
-let matchedPackageIds = new Set();
 let bidInsightsLoaded = false;
+// 1d-3 v1: when /api/provider/packages returns { categories_required: true },
+// the provider hasn't declared any match_categories yet. renderOpenPackages
+// checks this flag to surface the categories-prompt UI in place of the
+// generic "no packages match" empty state.
+let providerCategoriesRequired = false;
 
 // ========== LOAD OPEN PACKAGES ==========
 async function loadOpenPackages() {
@@ -29,41 +33,31 @@ async function loadOpenPackages() {
     if (!session) {
       console.error('No session for loading packages');
       openPackages = [];
+      providerCategoriesRequired = false;
       renderOpenPackages();
       renderRecentPackages();
       return;
     }
-    
+
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/provider/packages`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('Error loading packages:', errorData.error || response.statusText);
       openPackages = [];
+      providerCategoriesRequired = false;
     } else {
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       openPackages = result.packages || [];
+      providerCategoriesRequired = !!result.categories_required;
     }
-    
+
     const locationWarning = document.getElementById('location-warning');
     if (locationWarning) {
       locationWarning.style.display = !providerProfile?.zip_code ? 'block' : 'none';
-    }
-    
-    if (currentUser?.id) {
-      try {
-        const { data: matchedNotifs } = await supabaseClient
-          .from('notifications')
-          .select('link_id')
-          .eq('user_id', currentUser.id)
-          .eq('type', 'matched_package');
-        matchedPackageIds = new Set((matchedNotifs || []).map(n => n.link_id).filter(Boolean));
-      } catch (e) {
-        matchedPackageIds = new Set();
-      }
     }
 
     renderOpenPackages();
@@ -83,14 +77,34 @@ async function loadOpenPackages() {
 }
 
 // ========== LOAD MY BIDS ==========
+// CR5: reads plan_bids (live curated-bidding table) with a join to care_plans
+// and the vehicle. The loader ALIASES the response so downstream consumers
+// (renderMyBids, renderActiveJobs, providers-jobs.js helpers, stat counters
+// in providers-core.js) keep reading the legacy field names — `package_id`,
+// `price`, `notes`, `maintenance_packages` — unchanged. Aliasing here keeps
+// the change-surface minimal. The legacy `bids` table is no longer read;
+// historical rows remain in place but are inert.
 async function loadMyBids() {
   try {
-    const { data, error } = await supabaseClient.from('bids').select('*, maintenance_packages!bids_package_id_fkey(title, status, member_id, vehicles(year, make, model))').eq('provider_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await supabaseClient
+      .from('plan_bids')
+      .select(`*, care_plans!plan_bids_care_plan_id_fkey(
+        id, title, status, member_id, vehicle_id, payment_status,
+        vehicles:vehicle_id(year, make, model)
+      )`)
+      .eq('provider_id', currentUser.id)
+      .order('created_at', { ascending: false });
     if (error) {
       console.error('Error loading bids:', error);
       myBids = [];
     } else {
-      myBids = data || [];
+      myBids = (data || []).map(row => ({
+        ...row,
+        package_id: row.care_plan_id,
+        price: row.amount,
+        notes: row.note,
+        maintenance_packages: row.care_plans
+      }));
     }
     renderMyBids();
     if (typeof renderActiveJobs === 'function') renderActiveJobs();
@@ -127,7 +141,7 @@ async function loadBidInsights() {
       return;
     }
 
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     bidInsightsLoaded = true;
 
     if (!data.has_data) {
@@ -163,7 +177,15 @@ function renderOpenPackages(filtered = null) {
   const packagesToRender = filtered || openPackages;
   
   if (!packagesToRender.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
+    if (providerCategoriesRequired) {
+      container.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon">${mccIcon('settings', 40)}</div>
+        <p>Set your service categories to see matching jobs.</p>
+        <p style="margin-top:8px;"><a href="#" onclick="showSection('settings');return false;" style="color:var(--accent-gold);text-decoration:underline;">Open match preferences →</a></p>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
+    }
     const filterInfo = document.getElementById('filter-results-info');
     if (filterInfo) filterInfo.textContent = '';
     return;
@@ -177,8 +199,8 @@ function renderOpenPackages(filtered = null) {
       filterInfo.textContent = `${packagesToRender.length} open packages`;
     }
   }
-  
-  container.innerHTML = packagesToRender.map((p) => { return renderPackageCard(p, true); }).join('');
+
+  container.innerHTML = packagesToRender.map((p) => { try { return renderPackageCard(p, true); } catch (e) { console.error("[browse] renderPackageCard failed for plan", p && p.id, e); return ""; } }).join('');
 }
 
 function renderRecentPackages() {
@@ -194,6 +216,12 @@ function renderRecentPackages() {
 }
 
 function renderPackageCard(p, showBidButton = false) {
+  // Belt-and-braces self-bid filter. Server (provider-packages.js) already
+  // hides own plans at query time; this catches any leak via legacy field
+  // shapes and skips the card entirely instead of rendering + relying on the
+  // bid POST to 403. Returning empty string is fine — the .map() -> .join('')
+  // in renderOpenPackages drops it cleanly.
+  if (p.member_id && currentUser && p.member_id === currentUser.id) return '';
   const vehicle = p.vehicles;
   const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Vehicle';
   const alreadyBid = myBids.some(b => b.package_id === p.id) || p._myBid;
@@ -214,9 +242,10 @@ function renderPackageCard(p, showBidButton = false) {
   const locationDisplay = p.member_city && p.member_state 
     ? `${p.member_city}, ${p.member_state}` 
     : (p.member_zip || 'Location N/A');
-  const distanceDisplay = p._estimatedDistance !== undefined 
-    ? `~${Math.round(p._estimatedDistance)} mi` 
-    : '';
+  const _distMi = (typeof p._estimatedDistance === 'number')
+    ? p._estimatedDistance
+    : ((providerProfile && providerProfile.zip_code && p.member_zip) ? estimateZipDistance(providerProfile.zip_code, p.member_zip) : null);
+  const distanceDisplay = (_distMi == null || _distMi >= 900) ? '' : (_distMi < 1 ? 'nearby' : `~${Math.round(_distMi)} mi away`);
   
   const countdown = p.bidding_deadline ? formatCountdown(p.bidding_deadline) : null;
   const biddingExpired = countdown?.expired || false;
@@ -258,11 +287,10 @@ function renderPackageCard(p, showBidButton = false) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
           <span class="package-badge">${formatCategory(p.category) || 'General'}</span>
           ${p.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
-          ${matchedPackageIds.has(p.id) ? `<span class="package-badge" style="background:rgba(34,211,238,0.15);color:var(--accent-teal);border:1px solid rgba(34,211,238,0.3);">${mccIcon('zap', 14)} Matched for you</span>` : ''}
         </div>
       </div>
       <div class="package-meta">
-        <span>${mccIcon('map-pin', 16)} ${locationDisplay} ${distanceDisplay ? `(${distanceDisplay})` : ''}</span>
+        <span>${mccIcon('map-pin', 16)} ${locationDisplay}${distanceDisplay ? ` · ${distanceDisplay}` : ''}</span>
         <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>
         <span>${mccIcon('wrench', 16)} ${p.parts_preference || 'Standard'}</span>
       </div>
@@ -310,23 +338,6 @@ function renderMyBids() {
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${b.price}</strong></span>
           <span>${mccIcon('calendar', 16)} Submitted ${formatTimeAgo(b.created_at)}</span>
         </div>
-        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--border-subtle);margin-top:8px;">
-          <span style="font-size:0.82rem;color:var(--text-muted);font-weight:600;">Competing bid alerts:</span>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;">
-            <div class="calc-toggle-switch">
-              <input type="checkbox" id="notify-sms-${b.id}" ${b.provider_bid_alerts_sms ? 'checked' : ''} onchange="updateBidAlerts('${b.id}', 'sms', this.checked)">
-              <span class="calc-toggle-slider"></span>
-            </div>
-            Text
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;">
-            <div class="calc-toggle-switch">
-              <input type="checkbox" id="notify-email-${b.id}" ${b.provider_bid_alerts_email ? 'checked' : ''} onchange="updateBidAlerts('${b.id}', 'email', this.checked)">
-              <span class="calc-toggle-slider"></span>
-            </div>
-            Email
-          </label>
-        </div>
         <div class="package-footer">
           <span></span>
           <button class="btn btn-secondary btn-sm" onclick="openBidModal('${b.package_id}', '${(pkg?.title || 'Package').replace(/'/g, "\\'")}', ${b.price})">Update Bid</button>
@@ -336,18 +347,10 @@ function renderMyBids() {
   }).join('');
 }
 
-async function updateBidAlerts(bidId, channel, value) {
-  try {
-    const col = channel === 'sms' ? 'provider_bid_alerts_sms' : 'provider_bid_alerts_email';
-    const { error } = await supabaseClient.from('bids').update({ [col]: value }).eq('id', bidId);
-    if (error) throw error;
-  } catch (err) {
-    console.error('Failed to update bid alert preference:', err);
-    showToast('Could not save alert preference', 'error');
-    const el = document.getElementById(`notify-${channel}-${bidId}`);
-    if (el) el.checked = !value;
-  }
-}
+// CR5: updateBidAlerts removed — plan_bids has no provider_bid_alerts_sms/_email
+// columns, and the "Competing bid alerts" UI those toggles backed was auction-era
+// (alert-me-when-undercut on an open auction). In the curated Path B model the
+// concept doesn't apply, so both the UI and the handler are gone.
 
 // ========== FILTERS ==========
 function applyFilters() {
@@ -605,75 +608,136 @@ async function openBidModal(packageId, title, existingPrice = null) {
   resetBidCalculator();
 }
 
+// CR4: maps /api/plan-bids error sentinels → user-facing messages with
+// action hints. Anything not listed falls through to a generic fallback so
+// new server-side sentinels at least surface their code instead of being
+// swallowed silently.
+const BID_SENTINEL_MESSAGES = {
+  categories_required:    'Set your service categories in Settings to bid on jobs.',
+  service_not_offered:    "This job isn't in your service categories.",
+  verification_required:  'Your provider account is pending verification.',
+  suspended:              'Your account is suspended — contact support.',
+  bidding_closed:         'Bidding has closed on this job.',
+  care_plan_not_open:     'Bidding has closed on this job.',
+  duplicate_bid:          "You've already bid on this job.",
+  no_credits:             "You're out of bid credits — purchase more to bid.",
+  invalid_amount:         'Enter a valid bid amount.',
+  self_bid:               "You can't bid on your own service request.",
+};
+
 async function submitBid() {
   const priceSelect = document.getElementById('bid-price');
   const customPrice = document.getElementById('bid-price-custom');
-  
-  let price = priceSelect?.value;
-  if (price === 'custom') {
-    price = customPrice?.value;
+
+  let amountRaw = priceSelect?.value;
+  if (amountRaw === 'custom') {
+    amountRaw = customPrice?.value;
   }
-  
-  if (!price || isNaN(Number.parseFloat(price))) {
-    showToast('Please enter a valid price', 'error');
+
+  if (!amountRaw || isNaN(Number.parseFloat(amountRaw))) {
+    showToast(BID_SENTINEL_MESSAGES.invalid_amount, 'error');
     return;
   }
-  
-  const notes = document.getElementById('bid-notes')?.value || '';
-  const duration = document.getElementById('bid-duration')?.value || '';
+
+  // Enforce the "all-inclusive" confirmation — the whole pricing contract
+  // (member pays exactly the quoted total, no hidden fees) depends on this.
+  // Previously the checkbox was decorative; now we block submit until checked.
+  const pricingConfirm = document.getElementById('bid-pricing-confirm');
+  if (!pricingConfirm?.checked) {
+    showToast('Please confirm your bid is all-inclusive before submitting.', 'error');
+    return;
+  }
+
+  const amount = Number.parseFloat(amountRaw);
+  const note = document.getElementById('bid-notes')?.value || '';
+  const estimatedDuration = document.getElementById('bid-duration')?.value || '';
   const availability = document.getElementById('bid-availability')?.value || '';
-  
+
   try {
     if (isUpdatingBid) {
+      // CR5: loadMyBids now reads plan_bids, so existingBid.id is a plan_bids
+      // row id. PATCH /api/plan-bids/:id (handlePatch in plan-bids.js) re-runs
+      // the bid gate (verification + suspension + plan-still-open) and updates
+      // amount/note/estimated_duration/availability.
       const existingBid = myBids.find(b => b.package_id === currentBidPackageId);
       if (existingBid) {
-        const { error } = await supabaseClient
-          .from('bids')
-          .update({ price: Number.parseFloat(price), notes, estimated_duration: duration })
-          .eq('id', existingBid.id);
-        
-        if (error) throw error;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/plan-bids/${existingBid.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            amount,
+            note,
+            estimated_duration: estimatedDuration,
+            availability
+          })
+        });
+
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const sentinel = result && result.error;
+          const message = BID_SENTINEL_MESSAGES[sentinel]
+            || `Failed to update bid${sentinel ? ` (${sentinel})` : ''}.`;
+          showToast(message, 'error');
+          return;
+        }
         showToast('Bid updated successfully!', 'success');
       }
     } else {
       const totalCredits = (providerProfile?.bid_credits || 0) + (providerProfile?.free_trial_bids || 0);
       if (totalCredits < 1) {
-        showToast('No bid credits available. Purchase credits to submit bids.', 'error');
+        showToast(BID_SENTINEL_MESSAGES.no_credits, 'error');
         return;
       }
-      
+
       const { data: { session } } = await supabaseClient.auth.getSession();
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-      const response = await fetch(`${apiBase}/api/bids`, {
+      const response = await fetch(`${apiBase}/api/plan-bids`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          package_id: currentBidPackageId,
-          price: Number.parseFloat(price),
-          notes,
-          estimated_duration: duration,
-          availability,
-          provider_notify_sms: document.getElementById('bid-notify-sms')?.checked || false,
-          provider_notify_email: document.getElementById('bid-notify-email')?.checked || false
+          care_plan_id:       currentBidPackageId,
+          amount,
+          note,
+          estimated_duration: estimatedDuration,
+          availability
         })
       });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to submit bid');
-      
-      showToast('Bid submitted successfully!', 'success');
-      
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const sentinel = result && result.error;
+        const message = BID_SENTINEL_MESSAGES[sentinel]
+          || `Failed to submit bid${sentinel ? ` (${sentinel})` : ''}.`;
+        showToast(message, 'error');
+        return;
+      }
+
+      // Surface the credit balance from the gate's response so the provider
+      // sees what they have left without needing to refresh.
+      const free    = Number(result.remaining_free_trial_bids ?? 0);
+      const credits = Number(result.remaining_bid_credits ?? 0);
+      const parts = [];
+      if (free > 0)    parts.push(`${free} free trial bid${free === 1 ? '' : 's'}`);
+      if (credits > 0) parts.push(`${credits} credit${credits === 1 ? '' : 's'}`);
+      const balanceLine = parts.length ? ` — ${parts.join(' + ')} remaining` : '';
+      showToast(`Bid submitted!${balanceLine}`, 'success');
+
       if (typeof loadProviderProfile === 'function') loadProviderProfile();
     }
-    
+
     closeModal('bid-modal');
     await loadMyBids();
     await loadOpenPackages();
     if (typeof updateStats === 'function') updateStats();
-    
+
   } catch (err) {
     console.error('Submit bid error:', err);
     showToast(err.message || 'Failed to submit bid', 'error');
@@ -976,12 +1040,25 @@ function renderCreditBalance() {
   } else if (totalAvailable <= 3) {
     if (lowWarning) lowWarning.style.display = 'block';
   }
+
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    [lowWarning, noWarning].forEach(function(w) {
+      if (!w) return;
+      const btn = w.querySelector('button');
+      if (btn) btn.style.display = 'none';
+    });
+  }
 }
 
 function renderServiceCredits() {
   const container = document.getElementById('bid-packs-grid');
   if (!container) return;
-  
+
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px 0;">Service credit purchases are available on the web — sign in at <strong>mycarconcierge.com</strong> to add credits.</p>';
+    return;
+  }
+
   if (!bidPacks.length) {
     container.innerHTML = '<p style="color:var(--text-muted);">No service credit packs available.</p>';
     return;
@@ -1109,6 +1186,11 @@ async function purchaseBidPack(packId) {
   const pack = bidPacks.find(p => p.id === packId);
   if (!pack) return;
 
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    showToast('Bid credits are purchased on the web — visit mycarconcierge.com to add credits.', 'warning');
+    return;
+  }
+
   const totalBids = pack.bid_count + (pack.bonus_bids || 0);
 
   if (!confirm(`Purchase ${pack.name} pack?\n\n${pack.bid_count} bids${pack.bonus_bids > 0 ? ` + ${pack.bonus_bids} bonus` : ''} = ${totalBids} total bids\nPrice: $${pack.price.toFixed(2)}\n\nYou'll be redirected to complete payment.`)) {
@@ -1140,7 +1222,10 @@ async function purchaseBidPack(packId) {
           })
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || `Payment failed (${response.status})`);
+        }
         if (data.success) {
           showToast(`${totalBids} bid credits added to your account!`, 'success');
           await loadSubscription();
@@ -1174,7 +1259,8 @@ async function purchaseBidPack(packId) {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Checkout failed (${response.status})`);
       if (data.error) throw new Error(data.error);
       if (!data.url) throw new Error('No checkout URL returned');
 
@@ -1237,7 +1323,10 @@ window.loadMyBids = loadMyBids;
 window.purchaseBidPack = purchaseBidPack;
 window.checkPurchaseStatus = checkPurchaseStatus;
 window.loadBidInsights = loadBidInsights;
-window.loadAIPriceSuggestion = loadAIPriceSuggestion;
-window.draftBidPitch = draftBidPitch;
+// Removed orphan exports — loadAIPriceSuggestion and draftBidPitch are not defined
+// anywhere in active code. The undefined RHS threw ReferenceError, halting the
+// file's tail (the trailing console.log below included). The only caller for
+// either is dead-code providers.js (typeof-guarded), which providers.html does
+// not load.
 
 console.log('providers-bids.js loaded');

@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>For Rideshare Drivers – My Car Concierge</title>
+  <!-- DRIVER-PHASE-OUT: restore when driver side launches -->
+  <meta name="robots" content="noindex, nofollow" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="My Car Concierge helps Uber, Lyft, and gig economy drivers save money on vehicle maintenance with competitive bidding from vetted providers." />
   <meta name="theme-color" content="#12161c" />
@@ -10,13 +12,14 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/logo-lockup.css">
   <style>
     :root {
       --bg-deep: #12161c;
@@ -46,7 +49,7 @@
 
     body {
       min-height: 100vh;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       line-height: 1.6;
@@ -108,8 +111,8 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      
+      
       filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
       transition: filter 0.3s ease;
     }
@@ -126,7 +129,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -138,7 +141,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -159,13 +162,13 @@
       background: var(--accent-blue-soft);
       border: 1px solid rgba(74, 124, 255, 0.2);
       border-radius: 100px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--accent-blue);
       margin-bottom: 24px;
     }
 
     .hero-section h1 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(2rem, 4vw, 3rem);
       font-weight: 500;
       letter-spacing: -0.02em;
@@ -181,7 +184,7 @@
 
     .hero-section p {
       color: var(--text-secondary);
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       max-width: 650px;
       margin: 0 auto 32px;
       line-height: 1.7;
@@ -193,7 +196,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -202,22 +205,25 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #a8822e 100%);
       color: #12161c;
       box-shadow: 0 8px 32px rgba(201, 162, 39, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
 
     .benefits-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 24px;
       margin-bottom: 80px;
+    }
+    @media (max-width: 768px) {
+      .benefits-grid { grid-template-columns: 1fr; }
     }
 
     .benefit-card {
@@ -241,19 +247,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       margin-bottom: 20px;
     }
 
     .benefit-card h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-xl);
       margin-bottom: 12px;
     }
 
     .benefit-card p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       line-height: 1.7;
     }
 
@@ -263,8 +269,8 @@
     }
 
     .section-title h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-3xl);
       margin-bottom: 12px;
     }
 
@@ -293,7 +299,7 @@
       background: var(--bg-elevated);
       border-radius: var(--radius-md);
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       display: flex;
       align-items: center;
       gap: 12px;
@@ -311,6 +317,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 24px;
+      justify-content: center;
     }
 
     .resource-card {
@@ -321,8 +328,8 @@
     }
 
     .resource-card h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-xl);
       margin-bottom: 16px;
       color: var(--accent-blue);
     }
@@ -335,7 +342,7 @@
     .resource-card li {
       padding: 8px 0;
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       border-bottom: 1px solid var(--border-subtle);
     }
 
@@ -358,7 +365,7 @@
       padding-left: 40px;
       position: relative;
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       border-bottom: 1px solid var(--border-subtle);
       line-height: 1.7;
     }
@@ -369,7 +376,7 @@
       content: '<span class="icon-inline" data-icon="lightbulb"></span>';
       position: absolute;
       left: 0;
-      font-size: 1.25rem;
+      font-size: var(--text-xl);
     }
 
     .tip-list li strong {
@@ -413,14 +420,20 @@
 
   <header>
     <div class="container">
-      <a href="/" class="brand">
-        <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
-      </a>
+      <a href="/" class="mcc-logo" aria-label="MyCarConcierge home">
+  <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
+  <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g transform="translate(0,1302) scale(0.1,-0.1)">
+      <path fill="#f5f0e6" d="M7030 8083 c-19 -2 -170 -24 -335 -48 -375 -55 -437 -61 -820 -80 -331 -17 -401 -28 -475 -73 -166 -102 -140 -370 49 -491 176 -113 413 -141 874 -105 398 31 584 11 657 -72 52 -60 43 -68 -95 -76 -233 -14 -345 -44 -700 -190 -435 -179 -508 -194 -711 -143 -180 45 -1110 370 -1364 477 -350 147 -416 166 -537 154 -245 -25 -394 -237 -300 -429 39 -79 43 -81 509 -321 227 -117 460 -238 518 -268 525 -277 1302 -667 1395 -701 175 -62 436 -82 635 -48 41 7 239 41 440 76 935 164 1043 177 1284 156 167 -15 296 -40 424 -82 51 -17 95 -29 97 -27 4 4 363 1089 450 1362 35 107 42 142 33 148 -7 5 -83 45 -168 90 -85 45 -194 103 -242 129 -589 326 -910 480 -1098 527 -148 37 -367 52 -520 35z"/>
+      <path fill="#c7a466" d="M9314 7451 c5 -8 2 -11 -9 -9 -21 4 -106 -229 -97 -264 3 -14 1 -19 -5 -15 -7 5 -9 -1 -5 -15 3 -13 1 -19 -5 -15 -12 7 -106 -280 -96 -296 3 -5 2 -7 -4 -4 -9 6 -80 -204 -77 -230 1 -7 -3 -13 -8 -13 -6 0 -8 -6 -5 -14 3 -8 2 -16 -3 -18 -5 -2 -11 -14 -12 -28 -2 -14 -5 -27 -8 -30 -9 -8 -174 -513 -174 -532 0 -10 -4 -18 -9 -18 -4 0 -5 -5 -1 -11 3 -6 2 -14 -4 -18 -7 -4 -13 -18 -14 -31 -2 -14 -6 -27 -9 -30 -12 -11 -141 -419 -137 -436 2 -11 11 -18 21 -18 9 1 14 -3 10 -9 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 12 4 20 3 17 -1 -6 -11 293 -103 307 -95 6 4 8 3 5 -3 -8 -12 59 -34 81 -26 11 5 13 3 7 -6 -6 -10 -2 -11 15 -6 16 5 20 4 15 -5 -5 -9 -2 -10 12 -6 11 4 31 2 44 -3 14 -6 18 -10 9 -11 -18 -2 158 -60 182 -60 23 0 41 35 32 63 -3 12 -3 18 2 14 10 -9 126 331 118 344 -3 5 0 9 7 9 7 0 9 8 6 21 -3 12 -3 18 0 15 9 -9 213 606 207 624 -3 8 -2 11 2 7 10 -9 306 883 299 901 -3 7 0 10 5 7 6 -3 10 4 9 17 0 13 -3 18 -5 11 -4 -8 -11 -7 -23 5 -10 9 -16 21 -13 26 2 4 -6 5 -18 1 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -17 -5 -21 -4 -15 6 6 9 2 11 -13 7 -14 -4 -20 -2 -16 4 5 7 -2 9 -19 6 -16 -3 -24 -1 -20 5 3 5 -3 6 -17 2 -14 -4 -20 -3 -16 3 7 12 -40 25 -56 16 -6 -4 -8 -3 -5 3 7 11 -255 98 -290 96 -13 0 -20 4 -17 9 4 6 -2 7 -16 3 -14 -4 -20 -3 -16 3 7 12 -80 35 -96 26 -6 -4 -8 -3 -5 3 4 6 -4 14 -17 17 -13 3 -32 9 -42 13 -12 4 -15 3 -10 -6z m-82 -1634 c9 -1 15 -3 13 -5 -2 -3 7 -14 22 -25 105 -83 37 -267 -100 -267 -45 0 -102 24 -121 51 -7 10 -16 16 -20 12 -4 -4 -4 1 0 11 6 14 4 17 -6 11 -8 -5 -11 -3 -8 6 3 8 1 26 -3 42 -5 19 -2 39 9 65 9 20 17 44 17 52 0 8 5 15 10 16 21 2 45 17 39 25 -3 5 2 6 10 3 9 -3 16 -2 16 4 0 8 23 8 122 -1z"/>
+    </g>
+  </svg>
+</a>
       <nav>
         <a href="/">Home</a>
         <a href="/how-it-works.html">How It Works</a>
         <a href="/faq.html">FAQ</a>
-        <a href="/login.html" class="btn-login">Sign In</a>
+        <a href="/login.html" class="btn--primary">Sign In</a>
       </nav>
     </div>
   </header>
@@ -430,7 +443,7 @@
       <span class="hero-badge"><span class="icon-inline" data-icon="car-front"></span> Built for Gig Drivers</span>
       <h1>Keep Your <span class="highlight">Rideshare Vehicle</span> Running Strong</h1>
       <p>As a rideshare or delivery driver, your vehicle is your livelihood. My Car Concierge helps you find quality maintenance at competitive prices—so you can maximize your earnings and minimize downtime.</p>
-      <a href="/onboarding-member.html" class="btn btn-primary">Join Free Today</a>
+      <a href="/onboarding-member.html" class="btn btn--primary">Join Free Today</a>
     </div>
 
     <div class="benefits-grid">
@@ -465,74 +478,74 @@
       
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px;">
         <div>
-          <h3 style="color: var(--accent-gold); margin-bottom: 20px; font-family: 'Playfair Display', serif;">Weekly Earnings</h3>
+          <h3 style="color: var(--accent-gold); margin-bottom: 20px; font-family: 'Fraunces', serif;">Weekly Earnings</h3>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="dollar-sign"></span> Gross Weekly Earnings ($)</label>
-            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="dollar-sign"></span> Gross Weekly Earnings ($)</label>
+            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="car"></span> Miles Driven Per Week</label>
-            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="car"></span> Miles Driven Per Week</label>
+            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="clock"></span> Hours Worked Per Week</label>
-            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="clock"></span> Hours Worked Per Week</label>
+            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
-          <h3 style="color: var(--accent-gold); margin: 24px 0 20px; font-family: 'Playfair Display', serif;">Vehicle Costs</h3>
+          <h3 style="color: var(--accent-gold); margin: 24px 0 20px; font-family: 'Fraunces', serif;">Vehicle Costs</h3>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="fuel"></span> Fuel Cost Per Gallon ($)</label>
-            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
-          </div>
-          
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="bar-chart"></span> Your Vehicle's MPG</label>
-            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="fuel"></span> Fuel Cost Per Gallon ($)</label>
+            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="wrench"></span> Monthly Maintenance Budget ($)</label>
-            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="bar-chart"></span> Your Vehicle's MPG</label>
+            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="shield"></span> Monthly Insurance ($)</label>
-            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="wrench"></span> Monthly Maintenance Budget ($)</label>
+            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="trending-up"></span> Monthly Depreciation ($)</label>
-            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
-            <small style="color: var(--text-muted); font-size: 0.75rem;">Tip: Divide your car's value by 60-100 for monthly estimate</small>
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="shield"></span> Monthly Insurance ($)</label>
+            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
-          <button onclick="calculateProfit()" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Calculate My True Profit</button>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="trending-up"></span> Monthly Depreciation ($)</label>
+            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
+            <small style="color: var(--text-muted); font-size: var(--text-xs);">Tip: Divide your car's value by 60-100 for monthly estimate</small>
+          </div>
+          
+          <button onclick="calculateProfit()" class="btn btn--primary" style="width: 100%; margin-top: 16px;">Calculate My True Profit</button>
         </div>
         
         <div id="calc-results" style="background: var(--bg-elevated); border-radius: var(--radius-lg); padding: 32px; border: 1px solid var(--border-medium);">
-          <h3 style="color: var(--accent-gold); margin-bottom: 24px; font-family: 'Playfair Display', serif; text-align: center;"><span class="icon-inline" data-icon="bar-chart"></span> Your Results</h3>
+          <h3 style="color: var(--accent-gold); margin-bottom: 24px; font-family: 'Fraunces', serif; text-align: center;"><span class="icon-inline" data-icon="bar-chart"></span> Your Results</h3>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
             <div id="result-weekly-profit" style="font-size: 2.5rem; font-weight: 700; color: var(--accent-green);">$--</div>
           </div>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
-            <div id="result-hourly-rate" style="font-size: 2rem; font-weight: 600; color: var(--accent-blue);">$--/hr</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
+            <div id="result-hourly-rate" style="font-size: var(--text-4xl); font-weight: 600; color: var(--accent-blue);">$--/hr</div>
           </div>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
-            <div id="result-annual-profit" style="font-size: 1.8rem; font-weight: 600; color: var(--text-primary);">$--</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
+            <div id="result-annual-profit" style="font-size: var(--text-3xl); font-weight: 600; color: var(--text-primary);">$--</div>
           </div>
           
           <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
-            <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
+            <h4 style="font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
             <div style="display: grid; gap: 12px;">
               <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="fuel"></span> Fuel</span><span id="cost-fuel" style="color: var(--accent-red);">$--</span></div>
               <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="wrench"></span> Maintenance</span><span id="cost-maintenance" style="color: var(--accent-orange);">$--</span></div>
@@ -543,7 +556,7 @@
           </div>
           
           <div id="calc-warning" style="display: none; margin-top: 24px; padding: 16px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md);">
-            <p style="color: var(--accent-red); font-size: 0.9rem; margin: 0;"><span class="icon-inline" data-icon="alert-triangle"></span> Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
+            <p style="color: var(--accent-red); font-size: var(--text-base); margin: 0;"><span class="icon-inline" data-icon="alert-triangle"></span> Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
           </div>
         </div>
       </div>
@@ -676,12 +689,12 @@
     if (window.location.hash === '#calculator') {
       var hero = document.querySelector('.hero-section');
       if (hero) hero.style.display = 'none';
-      var signIn = document.querySelector('.btn-login');
+      var signIn = document.querySelector('.btn--primary');
       if (signIn) signIn.style.display = 'none';
     }
   </script>
-  <script src="/footer.js"></script>
-  <script src="/mcc-icons.js?v=20260212"></script>
+  <script src="footer.js"></script>
+  <script src="mcc-icons.js?v=20260212"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');

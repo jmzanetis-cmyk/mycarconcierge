@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Car Concierge — Hackensack</title>
+<!--
+  PLACEHOLDER CONTENT — DO NOT PUBLISH AS-IS.
+  Blocked on: pilot shop name + what they're specifically good at (per the
+  pilot brief, item #3). Every spot that needs it is marked
+  [SHOP_NAME] / [SHOP_SPECIALTY] below. Do not invent details — swap these
+  once Jordan supplies them.
+-->
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-card: #171a20;
+    --border: #2a2e37;
+    --gold: #c9a227;
+    --text: #f5f5f7;
+    --text-muted: #9ca3af;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 32px 20px 80px; }
+  .logo { font-weight: 700; font-size: 1.1rem; margin-bottom: 40px; }
+  .logo span { color: var(--gold); }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 16px; }
+  .lede { color: var(--text-muted); font-size: 1.05rem; margin-bottom: 28px; }
+  .promise {
+    border: 1px solid var(--gold);
+    background: rgba(201,162,39,0.08);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 28px;
+    font-size: 0.95rem;
+  }
+  .promise strong { color: var(--gold); }
+  p { color: var(--text); font-size: 0.98rem; }
+  .signature { color: var(--text-muted); font-size: 0.9rem; margin-top: 28px; }
+  .cta {
+    display: block;
+    text-align: center;
+    background: var(--gold);
+    color: #14161a;
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding: 16px;
+    border-radius: 10px;
+    text-decoration: none;
+    margin: 32px 0 12px;
+  }
+  .cta-sub { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 40px; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 1rem; }
+  .card p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+  .flag { color: #f59e0b; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">MyCar<span>Concierge</span></div>
+
+  <h1>Need work done on your car in Hackensack? I'll get you one real price, up front — no runaround.</h1>
+
+  <p class="lede">
+    I'm Jordan — I live in Hackensack, I've put over 2,300 rideshare trips on
+    my own car, and I got tired of guessing what a repair should cost. So I
+    built a way to get a straight answer from a shop I actually trust.
+  </p>
+
+  <div class="promise">
+    <strong>One written price, up front.</strong> Tell me what's going on with
+    your car, and <span class="flag">[SHOP_NAME]</span> — <span class="flag">[SHOP_SPECIALTY — e.g. "the shop I trust for brakes and suspension work"]</span> —
+    sends back one clear, written quote. No back-and-forth, no comparing five
+    different opinions, no surprise add-ons when you pick up your car.
+  </div>
+
+  <div class="card">
+    <h3>How it works</h3>
+    <p>Post what your car needs. <span class="flag">[SHOP_NAME]</span> quotes it in writing. You approve it, they do the work, and payment only releases once you're satisfied.</p>
+  </div>
+
+  <div class="card">
+    <h3>Why one shop, not five bids</h3>
+    <p>This is a small pilot — I'm working with one vetted shop in Hackensack right now, not a big marketplace. That's the point: a real relationship, not a bidding war.</p>
+  </div>
+
+  <a class="cta" id="hz-cta" href="/onboarding-member.html">Get my price</a>
+  <p class="cta-sub">Takes about 2 minutes. No payment until you approve a quote.</p>
+
+  <p class="signature">— Jordan, Hackensack</p>
+</div>
+
+<script>
+  // Hackensack pilot — UTM capture (pilot brief work item #2).
+  // Reads utm_campaign / utm_source / utm_medium from the URL and persists
+  // them so onboarding-member.html can read them at signup time and stamp
+  // profiles.acquisition_campaign / acquisition_source (see the proposed
+  // migration: supabase/migrations/20260912_pilot_cohort_source_tracking.sql).
+  // Convention: pilot/hackensack/UTM-CONVENTION.md
+  (function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var campaign = params.get('utm_campaign');
+      var source   = params.get('utm_source');
+      if (campaign) localStorage.setItem('mcc_acq_campaign', campaign);
+      if (source)   localStorage.setItem('mcc_acq_source', source);
+
+      // Pass the same params through to onboarding so a direct visit to
+      // this page → click-through → signup keeps working even if
+      // localStorage is unavailable (private browsing, cleared storage).
+      var cta = document.getElementById('hz-cta');
+      if (cta && (campaign || source)) {
+        var url = new URL(cta.href, window.location.origin);
+        if (campaign) url.searchParams.set('utm_campaign', campaign);
+        if (source)   url.searchParams.set('utm_source', source);
+        cta.href = url.toString();
+      }
+    } catch (e) {
+      // localStorage/URL API unavailable — signup still works, just
+      // without acquisition tagging for this visitor.
+    }
+  })();
+</script>
+</body>
+</html>

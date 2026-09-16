@@ -323,7 +323,7 @@ const EmailTemplates = {
                         <td>
                           <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #1e3a5f; font-weight: 600;">Pay with Confidence</h3>
                           <p style="margin: 0; font-size: 14px; color: #4a5568; line-height: 1.5;">
-                            Your payment is held in escrow until you confirm the work is complete. No surprises, no hassle—just peace of mind.
+                            Your payment is held securely until you confirm the work is complete. No surprises, no hassle—just peace of mind.
                           </p>
                         </td>
                       </tr>
@@ -705,7 +705,7 @@ const EmailTemplates = {
         
         <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center;">
           <span style="color: #4ade80; font-size: 20px; margin-right: 12px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Held in Escrow</p>
+          <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Payment Held</p>
         </div>
       </div>
       
@@ -959,7 +959,7 @@ const EmailTemplates = {
         <ul style="padding-left: 20px; margin: 0; color: #e5e7eb;">
           <li style="margin-bottom: 8px;">Members post anonymous maintenance packages</li>
           <li style="margin-bottom: 8px;">You submit competitive bids</li>
-          <li style="margin-bottom: 8px;">Payment is held in escrow when bid accepted</li>
+          <li style="margin-bottom: 8px;">Payment is held securely when bid accepted</li>
           <li>Complete the work, get paid in full</li>
         </ul>
       </div>
@@ -992,7 +992,7 @@ const EmailTemplates = {
         
         <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center;">
           <span style="color: #4ade80; font-size: 20px; margin-right: 12px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Held in Escrow</p>
+          <p style="color: #ffffff; font-size: 14px; margin: 0;"><strong>Payment Status:</strong> Payment Held</p>
         </div>
       </div>
       

@@ -124,6 +124,16 @@
           window.showAppointment(entityId);
         }
       }
+      // Auto-bid prefill (Phase 5 of the auto-bid redesign) — provider tap
+      // opens the review/confirm card for the specific prefill row.
+      // window.showSection('auto_bid_prefills') above is a deliberate no-op
+      // (no matching DOM section — it's a modal, not a page), so this is
+      // the branch that actually does something for this section value.
+      else if (sec === 'auto_bid_prefills' || sec === 'auto-bid-prefill') {
+        if (typeof window.openAutoBidPrefill === 'function') {
+          window.openAutoBidPrefill(entityId);
+        }
+      }
     };
 
     // Retry-with-backoff: wait up to ~2 seconds for window.showSection to be ready

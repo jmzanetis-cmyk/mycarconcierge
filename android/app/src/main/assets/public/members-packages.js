@@ -5,6 +5,20 @@
     let lastAiRequestHash = '';
     let aiSuggestionAbortController = null;
 
+    // Distance estimate (member ZIP -> provider ZIP) for "how far is this provider".
+    function mccZipDistance(zip1, zip2) {
+      if (!zip1 || !zip2) return 999;
+      zip1 = String(zip1); zip2 = String(zip2);
+      if (zip1 === zip2) return 0;
+      if (zip1.substring(0, 3) === zip2.substring(0, 3)) return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5;
+      const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
+      if (diff <= 2) return 15 + (diff * 10);
+      if (diff <= 5) return 30 + (diff * 8);
+      if (diff <= 10) return 50 + (diff * 5);
+      return 100 + (diff * 3);
+    }
+    function mccFmtDist(mi) { if (mi == null || mi >= 900) return ''; if (mi < 1) return 'nearby'; return `~${Math.round(mi)} mi away`; }
+
     function initAiPackageAssistant() {
       const descField = document.getElementById('p-description');
       const titleField = document.getElementById('p-title');
@@ -107,9 +121,15 @@
         renderAiSuggestions(data.suggestions);
       } catch (err) {
         if (err.name === 'AbortError') return;
+        // /api/package/ai-suggestions has no backend route (no function, no
+        // redirect) — this always fails. Rather than show a permanent "could
+        // not load" error on every service request, fail quiet like the
+        // no-session case above: hide the panel instead of leaving a visible
+        // broken-feature message on screen. Remove this once the endpoint
+        // is actually implemented.
         loading.style.display = 'none';
-        content.innerHTML = '<div style="padding:8px 0;font-size:0.82rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg> Could not load suggestions. You can continue without them.</div>';
-        console.log('AI suggestions error:', err);
+        panel.style.display = 'none';
+        console.log('AI suggestions error (panel hidden, no backend route yet):', err);
       }
     }
 
@@ -309,8 +329,20 @@
     window.toggleAiAssistantPanel = toggleAiAssistantPanel;
     window.dismissAiSuggestion = dismissAiSuggestion;
 
+    // Upsell / "Additional Work" client functions were previously duplicated
+    // here AND in members-core.js. Because members-packages.js loads AFTER
+    // members-core.js (members.html:8729,8740), the duplicates in this file
+    // were shadowing the members-core.js versions. The pre-migration code was
+    // silently broken end-to-end (wrote to a table missing the money-path
+    // columns, no PaymentIntent ever created). Migration 20260901a fixes it.
+    // Canonical implementations of loadUpsellRequests, renderUpsells,
+    // acknowledgeUpdate, requestCallBack, openReplyModal, submitReply,
+    // approveUpsell + mountUpsellCardModal + upsellApi, declineUpsell,
+    // rebidUpsell, getTimeRemaining ALL now live in members-core.js and are
+    // wired to the /api/upsell/* Netlify function. Do NOT re-add copies here.
+
     async function loadUpsellRequests() {
-      const { data } = await supabaseClient.from('upsell_requests')
+      const { data } = await supabaseClient.from('additional_work_requests')
         .select('*, maintenance_packages(title, vehicles(year, make, model, fuel_injection_type))')
         .eq('member_id', currentUser.id)
         .order('created_at', { ascending: false });
@@ -465,39 +497,42 @@
     }
     
     async function acknowledgeUpdate(updateId) {
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        member_action: 'acknowledged',
-        responded_at: new Date().toISOString()
-      }).eq('id', updateId);
-      showToast('Update acknowledged. Provider has been notified.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'acknowledge' });
+        showToast('Update acknowledged. Provider has been notified.', 'success');
+      } catch (e) {
+        showToast('Could not acknowledge: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
-    
+
     async function requestCallBack(updateId) {
-      await supabaseClient.from('upsell_requests').update({
-        call_requested: true,
-        member_action: 'call_me'
-      }).eq('id', updateId);
-      showToast('Call requested! Provider will call you shortly.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'request_call' });
+        showToast('Call requested! Provider will call you shortly.', 'success');
+      } catch (e) {
+        showToast('Could not send call request: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
-    
+
     function openReplyModal(updateId, title) {
       const reply = prompt(`Reply to: "${title}"\n\nEnter your response:`);
       if (reply && reply.trim()) {
         submitReply(updateId, reply.trim());
       }
     }
-    
+
     async function submitReply(updateId, reply) {
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        member_response: reply,
-        member_action: 'replied',
-        responded_at: new Date().toISOString()
-      }).eq('id', updateId);
-      showToast('Reply sent to provider!', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', {
+          action: 'reply',
+          member_response: reply,
+        });
+        showToast('Reply sent to provider!', 'success');
+      } catch (e) {
+        showToast('Could not send reply: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
 
@@ -514,33 +549,45 @@
 
     async function approveUpsell(upsellId) {
       const upsell = upsellRequests.find(u => u.id === upsellId);
-      if (!confirm(`Approve this additional work for $${(upsell?.estimated_cost || 0).toFixed(2)}?\n\nThis amount will be added to your escrow payment.`)) return;
+      const amount = Number(upsell?.estimated_cost || 0);
+      if (!confirm(`Approve this additional work for $${amount.toFixed(2)}?\n\nYou'll authorize the charge on your card next — funds will be held (not charged) until the job is marked complete.`)) return;
 
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        responded_at: new Date().toISOString()
-      }).eq('id', upsellId);
-
-      // Update payment to add upsell amount
-      if (upsell?.package_id) {
-        const { data: payment } = await supabaseClient.from('payments')
-          .select('*')
-          .eq('package_id', upsell.package_id)
-          .single();
-        
-        if (payment) {
-          const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
-          
-          await supabaseClient.rpc('member_approve_additional_work', {
-            p_payment_id: payment.id,
-            p_new_total: newTotal,
-            p_new_provider: newTotal,
-            p_new_mcc_fee: 0
-          });
-        }
+      let approveResp;
+      try {
+        approveResp = await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/approve', {});
+      } catch (e) {
+        showToast('Could not start approval: ' + e.message, 'error');
+        return;
+      }
+      if (approveResp.reviewer_mock) {
+        showToast('Additional work approved (reviewer demo — no live charge).', 'success');
+        await loadUpsellRequests();
+        return;
+      }
+      if (!approveResp.client_secret) {
+        showToast('Approval initiated but no card authorization needed. Refreshing.', 'success');
+        await loadUpsellRequests();
+        return;
       }
 
-      showToast('Additional work approved. Payment updated.', 'success');
+      const pi = await mountUpsellCardModal(approveResp.client_secret, {
+        title: upsell?.title || 'Additional work',
+        amount,
+      });
+      if (!pi) return;
+      if (pi.status !== 'requires_capture' && pi.status !== 'succeeded') {
+        showToast('Card was not authorized. Please try again.', 'error');
+        return;
+      }
+
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/confirm-authorization', {});
+      } catch (e) {
+        showToast('Card authorized, but sync failed: ' + e.message + '. Refresh to update.', 'error');
+        await loadUpsellRequests();
+        return;
+      }
+      showToast('Additional work approved. Funds are held securely until job completion.', 'success');
       await loadUpsellRequests();
     }
 
@@ -548,22 +595,21 @@
       const upsell = upsellRequests.find(u => u.id === upsellId);
       const pkg = packages.find(p => p.id === upsell?.package_id);
       const originalBid = pkg?._acceptedBid?.amount || pkg?.accepted_bid_amount;
-      
+
       let confirmMsg = 'Decline this additional work?\n\n';
       if (originalBid) {
         confirmMsg += `You will only pay the original bid amount of $${originalBid.toFixed(2)}.\n\n`;
       }
       confirmMsg += 'The provider will complete only the originally agreed scope of work.';
-      
+
       if (!confirm(confirmMsg)) return;
 
-      await supabaseClient.from('upsell_requests').update({
-        status: 'declined',
-        member_action: 'declined',
-        responded_at: new Date().toISOString()
-      }).eq('id', upsellId);
-
-      showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {});
+        showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+      } catch (e) {
+        showToast('Could not decline: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
 
@@ -573,7 +619,6 @@
       const upsell = upsellRequests.find(u => u.id === upsellId);
       const pkg = packages.find(p => p.id === upsell?.package_id);
 
-      // Create new package for the upsell work
       const packageData = {
         member_id: currentUser.id,
         vehicle_id: pkg?.vehicle_id,
@@ -586,21 +631,29 @@
         pickup_preference: 'either',
         status: 'open'
       };
-      
-      // Check if member has a preferred provider for exclusive first look
+
       if (userProfile?.preferred_provider_id) {
         packageData.exclusive_provider_id = userProfile.preferred_provider_id;
         packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       }
-      
+
       const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert(packageData).select().single();
 
-      // Update upsell request
-      await supabaseClient.from('upsell_requests').update({
-        status: 'rebid',
-        responded_at: new Date().toISOString(),
-        rebid_package_id: newPkg?.id
-      }).eq('id', upsellId);
+      // Decline via the API (cancels any dangling PI), then stamp rebid_package_id.
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {
+          member_response_note: 'Sent out for competing bids: ' + (newPkg?.id || ''),
+        });
+        if (newPkg?.id) {
+          await supabaseClient.from('additional_work_requests').update({
+            status: 'rebid',
+            rebid_package_id: newPkg.id,
+            updated_at: new Date().toISOString(),
+          }).eq('id', upsellId);
+        }
+      } catch (e) {
+        showToast('New package created but decline sync failed: ' + e.message, 'error');
+      }
 
       showToast('New package created for competitive bidding!', 'success');
       await loadUpsellRequests();
@@ -619,7 +672,7 @@
       
       try {
         const { data: payments } = await supabaseClient.from('payments')
-          .select('package_id, status, escrow_payment_intent_id, escrow_captured, amount_total')
+          .select('package_id, status, stripe_payment_intent_id, amount_total')
           .in('package_id', packageIds);
         
         packagePaymentStatuses = {};
@@ -643,11 +696,11 @@
         return '';
       }
       
-      if (payment.escrow_captured === true || payment.status === 'released' || payment.status === 'completed') {
+      if (payment.status === 'released' || payment.status === 'completed') {
         return `<span class="payment-status-badge complete" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);">${mccIcon('check', 16)} Payment Complete</span>`;
       }
       
-      if (payment.escrow_payment_intent_id && payment.escrow_captured === false) {
+      if (payment.stripe_payment_intent_id && payment.status === 'held') {
         return `<span class="payment-status-badge held" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-blue-soft);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.3);">${mccIcon('lock', 16)} Payment Held</span>`;
       }
       
@@ -708,8 +761,7 @@
         let confirmCompleteButton = '';
         const payment = packagePaymentStatuses[p.id];
         if ((p.status === 'in_progress' || p.status === 'completed') && payment && 
-            (payment.status === 'held' || payment.status === 'authorized') && 
-            !payment.escrow_captured) {
+            (payment.status === 'held' || payment.status === 'authorized')) {
           confirmCompleteButton = `<button class="btn btn-success btn-sm" onclick="openReleasePaymentModal('${p.id}')">${mccIcon('check', 16)} Confirm Complete</button>`;
         }
         
@@ -729,9 +781,9 @@
             </div>
             <div class="package-meta">
               <span>${mccIcon('calendar', 16)} ${new Date(p.created_at).toLocaleDateString()}</span>
-              <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>
+              ${p.frequency ? `<span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>` : ''}
               <span>${mccIcon('wrench', 16)} ${p.parts_preference || 'Standard'} parts</span>
-              <span>${mccIcon('car', 16)} ${formatPickup(p.pickup_preference)}</span>
+              ${p.pickup_preference ? `<span>${mccIcon('car', 16)} ${formatPickup(p.pickup_preference)}</span>` : ''}
             </div>
             ${p._isSplitParticipant ? `<div style="margin-top:8px;padding:6px 10px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-blue);display:inline-block;">${mccIcon('users', 16)} Split Payment — Your Share: $${(p._splitAmountCents / 100).toFixed(2)}</div>` : ''}
             ${p.description ? `<div class="package-description">${p.description}</div>` : ''}
@@ -803,6 +855,122 @@
         'other': 'Other'
       };
       return labels[type] || type;
+    }
+
+    // Canonical services_offered / specialty keys -> display labels.
+    // provider_applications.services_offered is a mixed bag in production:
+    // canonical snake_case keys from the signup checkboxes, extended category
+    // keys, AND legacy free-text strings from older rows (see
+    // netlify/functions/provider-application.js ALLOWED_SERVICES). Bid cards
+    // must never render the raw stored value.
+    const SPECIALTY_LABELS = {
+      'oil_change': 'Oil Change', 'brakes': 'Brakes', 'tires': 'Tires / Alignment',
+      'engine': 'Engine Repair', 'transmission': 'Transmission', 'electrical': 'Electrical',
+      'ac_heating': 'AC / Heating', 'diagnostics': 'Diagnostics', 'body_work': 'Body Work',
+      'paint': 'Paint / Refinish', 'detailing': 'Detailing', 'car_wash': 'Car Wash',
+      'glass': 'Glass Repair', 'exhaust': 'Exhaust', 'suspension': 'Suspension',
+      'inspection': 'State Inspection', 'mobile_service': 'Mobile Service', 'other': 'Other',
+      'audio_electronics': 'Audio / Electronics', 'lighting': 'Lighting', 'interior': 'Interior',
+      'offroad': 'Off-Road', 'ev_hybrid': 'EV / Hybrid', 'classic_vintage': 'Classic / Vintage',
+      'fleet_graphics': 'Fleet Graphics', 'premium_protection': 'Premium Protection',
+      'convertible': 'Convertible', 'motorcycle': 'Motorcycle', 'rv_camper': 'RV / Camper',
+      'boat_marine': 'Boat / Marine', 'snow_removal': 'Snow Removal', 'manufacturer': 'Manufacturer Specialist'
+    };
+    function humanizeSpecialty(raw) {
+      if (!raw) return '';
+      const s = String(raw).trim();
+      const key = s.toLowerCase();
+      if (SPECIALTY_LABELS[key]) return SPECIALTY_LABELS[key];
+      // Unmapped slug (has underscores) or all-lowercase legacy string: de-slug + title-case.
+      // Anything already mixed-case (e.g. a brand name like "Toyota" or "BMW") is left as-is.
+      if (s.includes('_') || s === key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      return s;
+    }
+
+    // Renders pickup/delivery + loaner-vehicle capability badges for a single
+    // bidding provider, plus a mismatch warning when the member asked for
+    // provider pickup on this job but this particular bidder hasn't reported
+    // any pickup/delivery capability. Added 2026-09-13 alongside the
+    // `logistics` map on /api/bids/provider-summary (see bid-provider-summary.js)
+    // — see that file's header comment for the full story: pickup_preference
+    // was collectible from members since day one, but the matching
+    // provider_applications columns were never surfaced anywhere a member
+    // could see them before accepting a bid, so a member could pick
+    // "Provider pickup" and then accept a bid from a shop that has no way to
+    // fulfill it. `logistics` may be `undefined`/`{}` for providers who
+    // applied before the pickup/loaner fields existed on the signup form, or
+    // who left every option unchecked — both render as "no info reported"
+    // rather than a false negative.
+    const PICKUP_OPTION_LABELS = {
+      pickup_vehicle: 'Picks up vehicle',
+      deliver_vehicle: 'Delivers after service',
+      flatbed: 'Flatbed / tow',
+      rideshare_coord: 'Coordinates rideshare',
+    };
+    function renderProviderLogisticsInfo(logistics, pickupPreference) {
+      const opts = logistics?.pickup_delivery_options || [];
+      const hasAnyPickupCapability = opts.length > 0;
+      const hasLoaner = !!logistics?.has_loaner_vehicles;
+
+      const badges = [];
+      opts.forEach(o => {
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${mccIcon('car', 14)} ${PICKUP_OPTION_LABELS[o] || o}</span>`);
+      });
+      if (hasAnyPickupCapability && logistics.pickup_radius_miles) {
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${logistics.pickup_radius_miles} mi radius</span>`);
+      }
+      if (hasLoaner) {
+        const types = logistics.loaner_vehicle_types ? ` (${logistics.loaner_vehicle_types})` : '';
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 10px;border-radius:100px;font-size:0.75rem;">${mccIcon('key', 14)} Loaner available${types}</span>`);
+      }
+
+      // Only warn about a mismatch on the one preference that actually
+      // requires the PROVIDER to do something (come get the vehicle). The
+      // other pickup_preference values (member_dropoff, rideshare, either,
+      // destination_service) don't depend on this provider's own pickup
+      // capability, so there's nothing to flag for them.
+      const mismatchWarning = (pickupPreference === 'provider_pickup' && !hasAnyPickupCapability)
+        ? `<div style="display:flex;align-items:center;gap:6px;color:#f59e0b;font-size:0.8rem;margin-top:6px;">${mccIcon('alert-triangle', 14)} You requested ${formatPickup('provider_pickup')} for this job, but this provider hasn't reported pickup/drop-off capability — message them to confirm before accepting.</div>`
+        : '';
+
+      if (badges.length === 0 && !mismatchWarning) return '';
+
+      return `
+        <div style="margin-bottom:12px;">
+          ${badges.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${badges.join('')}</div>` : ''}
+          ${mismatchWarning}
+        </div>
+      `;
+    }
+
+    // 5-star visual rating (out of 5), matching the familiar Uber/Lyft-style
+    // pattern - full/half/empty stars plus the numeric average, rather than
+    // the raw 0-100 composite score.
+    function renderStarRow(ratingValue, size) {
+      size = size || 14;
+      if (ratingValue === null || ratingValue === undefined || ratingValue === 'New') return '';
+      const r = Math.max(0, Math.min(5, parseFloat(ratingValue)));
+      if (isNaN(r)) return '';
+      const nearestHalf = Math.round(r * 2) / 2;
+      const fullStars = Math.floor(nearestHalf);
+      const hasHalf = (nearestHalf - fullStars) === 0.5;
+      const emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
+      const outlineSvg = MCC_ICONS['star'];
+      const filledSvg = outlineSvg.replace('fill="none"', 'fill="currentColor"');
+      const sized = (svg) => svg.replace(/width="1em"/, `width="${size}"`).replace(/height="1em"/, `height="${size}"`);
+      let stars = '';
+      for (let i = 0; i < fullStars; i++) {
+        stars += `<span style="display:inline-flex;width:${size}px;height:${size}px;color:var(--accent-gold);">${sized(filledSvg)}</span>`;
+      }
+      if (hasHalf) {
+        stars += `<span style="position:relative;display:inline-flex;width:${size}px;height:${size}px;color:var(--border-subtle);">${sized(outlineSvg)}<span style="position:absolute;top:0;left:0;width:50%;height:100%;overflow:hidden;color:var(--accent-gold);"><span style="display:inline-flex;width:${size}px;height:${size}px;">${sized(filledSvg)}</span></span></span>`;
+      }
+      for (let i = 0; i < emptyStars; i++) {
+        stars += `<span style="display:inline-flex;width:${size}px;height:${size}px;color:var(--border-subtle);">${sized(outlineSvg)}</span>`;
+      }
+      return `<span style="display:inline-flex;align-items:center;gap:1px;vertical-align:middle;">${stars}</span><span style="margin-left:4px;font-weight:500;">${r.toFixed(1)}</span>`;
     }
 
     function getWhyItsDueExplanation(reminder) {
@@ -1318,12 +1486,194 @@
       if (status) status.style.display = 'none';
     }
 
+    // ── AI Care Plan (care-plans section) ─────────────────────────────────────
+    let _aiCarePlanResult = null;
+    // Budget band picker state — mirrors selection in the create-care-plan
+    // modal. Defaults to 'estimate' (the middle preset). Only meaningful
+    // when _aiCarePlanResult has numeric estimates; otherwise savePackage
+    // falls through to the manual inputs.
+    let _selectedBudgetBand = 'estimate';
+
+    function selectBudgetBand(band) {
+      _selectedBudgetBand = band;
+      const btns = document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn');
+      btns.forEach(b => b.classList.toggle('selected', b.dataset.band === band));
+      // Manual inputs appear alongside the bands only when "Set my own" is
+      // active. Any preset re-hides them (values stay in the DOM in case
+      // the member switches back).
+      const manual = document.getElementById('p-budget-manual');
+      if (manual) manual.style.display = (band === 'custom') ? 'block' : 'none';
+    }
+    window.selectBudgetBand = selectBudgetBand;
+
+    // Reset the budget picker to the clean default state. Called from
+    // openPackageModal (members-core.js) so every fresh modal open starts
+    // fresh — bands hidden, manual inputs shown, prior values cleared.
+    // Prevents an old AI job's numbers from persisting onto a new
+    // non-AI submission.
+    function resetBudgetPicker() {
+      _selectedBudgetBand = 'estimate';
+      const bandsEl  = document.getElementById('p-budget-bands');
+      const manualEl = document.getElementById('p-budget-manual');
+      if (bandsEl)  bandsEl.style.display  = 'none';
+      if (manualEl) manualEl.style.display = 'block';
+      const minEl = document.getElementById('p-budget-min');
+      const maxEl = document.getElementById('p-budget-max');
+      if (minEl) minEl.value = '';
+      if (maxEl) maxEl.value = '';
+      document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn')
+        .forEach(b => b.classList.toggle('selected', b.dataset.band === 'estimate'));
+    }
+    window.resetBudgetPicker = resetBudgetPicker;
+
+    function toggleAiCarePlanPanel() {
+      const body = document.getElementById('ai-care-plan-body');
+      const chevron = document.getElementById('ai-care-plan-chevron');
+      if (!body) return;
+      const open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+      if (open) document.getElementById('ai-care-plan-input')?.focus();
+    }
+
+    async function aiCreateCarePlan() {
+      const input = document.getElementById('ai-care-plan-input');
+      const text = (input?.value || '').trim();
+      if (!text) { showToast('Please describe your car problem first.', 'error'); return; }
+
+      const btn = document.getElementById('ai-care-plan-btn');
+      const status = document.getElementById('ai-care-plan-status');
+      const result = document.getElementById('ai-care-plan-result');
+      btn.disabled = true;
+      btn.textContent = 'Thinking...';
+      if (status) { status.style.display = 'inline'; status.textContent = 'AI is analyzing...'; status.style.color = 'var(--accent-teal)'; }
+      if (result) result.style.display = 'none';
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const resp = await fetch(`${apiBase}/api/ai/create-care-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify({ description: text, member_id: session?.user?.id || null })
+        });
+        if (!resp.ok) {
+          let errMsg = 'Server error';
+          try { const d = await resp.json(); errMsg = d.error || errMsg; } catch (_) {}
+          throw new Error(errMsg);
+        }
+        const data = await resp.json();
+        _aiCarePlanResult = data.care_plan;
+
+        // Populate preview
+        const cp = _aiCarePlanResult;
+        const titleEl = document.getElementById('ai-care-plan-result-title');
+        const urgEl   = document.getElementById('ai-care-plan-result-urgency');
+        const descEl  = document.getElementById('ai-care-plan-result-desc');
+        const costEl  = document.getElementById('ai-care-plan-result-cost');
+        const safeEl  = document.getElementById('ai-care-plan-result-safety');
+
+        if (titleEl) titleEl.textContent = cp.title || '';
+        if (descEl)  descEl.textContent  = cp.detailed_description || '';
+        if (costEl)  costEl.textContent  = cp.estimated_cost_range || 'Est. unknown';
+        if (urgEl) {
+          const urgColor = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' }[cp.urgency] || 'var(--accent-teal)';
+          urgEl.textContent = cp.urgency?.toUpperCase() || '';
+          urgEl.style.background = urgColor + '22';
+          urgEl.style.color = urgColor;
+        }
+        if (safeEl) {
+          if (cp.safety_note) { safeEl.textContent = '⚠ ' + cp.safety_note; safeEl.style.display = 'block'; }
+          else { safeEl.style.display = 'none'; }
+        }
+        if (result) result.style.display = 'block';
+        if (status) { status.textContent = 'Care plan ready — review below.'; status.style.color = 'var(--accent-green)'; }
+      } catch (err) {
+        console.error('[ai-care-plan]', err);
+        if (status) { status.textContent = err.message || 'Could not process — please try again.'; status.style.color = 'var(--accent-red)'; }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Create Care Plan with AI';
+      }
+    }
+
+    function aiCarePlanToModal() {
+      if (!_aiCarePlanResult) return;
+      const cp = _aiCarePlanResult;
+      openPackageModal();
+      setTimeout(() => {
+        const titleEl = document.getElementById('p-title');
+        const descEl  = document.getElementById('p-description');
+        const catEl   = document.getElementById('p-category');
+        if (titleEl) titleEl.value = cp.title || '';
+        if (descEl)  descEl.value  = cp.detailed_description || '';
+        if (catEl && cp.category) {
+          const match = Array.from(catEl.options).find(o => o.value === cp.category);
+          if (match) catEl.value = cp.category;
+        }
+
+        // Budget picker: if AI produced a numeric range, populate the band
+        // labels + AI-estimate display and switch to band mode. Else fall
+        // back to the manual inputs (default HTML state).
+        const bandsEl  = document.getElementById('p-budget-bands');
+        const manualEl = document.getElementById('p-budget-manual');
+        const aiEstEl  = document.getElementById('p-budget-ai-estimate');
+        const hasNumericEstimate = cp.estimated_min > 0 && cp.estimated_max > 0;
+        if (bandsEl && manualEl && hasNumericEstimate) {
+          const eMin = Math.round(cp.estimated_min);
+          const eMax = Math.round(cp.estimated_max);
+          const consMin = Math.round(0.85 * eMin);
+          const premMax = Math.round(1.3 * eMax);
+          const label = (lo, hi) => `$${lo}–$${hi}`;
+          const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+          if (aiEstEl) aiEstEl.textContent = label(eMin, eMax);
+          setText('p-budget-band-conservative-range', label(consMin, eMin));
+          setText('p-budget-band-estimate-range',     label(eMin, eMax));
+          setText('p-budget-band-premium-range',      label(eMax, premMax));
+          bandsEl.style.display  = 'block';
+          manualEl.style.display = 'none';
+          _selectedBudgetBand = 'estimate';
+          document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn')
+            .forEach(b => b.classList.toggle('selected', b.dataset.band === 'estimate'));
+        } else if (bandsEl && manualEl) {
+          // AI ran but returned no numeric estimate — show manual inputs.
+          bandsEl.style.display  = 'none';
+          manualEl.style.display = 'block';
+          _selectedBudgetBand = 'custom';
+        }
+
+        // Collapse the care plan panel
+        const body = document.getElementById('ai-care-plan-body');
+        const chevron = document.getElementById('ai-care-plan-chevron');
+        if (body) body.style.display = 'none';
+        if (chevron) chevron.style.transform = '';
+      }, 50);
+    }
+
+    window.toggleAiCarePlanPanel = toggleAiCarePlanPanel;
+    window.aiCreateCarePlan      = aiCreateCarePlan;
+    window.aiCarePlanToModal     = aiCarePlanToModal;
+
     async function savePackage() {
       const vehicleId = document.getElementById('p-vehicle').value;
       const title = document.getElementById('p-title').value.trim();
       const category = document.getElementById('p-category').value;
       const isSnowRemoval = category === 'snow_removal';
       if (!isSnowRemoval && !vehicleId) return showToast('Vehicle is required', 'error');
+
+      // Require a verified registration before a vehicle can be used to
+      // request service — protects providers from bidding on jobs for a
+      // car whose ownership hasn't been confirmed yet.
+      if (!isSnowRemoval) {
+        const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+        if (!selectedVehicle?.registration_verified) {
+          showToast('Please verify this vehicle\'s registration before requesting service.', 'error');
+          closeModal('package-modal');
+          if (typeof openRegistrationModal === 'function') openRegistrationModal(vehicleId);
+          return;
+        }
+      }
+
       if (!title) return showToast('Title is required', 'error');
       if (isSnowRemoval && !document.getElementById('p-property-address').value.trim()) return showToast('Property address is required for snow removal', 'error');
 
@@ -1480,12 +1830,105 @@
         packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
       }
 
+      // Care_plans is the primary write — it connects the bidding pipeline (handleMine,
+      // plan-bids gate, provider matching). Write it first; on failure abort with nothing
+      // orphaned. The maintenance_packages write follows as a legacy bridge for the
+      // 15+ surfaces (admin, crowd-fund, splits, receipts, community board, etc.) that
+      // still read it.
+
+      // Resolve value_min / value_max for the care_plans insert. Source of
+      // truth is the SELECTED BAND (when AI produced a numeric estimate AND
+      // the member picked a preset) OR the manual inputs (when the member
+      // chose "Set my own" or the AI didn't run). _aiCarePlanResult itself
+      // is never read directly for the DB value — only for the band deltas.
+      //
+      // Manual inputs are strict: BOTH must be filled and valid (max >= min > 0)
+      // or both go NULL (auto-bid skips; safe fallback).
+      let memberValueMin = null;
+      let memberValueMax = null;
+      const hasAiRange = _aiCarePlanResult?.estimated_min > 0 && _aiCarePlanResult?.estimated_max > 0;
+
+      if (hasAiRange && _selectedBudgetBand && _selectedBudgetBand !== 'custom') {
+        const eMin = Math.round(_aiCarePlanResult.estimated_min);
+        const eMax = Math.round(_aiCarePlanResult.estimated_max);
+        if (_selectedBudgetBand === 'conservative') {
+          memberValueMin = Math.round(0.85 * eMin);
+          memberValueMax = eMin;
+        } else if (_selectedBudgetBand === 'estimate') {
+          memberValueMin = eMin;
+          memberValueMax = eMax;
+        } else if (_selectedBudgetBand === 'premium') {
+          memberValueMin = eMax;
+          memberValueMax = Math.round(1.3 * eMax);
+        }
+      } else {
+        // Manual inputs path — either "Set my own" is selected or no AI ran.
+        // Strict: both must be filled and valid, else both NULL.
+        const bMinRaw = document.getElementById('p-budget-min')?.value.trim() || '';
+        const bMaxRaw = document.getElementById('p-budget-max')?.value.trim() || '';
+        const bMinNum = bMinRaw ? Math.round(parseFloat(bMinRaw)) : null;
+        const bMaxNum = bMaxRaw ? Math.round(parseFloat(bMaxRaw)) : null;
+        const bMinOk  = Number.isFinite(bMinNum) && bMinNum > 0;
+        const bMaxOk  = Number.isFinite(bMaxNum) && bMaxNum > 0;
+        if (bMinOk && bMaxOk && bMaxNum >= bMinNum) {
+          memberValueMin = bMinNum;
+          memberValueMax = bMaxNum;
+        }
+        // Any other case (only one filled, both blank, backwards, ≤ 0) → both null → NULL insert
+      }
+
+      const carePlanData = {
+        member_id: currentUser.id,
+        vehicle_id: vehicleId || null,
+        title,
+        description: fullDescription,
+        services: [{ name: title }],
+        // 2.6.1: the member's chosen category is the authoritative match key
+        // (care_plans.categories, one of the 20 slugs in mcc-taxonomy.js).
+        // service_types is still written for readers not yet migrated.
+        categories: category ? [category] : [],
+        service_types: _aiCarePlanResult?.service_type
+          ? [_aiCarePlanResult.service_type]
+          : (document.getElementById('p-service-type').value
+              ? [document.getElementById('p-service-type').value]
+              : (category ? [category] : [])),
+        city: userProfile.city || null,
+        state: userProfile.state || null,
+        zip_code: userProfile.zip_code || null,
+        status: 'open',
+        // Value bounds come from the budget picker resolution above
+        // (band-derived or manual). NULL means auto-bid skips the plan.
+        ...(memberValueMin !== null && {
+          value_min: memberValueMin,
+          value_max: memberValueMax,
+        }),
+        // bid_closes_at omitted — BEFORE INSERT trigger set_care_plan_closes_at sets +72h
+      };
+      // Capture care_plans.id so we can stamp it on the maintenance_packages
+      // row as care_plan_id (migration 20260902a). This is the real FK the
+      // upsell handler prefers over the legacy (member_id, title) join.
+      const { data: newCarePlan, error: carePlanError } = await supabaseClient
+        .from('care_plans')
+        .insert(carePlanData)
+        .select('id')
+        .single();
+      if (carePlanError) {
+        console.error('Care plan creation error:', carePlanError);
+        return showToast('Failed to publish to job board: ' + (carePlanError.message || 'Unknown error'), 'error');
+      }
+      if (newCarePlan?.id) {
+        packageData.care_plan_id = newCarePlan.id;
+      }
+
+      // Legacy bridge — care_plans already succeeded, so any failure here is non-fatal:
+      // the job is already biddable. Side-effects below (destination_services, photos)
+      // need the package id and self-skip via their `data && data[0]` guards.
       const { data, error } = await supabaseClient.from('maintenance_packages').insert(packageData).select();
       if (error) {
-        console.error('Package creation error:', error);
-        return showToast('Failed to create package: ' + (error.message || 'Unknown error'), 'error');
+        console.error('Legacy maintenance_packages write failed (care plan was created):', error);
+        showToast('Job created — some legacy features may not show it. (Bidding is unaffected.)', 'info');
       }
-      
+
       // Create destination service record if applicable
       if (data && data[0] && isDestinationService && destinationType) {
         const destData = buildDestinationServiceData(data[0].id, destinationType);
@@ -1825,43 +2268,119 @@
         showToast('Error loading bids: ' + bidsError.message, 'error');
       }
 
-      // Load provider profiles separately
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: profiles } = await supabaseClient
-          .from('profiles')
-          .select('id, provider_alias, business_name')
-          .in('id', providerIds);
-        
-        // Attach profile info to bids
-        bids.forEach(bid => {
-          const profile = profiles?.find(p => p.id === bid.provider_id);
-          bid.profiles = profile || null;
-        });
-      }
+      // Populate bid.profiles from denormalized columns — no profiles query needed
+      bids?.forEach(bid => {
+        bid.profiles = { provider_alias: bid.provider_alias, business_name: bid.business_name };
+      });
 
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
+
+      // Provider ZIPs -> distance-from-you on each bid card (client-side;
+      // members can read provider profiles). Non-fatal: bids still render if
+      // this fails or a provider has no ZIP.
+      let providerZipById = {};
+      try {
+        const _pids = [...new Set((bids || []).map(b => b.provider_id).filter(Boolean))];
+        if (_pids.length) {
+          const { data: _pzs } = await supabaseClient.from('profiles').select('id, zip_code').in('id', _pids);
+          (_pzs || []).forEach(r => { providerZipById[r.id] = r.zip_code; });
+        }
+      } catch (_e) { /* no distance shown */ }
 
       // Resolve the accepted bid for this package (used in appointment/transfer/location templates below)
       const acceptedBid = bids?.find(b => b.id === pkg.accepted_bid_id) || bids?.find(b => b.status === 'accepted') || null;
 
       const priceEstimate = await fetchPriceEstimate(pkg.category, pkg.member_zip, packageId);
 
-      // Load provider application data for enhanced transparency
+      // Build credential map from denormalized bid columns — no provider_applications query
       const providerApplications = {};
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: applications } = await supabaseClient
-          .from('provider_applications')
-          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified, background_verified')
-          .in('user_id', providerIds)
-          .eq('status', 'approved');
-        applications?.forEach(app => providerApplications[app.user_id] = app);
+      bids?.forEach(bid => {
+        providerApplications[bid.provider_id] = {
+          business_name:           bid.business_name,
+          years_in_business:       bid.years_in_business,
+          services_offered:        bid.services_offered,
+          brand_specializations:   bid.brand_specializations,
+          license_verified:        bid.license_verified,
+          insurance_verified:      bid.insurance_verified,
+          certifications_verified: bid.certifications_verified,
+        };
+      });
+
+      // Fetch provider stats + performance for every provider that bid.
+      // Endpoint (/api/bids/provider-summary) verifies caller owns the package
+      // and returns ONLY whitelisted safe fields — provider_stats has no
+      // member-read RLS policy so we can't hit that table directly. See
+      // netlify/functions/bid-provider-summary.js.
+      //
+      // GRACEFUL DEGRADATION: if the fetch fails for any reason (network,
+      // 500, missing session), fall back to empty maps. The modal still
+      // opens; bid cards render without rating/tier/badges. Pre-fix
+      // behavior — a hard ReferenceError inside bids.map() that killed the
+      // modal — must NOT return under any failure mode. This is the whole
+      // point of the fix: prevent one flaky server call from making the
+      // "view and accept bids" surface unreachable.
+      let providerStats = {};
+      let providerPerformance = {};
+      // Pickup/delivery + loaner-vehicle capability per bidding provider (from
+      // provider_applications, via the same safe-summary endpoint). Added
+      // 2026-09-13 — see bid-provider-summary.js header comment for why this
+      // matters: a member can request "Provider picks up from my location"
+      // when creating the service request, but until now had zero visibility
+      // into whether any given bidder actually offers that, and could accept
+      // a bid that can't fulfill it. Rendered below as badges + a mismatch
+      // warning (renderProviderLogisticsInfo, further down this file).
+      let providerLogistics = {};
+      if (bids && bids.length > 0) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session) {
+            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+            const resp = await fetch(`${apiBase}/api/bids/provider-summary?package_id=${encodeURIComponent(packageId)}`, {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (resp.ok) {
+              const payload = await resp.json();
+              providerStats = payload.stats || {};
+              providerPerformance = payload.performance || {};
+              providerLogistics = payload.logistics || {};
+            } else {
+              console.warn('[viewPackage] provider-summary non-2xx:', resp.status);
+            }
+          }
+        } catch (err) {
+          console.warn('[viewPackage] provider-summary fetch failed (non-fatal, bids still render):', err.message);
+        }
       }
 
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
+
+      // Has this member already reviewed this package? Only ask on the
+      // completed-branch template below (guard skips work for other statuses).
+      // FAIL-SAFE: on any query error, default to false — worst case is one
+      // "Leave a Review" button on a package already reviewed. The alternative
+      // (fail-safe to true) would silently hide the button and block a
+      // legitimate first review. There's no DB unique on (member_id,
+      // package_id) so a duplicate insert isn't caught server-side either
+      // — the button-visibility is purely UX. See openReviewModal at :4441
+      // and provider_reviews RLS policy reviews_select_published.
+      let hasReviewed = false;
+      if (pkg.status === 'completed' && currentUser?.id) {
+        try {
+          const { data: existing } = await supabaseClient
+            .from('provider_reviews')
+            .select('id')
+            .eq('member_id', currentUser.id)
+            .eq('package_id', packageId)
+            .eq('status', 'published')
+            .limit(1)
+            .maybeSingle();
+          hasReviewed = !!existing;
+        } catch (err) {
+          console.warn('[viewPackage] hasReviewed check failed (non-fatal, defaulting to false):', err.message);
+        }
+      }
 
       document.getElementById('view-package-title').textContent = pkg.title;
       document.getElementById('view-package-body').innerHTML = `
@@ -1870,7 +2389,7 @@
           <div class="package-meta" style="margin-bottom:0;">
             <span>${mccIcon('car', 16)} ${vehicleName}</span>
             <span>${mccIcon('calendar', 16)} Created ${new Date(pkg.created_at).toLocaleDateString()}</span>
-            <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(pkg.frequency)}</span>
+            ${pkg.frequency ? `<span>${mccIcon('refresh-cw', 16)} ${formatFrequency(pkg.frequency)}</span>` : ''}
             <span>${mccIcon('wrench', 16)} ${pkg.parts_preference || 'Standard'} parts</span>
           </div>
           ${pkg.description ? `<p style="color:var(--text-secondary);margin-top:16px;line-height:1.6;">${pkg.description}</p>` : ''}
@@ -1909,6 +2428,10 @@
                 const stats = providerStats[bid.provider_id] || {};
                 const perf = providerPerformance[bid.provider_id];
                 const appData = providerApplications[bid.provider_id] || {};
+                const logistics = providerLogistics[bid.provider_id];
+                const _provZip = providerZipById[bid.provider_id];
+                const _distMi = (pkg.member_zip && _provZip) ? mccZipDistance(pkg.member_zip, _provZip) : null;
+                const distLabel = mccFmtDist(_distMi);
                 const rating = perf?.rating_avg ? perf.rating_avg.toFixed(1) : (stats.average_rating ? stats.average_rating.toFixed(1) : 'New');
                 const jobs = perf?.jobs_completed || stats.jobs_completed || 0;
                 const providerName = bid.profiles?.provider_alias || `Provider #${bid.provider_id.slice(0,4).toUpperCase()}`;
@@ -1919,13 +2442,12 @@
                 const brands = appData.brand_specializations || [];
                 const specialties = [...services.slice(0, 2), ...brands.slice(0, 1)].slice(0, 3);
                 const bidPrice = bid.price || 0;
-                const isBackgroundVerified = appData.background_verified === true;
+                const isBackgroundVerified = false;
                 
                 // Performance data
                 const tier = perf?.tier || 'bronze';
                 const tierIcon = {'platinum': mccIcon('sparkles', 16), 'gold': mccIcon('award', 16), 'silver': mccIcon('award', 16), 'bronze': mccIcon('award', 16)}[tier] || mccIcon('award', 16);
                 const tierColors = {'platinum': '#e5e4e2', 'gold': 'var(--accent-gold)', 'silver': '#c0c0c0', 'bronze': '#cd7f32'};
-                const overallScore = perf?.overall_score ? Math.round(perf.overall_score) : null;
                 const onTimeRate = perf?.on_time_rate && jobs > 0 ? Math.round(perf.on_time_rate) : null;
                 const badges = perf?.badges || [];
                 const badgeIcons = {'top_rated': mccIcon('trophy', 16), 'quick_responder': mccIcon('zap', 16), 'veteran': mccIcon('award', 16), 'perfect_score': mccIcon('star', 16), 'dispute_free': mccIcon('shield', 16)};
@@ -1948,10 +2470,9 @@
                             ${yearsInBusiness ? `${yearsInBusiness} years in business` : ''}
                           </div>
                           <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">
-                            ${mccIcon('star', 16)} ${rating} 
+                            ${renderStarRow(rating, 14)}
                             ${jobs > 0 ? `• ${jobs} jobs` : '• New provider'}
-                            ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}
-                            ${overallScore !== null ? ` • Score: ${overallScore}` : ''}
+                            ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}${distLabel ? ` • ${distLabel}` : ''}
                           </div>
                           ${badges.length > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;">${badges.map(b => `<span title="${b.replace('_', ' ')}" style="font-size:1rem;">${badgeIcons[b] || ''}</span>`).join('')}</div>` : ''}
                         </div>
@@ -1966,8 +2487,8 @@
                     
                     ${isVerified || specialties.length > 0 ? `
                       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">${mccIcon('check', 16)} Concierge Verified</span>` : ''}
-                        ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${s}</span>`).join('')}
+                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;cursor:help;" title="License, insurance, and certifications confirmed by MyCarConcierge">${mccIcon('check', 16)} Credentials Verified</span>` : ''}
+                        ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${humanizeSpecialty(s)}</span>`).join('')}
                       </div>
                     ` : ''}
                     
@@ -1980,9 +2501,10 @@
                     ` : ''}
                     ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('clock', 16)} Estimated time: ${bid.estimated_duration}</div>` : ''}
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
-                    ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
+                    ${renderProviderLogisticsInfo(logistics, pkg.pickup_preference)}
+                    ${bid.description ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.description}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 16)} Message</button>
+                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 16)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check', 16)} Accept Bid</button>` : ''}
                     </div>
                   </div>
@@ -2176,7 +2698,7 @@
             overall_score: perf?.overall_score ? Math.round(perf.overall_score) : null,
             tier: perf?.tier || null,
             is_verified: isVerified,
-            is_background_verified: appData.background_verified === true,
+            is_background_verified: false,
             years_in_business: appData.years_in_business || null,
             estimated_duration: bid.estimated_duration || null,
             badges: perf?.badges || [],
@@ -2332,7 +2854,7 @@
       
       const amount = bid.price || 0;
 
-      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold payment in escrow\n• Close the package to other providers\n• Notify the provider to begin work`)) return;
+      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold your payment securely\n• Close the package to other providers\n• Notify the provider to begin work`)) return;
 
       try {
         // Update this bid to accepted
@@ -2398,7 +2920,7 @@
         }
 
         closeModal('view-package-modal');
-        showToast('Bid accepted! Please authorize payment to hold funds in escrow.', 'success');
+        showToast('Bid accepted! Please authorize payment to hold funds securely.', 'success');
         await loadPackages();
 
         const _pkg = packages.find(p => p.id === packageId);
@@ -2982,7 +3504,7 @@
               colorBackground: 'rgba(30, 38, 48, 0.9)',
               colorText: '#f5f5f7',
               colorDanger: '#f87171',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               borderRadius: '8px'
             }
           }
@@ -2992,7 +3514,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               fontSmoothing: 'antialiased',
               fontSize: '16px',
               '::placeholder': {
@@ -3292,7 +3814,7 @@
                   <span style="font-size:1.5rem;">${mccIcon('lock', 24)}</span>
                   <div>
                     <div style="font-weight:600;color:var(--accent-blue);font-size:1.1rem;">Payment Authorized</div>
-                    <div style="color:var(--text-secondary);font-size:0.9rem;">Funds held securely in escrow</div>
+                    <div style="color:var(--text-secondary);font-size:0.9rem;">Funds held securely</div>
                   </div>
                 </div>
                 <div style="text-align:right;">
@@ -3324,17 +3846,35 @@
         `;
       }
       
-      // Awaiting payment - show card form with mobile pay options
+      // Awaiting payment — PACKAGE-ESCROW RETIRED (Phase 1b, 2026-07-19).
+      // The /api/escrow/* endpoints (create/confirm/release/refund) were
+      // orphaned by the Express→Netlify migration and are not being migrated
+      // back. Rendering the authorize-payment form would expose dead CTAs
+      // (Apple Pay, Google Pay, Stripe card element, "Authorize Payment"
+      // button) that all POST to /api/escrow/create-with-payment-method or
+      // similar routes that don't exist. Superseded by the care-plan escrow
+      // flow (working since Finding #1's reconcile fix, d60f87c).
+      //
+      // This gate is a REGRESSION FIX for the 2026-07-19 archive overreach:
+      // 12 rows with accepted_bid_id were restored from 'archived' →
+      // 'accepted' on 2026-07-20 to unbreak member history rendering, which
+      // re-exposed this awaiting-payment branch. Same-commit gate replaces
+      // the dead form with a "temporarily unavailable" note (matches Batch 1
+      // openPackageModal guard shape at members-core.js:3105-3115).
+      //
+      // Remove this gate ONLY when package-escrow is migrated per
+      // MCC_AUDIT_PLAN.md Phase 1 (unlikely — retirement was signed off
+      // 2026-07-19 per PHASE1_FINDINGS.md Package-escrow retirement).
       return `
         <div class="form-section" id="escrow-payment-section-${pkg.id}">
-          <div class="form-section-title">${mccIcon('credit-card', 24)} Authorize Payment</div>
+          <div class="form-section-title">${mccIcon('credit-card', 24)} Payment</div>
           <div style="background:var(--accent-orange-soft);border:1px solid rgba(251,146,60,0.3);border-radius:var(--radius-lg);padding:20px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:1.5rem;">${mccIcon('credit-card', 24)}</span>
+                <span style="font-size:1.5rem;">${mccIcon('info', 24)}</span>
                 <div>
-                  <div style="font-weight:600;color:var(--accent-orange);font-size:1.1rem;">Awaiting Payment</div>
-                  <div style="color:var(--text-secondary);font-size:0.9rem;">Authorize payment to hold funds in escrow</div>
+                  <div style="font-weight:600;color:var(--accent-orange);font-size:1.1rem;">Payment temporarily unavailable</div>
+                  <div style="color:var(--text-secondary);font-size:0.9rem;">Package purchases are being migrated. Your accepted bid is preserved — contact support if you need this order finalized.</div>
                 </div>
               </div>
               <div style="text-align:right;">
@@ -3342,71 +3882,13 @@
                 <div style="color:var(--text-muted);font-size:0.85rem;">for ${providerName}</div>
               </div>
             </div>
-            
-            <div style="background:var(--bg-card);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:6px;">
-                <span style="color:var(--text-secondary);">Total Amount</span>
-                <span style="color:var(--text-primary);">$${amount.toFixed(2)}</span>
-              </div>
-            </div>
-            
-            <!-- Mobile Pay Buttons (Apple Pay / Google Pay) -->
-            <div id="mobile-pay-buttons-${pkg.id}" style="display:none;margin-bottom:16px;">
-              <button id="apple-pay-btn-${pkg.id}" class="apple-pay-button" onclick="authorizeWithApplePay('${pkg.id}', '${acceptedBid?.id}', ${amount})" style="display:none;width:100%;height:48px;background:#000;border:none;border-radius:8px;cursor:pointer;margin-bottom:12px;">
-                <span style="display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;font-size:16px;font-weight:500;">
-                  <svg width="20" height="24" viewBox="0 0 20 24" fill="white" style="margin-top:-2px;">
-                    <path d="M14.94 5.19A4.38 4.38 0 0 0 16 2.06a4.44 4.44 0 0 0-2.91 1.49A4.17 4.17 0 0 0 12 6.54a3.71 3.71 0 0 0 2.94-1.35zm1.68 2.81c-1.68.09-3.12.94-3.95.94s-2.05-.89-3.38-.87a5 5 0 0 0-4.27 2.57c-1.82 3.14-.47 7.79 1.31 10.34.87 1.26 1.9 2.67 3.26 2.62 1.31-.05 1.8-.84 3.38-.84s2 .84 3.38.81 2.3-1.26 3.17-2.53a11.08 11.08 0 0 0 1.43-2.94 4.52 4.52 0 0 1-2.72-4.13 4.65 4.65 0 0 1 2.22-3.9 4.77 4.77 0 0 0-3.83-1.07z"/>
-                  </svg>
-                  Pay
-                </span>
-              </button>
-              <button id="google-pay-btn-${pkg.id}" class="google-pay-button" onclick="authorizeWithGooglePay('${pkg.id}', '${acceptedBid?.id}', ${amount})" style="display:none;width:100%;height:48px;background:#000;border:none;border-radius:8px;cursor:pointer;margin-bottom:12px;">
-                <span style="display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;font-size:16px;font-weight:500;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                  </svg>
-                  Pay
-                </span>
-              </button>
-              <div id="mobile-pay-divider-${pkg.id}" style="display:none;text-align:center;color:var(--text-muted);font-size:0.85rem;margin:16px 0;">or pay with card</div>
-            </div>
-            
-            <div id="card-payment-section-${pkg.id}">
-              <div style="margin-bottom:20px;">
-                <label style="display:block;margin-bottom:8px;font-size:0.9rem;color:var(--text-secondary);">Card Details</label>
-                <div id="escrow-card-element-${pkg.id}" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;min-height:44px;"></div>
-                <div id="escrow-card-errors-${pkg.id}" style="color:var(--accent-red);font-size:0.85rem;margin-top:8px;"></div>
-              </div>
-            </div>
-            
-            <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
-              <div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;">
-                <span>${mccIcon('lock', 16)}</span>
-                <span>Your payment is secured. Funds are held in escrow and only released when you confirm the work is complete.</span>
-              </div>
-            </div>
-            
-            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;" disabled aria-disabled="true">
-              ${mccIcon('lock', 16)} Authorize Payment ($${amount.toFixed(2)})
-            </button>
-            <button class="btn btn-secondary" onclick="openSplitPaymentModal('${pkg.id}', ${Math.round(amount * 100)})" style="width:100%;">
-              ${mccIcon('users', 16)} Split Payment ($${amount.toFixed(2)})
-            </button>
           </div>
         </div>
-        
-        <script>
-          (function() {
-            setTimeout(() => {
-              mountEscrowCardElement('${pkg.id}');
-              initMobilePayButtons('${pkg.id}');
-            }, 100);
-          })();
-        </script>
       `;
+      // Prior authorize-payment form (Apple Pay / Google Pay / Stripe card
+      // element / "Authorize Payment $X" button / Split Payment button) removed
+      // 2026-07-20 alongside the package-escrow retirement gate above. Git
+      // history preserves the original if a future migration back is scoped.
     }
 
     async function renderCheckinQRSection(pkg) {
@@ -3414,7 +3896,7 @@
       
       // Only show for packages with payment held and not yet checked in
       const payment = packagePaymentStatuses[pkg.id];
-      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized') && !payment.escrow_captured;
+      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized');
       const isInProgress = pkg.status === 'in_progress';
       const isAccepted = pkg.status === 'accepted';
       const isCheckedIn = !!pkg.checked_in_at;
@@ -3651,7 +4133,7 @@
               colorBackground: 'rgba(30, 38, 48, 0.9)',
               colorText: '#f5f5f7',
               colorDanger: '#f87171',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               borderRadius: '8px'
             }
           }
@@ -3661,7 +4143,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               fontSmoothing: 'antialiased',
               fontSize: '16px',
               '::placeholder': {
@@ -3737,7 +4219,7 @@
           // Step 3: Mark payment as held in database
           await confirmEscrowHeld(packageId);
           
-          showToast('Payment authorized! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized! Funds are now held securely.', 'success');
           
           // Refresh the view to show updated status
           await loadPackages();
@@ -3815,7 +4297,7 @@
           throw new Error('Mobile payment not available');
         }
 
-        const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Escrow Payment');
+        const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Payment Hold');
         
         if (result.success && result.paymentMethodId) {
           const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
@@ -3836,7 +4318,7 @@
           }
 
           await confirmEscrowHeld(packageId);
-          showToast('Payment authorized with Apple Pay! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized with Apple Pay! Funds are now held securely.', 'success');
           
           await loadPackages();
           setTimeout(() => viewPackage(packageId), 300);
@@ -3874,7 +4356,7 @@
           throw new Error('Mobile payment not available');
         }
 
-        const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Escrow Payment');
+        const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Payment Hold');
         
         if (result.success && result.paymentMethodId) {
           const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
@@ -3895,7 +4377,7 @@
           }
 
           await confirmEscrowHeld(packageId);
-          showToast('Payment authorized with Google Pay! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized with Google Pay! Funds are now held securely.', 'success');
           
           await loadPackages();
           setTimeout(() => viewPackage(packageId), 300);
@@ -3923,7 +4405,7 @@
     }
 
     async function confirmJobAndReleasePayment(packageId) {
-      if (!confirm('Confirm that the work is complete and you have received your vehicle?\n\nThis will release the escrowed payment to the provider.')) return;
+      if (!confirm('Confirm that the work is complete and you have received your vehicle?\n\nThis will release the held payment to the provider.')) return;
       
       try {
         showToast('Releasing payment...', 'info');
@@ -3972,8 +4454,17 @@
           member_confirmed_at: new Date().toISOString()
         }).eq('id', packageId);
 
-        // Release payment
-        await supabaseClient.rpc('member_release_payment', { p_package_id: packageId });
+        // Capture Stripe PaymentIntent and mark released
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const releaseResp = await fetch('/api/payment/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ packageId }),
+        });
+        if (!releaseResp.ok) {
+          const releaseErr = await releaseResp.json().catch(() => ({}));
+          throw new Error(releaseErr.error || 'Payment release failed');
+        }
 
         // Record commission for member founder (if member was referred)
         // The RPC function fetches the actual platform fee from the database for security
@@ -4251,7 +4742,7 @@
 
       const pkg = packages.find(p => p.id === currentReviewPackageId);
       const vehicle = vehicles.find(v => v.id === pkg?.vehicle_id);
-      const { data: bid } = await supabaseClient.from('bids').select('price_estimate').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
+      const { data: bid } = await supabaseClient.from('bids').select('price').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
 
       const reviewData = {
         provider_id: currentReviewProviderId,
@@ -4268,7 +4759,7 @@
         complaint_reason_other: complaintReasonOther,
         service_type: pkg?.service_type,
         vehicle_info: vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : null,
-        amount_paid: bid?.price_estimate,
+        amount_paid: bid?.price,
         status: 'published',
         verified_purchase: true
       };
@@ -6829,6 +7320,11 @@
     }
 
     function openSplitPaymentModal(packageId, totalAmountCents) {
+      // Feature gate (ships dark for launch). Server enforces too.
+      if (!window._mccFlags?.split_payments_enabled) {
+        if (typeof showToast === 'function') showToast('Split payments are coming soon.', 'info');
+        return;
+      }
       const userEmail = currentUser?.email || '';
       const halfAmount = Math.floor(totalAmountCents / 2);
       const otherHalf = totalAmountCents - halfAmount;
@@ -6959,6 +7455,11 @@
     }
 
     window.reactivateSplitPayment = function(splitId, totalAmountCents) {
+      // Feature gate (ships dark for launch). Server enforces too.
+      if (!window._mccFlags?.split_payments_enabled) {
+        if (typeof showToast === 'function') showToast('Split payments are coming soon.', 'info');
+        return;
+      }
       const userEmail = currentUser?.email || '';
       const halfAmount = Math.floor(totalAmountCents / 2);
       const otherHalf = totalAmountCents - halfAmount;
@@ -7118,6 +7619,34 @@
       updateSplitAmountStatus(totalAmountCents);
     }
 
+    // Running-total indicator for the split-payment participant form.
+    // Called from renderSplitParticipantsList after any re-render — sums the
+    // per-participant amounts and shows "$X of $Y allocated" in
+    // #split-amount-status. Color codes: green when they match (form is
+    // submittable), orange when short, red when over.
+    // Match the exact validation shape at submitAdditionalWorkSplitPayment
+    // :3243-3248 (currentTotal !== totalAmountCents) so the status here can't
+    // disagree with the submit-time check.
+    function updateSplitAmountStatus(totalAmountCents) {
+      const statusEl = document.getElementById('split-amount-status');
+      if (!statusEl) return;
+      const currentTotal = (splitParticipantRows || []).reduce((sum, p) => sum + (Number(p.amount_cents) || 0), 0);
+      const totalStr = '$' + (totalAmountCents / 100).toFixed(2);
+      const currentStr = '$' + (currentTotal / 100).toFixed(2);
+      if (currentTotal === totalAmountCents) {
+        statusEl.style.color = 'var(--accent-green)';
+        statusEl.innerHTML = mccIcon('check', 14) + ' ' + currentStr + ' of ' + totalStr + ' allocated';
+      } else if (currentTotal < totalAmountCents) {
+        const remaining = '$' + ((totalAmountCents - currentTotal) / 100).toFixed(2);
+        statusEl.style.color = 'var(--accent-orange)';
+        statusEl.textContent = currentStr + ' of ' + totalStr + ' allocated (' + remaining + ' remaining)';
+      } else {
+        const over = '$' + ((currentTotal - totalAmountCents) / 100).toFixed(2);
+        statusEl.style.color = 'var(--accent-red)';
+        statusEl.textContent = currentStr + ' of ' + totalStr + ' allocated (' + over + ' over)';
+      }
+    }
+
     function updateSplitParticipant(index, field, value) {
       if (splitParticipantRows[index]) {
         splitParticipantRows[index][field] = value;
@@ -7211,9 +7740,13 @@
 
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: splitSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/split/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${splitSession?.access_token}`
+          },
           body: JSON.stringify({
             package_id: packageId,
             participants: splitParticipantRows.map(p => ({
@@ -7312,7 +7845,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, sans-serif',
+              fontFamily: 'Inter, sans-serif',
               fontSize: '16px',
               '::placeholder': { color: '#6b7280' }
             },
@@ -7604,8 +8137,43 @@
     window.generateAppointmentDebrief = generateAppointmentDebrief;
     window.showCounterSuggestion = showCounterSuggestion;
     window.askServiceHistoryChat = typeof askServiceHistoryChat !== 'undefined' ? askServiceHistoryChat : null;
-    window.toggleBudgetForecast = typeof toggleBudgetForecast !== 'undefined' ? toggleBudgetForecast : null;
-    window.loadBudgetForecast = typeof loadBudgetForecast !== 'undefined' ? loadBudgetForecast : null;
+
+    const _isNativeForForecast = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+
+    // Show the card always; web shows the mobile-only message, native gets the full flow.
+    (function initBudgetForecastCard() {
+      const card = document.getElementById('budget-forecast-card');
+      if (!card) return;
+      card.style.display = 'block';
+      if (!_isNativeForForecast) {
+        const content = document.getElementById('budget-forecast-content');
+        if (content) {
+          content.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--text-muted);">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;opacity:0.5;"><rect width="5" height="6" x="3" y="14"/><rect width="5" height="10" x="8" y="10"/><rect width="5" height="14" x="13" y="6"/><path d="M22 20H2"/></svg>' +
+            '<p style="font-size:0.9rem;font-weight:500;margin:0 0 4px;">Available in the mobile app</p>' +
+            '<p style="font-size:0.8rem;margin:0;opacity:0.7;">Download the MCC app to generate your 12-month cost forecast.</p>' +
+            '</div>';
+        }
+      }
+    })();
+
+    function toggleBudgetForecast() {
+      const body = document.getElementById('budget-forecast-body');
+      const chevron = document.getElementById('forecast-chevron');
+      if (!body) return;
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+    }
+
+    function loadBudgetForecast() {
+      if (!_isNativeForForecast) return; // already replaced with static message
+      const content = document.getElementById('budget-forecast-content');
+      if (content) content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Loading forecast…</div>';
+    }
+
+    window.toggleBudgetForecast = toggleBudgetForecast;
+    window.loadBudgetForecast = loadBudgetForecast;
 
     function getBookingGuidance() {
       const stored = localStorage.getItem('mcc_booking_guidance');
@@ -7723,7 +8291,7 @@
         const badgeTextColor = rec.never_done ? '#ef4444' : 'var(--accent-teal)';
         const badgeLabel = rec.never_done ? 'No record \u2014 assumed not yet done' : 'Overdue';
         const codeAttr = rec.code ? `data-code="${rec.code}"` : '';
-        return `<div class="suggestion-chip" data-idx="${i}" ${codeAttr} style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;margin-bottom:6px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;transition:all 0.15s;">
+        return `<div class="suggestion-chip" data-idx="${i}" ${codeAttr} style="display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px;margin-bottom:6px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;transition:all 0.15s;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               <span style="font-weight:600;font-size:0.88rem;">${rec.title}</span>
@@ -7731,7 +8299,7 @@
             </div>
             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px;">${rec.reason}</div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button onclick="applySuggestion(${i})" style="padding:4px 12px;font-size:0.78rem;font-weight:600;background:var(--accent-teal);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Book it</button>
             <button onclick="logSuggestion(${i},'${vehicleId}')" style="padding:4px 10px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--text-secondary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;white-space:nowrap;">Already done? Log it</button>
             ${typeof getCareKeyForCategory === 'function' && getCareKeyForCategory(rec.title || rec.category) ? `<button onclick="openAcademyCareCard('${getCareKeyForCategory(rec.title || rec.category)}')" style="padding:4px 8px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--accent-teal);border:1px solid var(--accent-teal);border-radius:6px;cursor:pointer;white-space:nowrap;" title="Learn about this service">${typeof mccIcon === 'function' ? mccIcon('book-open', 14) : '📖'}</button>` : ''}

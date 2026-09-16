@@ -61,7 +61,7 @@ class ChatWidgetBase {
       .chat-widget-base {
         position: fixed;
         z-index: 9999;
-        font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
 
       .chat-widget-base.bottom-right {
@@ -72,6 +72,11 @@ class ChatWidgetBase {
       .chat-widget-base.bottom-left {
         bottom: 24px;
         left: 24px;
+      }
+
+      body.has-bottom-nav .chat-widget-base.bottom-right,
+      body.has-bottom-nav .chat-widget-base.bottom-left {
+        display: none;
       }
 
       .chat-widget-toggle {
@@ -668,9 +673,23 @@ class ChatWidgetBase {
           existing.push({ timestamp: Date.now(), feedback, messageIndex: msgIndex });
           localStorage.setItem('mcc-chat-feedback', JSON.stringify(existing));
         } catch (e) {}
+        // 2026-09-09: server-side feedback hook. Left as a no-op here on
+        // purpose — this base class is shared by more than one widget, and
+        // only the ones with real server-side message persistence
+        // (currently just www/helpdesk-widget.js) should override this to
+        // actually send anything. Everything above this line (the "Thanks
+        // for the feedback!" swap and the localStorage write) is unchanged
+        // and still happens for every widget either way.
+        const message = (msgIndex >= 0 && this.messages[msgIndex]) ? this.messages[msgIndex] : null;
+        this.onFeedbackGiven(feedback, message, msgIndex);
       }
     });
   }
+
+  // Override in a subclass to actually persist feedback server-side. Default
+  // is a no-op so a widget that only ever tracks feedback in localStorage
+  // keeps behaving exactly as before.
+  onFeedbackGiven(feedback, message, msgIndex) {}
 
   toggle() {
     this.isOpen = !this.isOpen;

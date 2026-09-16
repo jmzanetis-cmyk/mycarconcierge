@@ -8,7 +8,11 @@
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const url = `${apiBase}/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
-        const response = await fetch(url);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (data.success) {
@@ -287,9 +291,10 @@
     async function acknowledgeRecall(recallId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: ackSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/recalls/${recallId}/acknowledge`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ackSession?.access_token || ''}` },
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         
@@ -346,11 +351,7 @@
           .from('registrations')
           .getPublicUrl(filePath);
         
-        if (publicData?.publicUrl) {
-          return publicData.publicUrl;
-        }
-        
-        return null;
+        return { url: publicData?.publicUrl || null, path: filePath };
       } catch (error) {
         console.error('Upload error:', error);
         showToast('Failed to upload document', 'error');
@@ -358,14 +359,17 @@
       }
     }
     
-    async function verifyRegistration(registrationUrl, vehicleId) {
+    async function verifyRegistration(registrationUrl, registrationPath, vehicleId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
         const response = await fetch(`${apiBase}/api/registration/verify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({
             registrationUrl: registrationUrl,
+            registrationPath: registrationPath,
             vehicleId: vehicleId
           })
         });
@@ -399,7 +403,11 @@
     async function checkRegistrationStatus(vehicleId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
+        const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (data.success && data.verifications && data.verifications.length > 0) {
@@ -440,7 +448,7 @@
           pending: mccIcon('clock', 16) + ' Pending Review',
           approved: mccIcon('check-circle', 16) + ' Approved',
           rejected: mccIcon('x', 16) + ' Rejected',
-          needs_review: mccIcon('search', 16) + ' Needs Manual Review'
+          manual_review: mccIcon('search', 16) + ' Needs Manual Review'
         };
         document.getElementById('registration-status-display').innerHTML = `
           <span class="registration-status-badge ${status.status}">${statusLabels[status.status] || status.status}</span>
@@ -557,11 +565,11 @@
       document.getElementById('registration-progress-bar').style.width = '20%';
       
       try {
-        const registrationUrl = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
+        const uploadResult = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
         
         document.getElementById('registration-progress-bar').style.width = '50%';
         
-        if (!registrationUrl) {
+        if (!uploadResult) {
           throw new Error('Failed to upload document');
         }
         
@@ -570,7 +578,7 @@
         document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details with AI';
         document.getElementById('registration-progress-bar').style.width = '70%';
         
-        const result = await verifyRegistration(registrationUrl, currentRegistrationVehicleId);
+        const result = await verifyRegistration(uploadResult.url, uploadResult.path, currentRegistrationVehicleId);
         
         document.getElementById('registration-progress-bar').style.width = '100%';
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -589,7 +597,7 @@
               borderColor: 'rgba(74,200,140,0.3)',
               color: 'var(--accent-green)'
             },
-            needs_review: {
+            manual_review: {
               icon: mccIcon('search', 48),
               title: 'Manual Review Required',
               message: 'Your registration requires manual review. We\'ll verify it within 24-48 hours.',
@@ -1320,6 +1328,8 @@
             <div style="flex:1;"><strong>VIN:</strong> <span style="font-family: monospace;">${vehicle.vin || 'Not provided'}</span></div>
           </div>
 
+          ${''/* DRIVER-PHASE-OUT: restore when driver side launches — "Request a Driver" button. openConciergeRequestModal() intentionally NOT commented (shared with member-side "Request Vehicle Pickup" quick actions on members.html). Restore by flipping `false ?` back to unconditional (or removing the ternary wrapper). */}
+          ${false ? `
           <!-- Task #369: vehicle-detail concierge entry point -->
           <div style="margin-top:16px;padding:14px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1331,6 +1341,7 @@
             </div>
             <div id="concierge-status-vehicle-${vehicleId}" style="margin-top:10px;"></div>
           </div>
+          ` : ''}
 
           <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -1341,7 +1352,7 @@
                     ? '<span style="color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Verified</span>' 
                     : vehicleRegistrationStatus[vehicleId]?.status === 'pending' 
                       ? '<span style="color:var(--accent-orange);">' + mccIcon('refresh-cw', 14) + ' Pending Review</span>'
-                      : vehicleRegistrationStatus[vehicleId]?.status === 'needs_review'
+                      : vehicleRegistrationStatus[vehicleId]?.status === 'manual_review'
                         ? '<span style="color:var(--accent-blue);">' + mccIcon('search', 16) + ' Under Review</span>'
                         : 'Not verified yet'}
                 </div>
@@ -1960,6 +1971,63 @@
 let currentPhotoVehicleId = null;
 let vehiclePhotos = [];
 
+// --- Native camera helpers ---
+
+function _base64ToFile(b64, mimeType, filename) {
+  const chars = atob(b64);
+  const bytes = new Uint8Array(chars.length);
+  for (let i = 0; i < chars.length; i++) bytes[i] = chars.charCodeAt(i);
+  return new File([bytes], filename, { type: mimeType });
+}
+
+async function _nativeCapturePhoto() {
+  const Camera = typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.Camera;
+  if (!Camera) return null;
+  try {
+    const photo = await Camera.getPhoto({ quality: 80, allowEditing: false, resultType: 'base64', source: 'PROMPT', correctOrientation: true });
+    const mimeType = photo.format === 'png' ? 'image/png' : 'image/jpeg';
+    const ext = photo.format === 'png' ? 'png' : 'jpg';
+    const file = _base64ToFile(photo.base64String, mimeType, `vehicle_${Date.now()}.${ext}`);
+    return { file, dataUrl: `data:${mimeType};base64,${photo.base64String}` };
+  } catch (e) {
+    const msg = (e.message || '').toLowerCase();
+    if (!msg.includes('cancel') && !msg.includes('no image') && !msg.includes('denied') && !msg.includes('dismiss')) {
+      showToast('Could not open camera', 'error');
+    }
+    return null;
+  }
+}
+
+window.triggerVehiclePhotoPickerAdd = async function() {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    const result = await _nativeCapturePhoto();
+    if (!result) return;
+    pendingVehiclePhoto = { file: result.file, preview: result.dataUrl };
+    document.getElementById('vehicle-photo-preview').src = result.dataUrl;
+    document.getElementById('vehicle-photo-preview').style.display = 'block';
+    document.getElementById('vehicle-photo-placeholder').style.display = 'none';
+    document.getElementById('vehicle-photo-remove').style.display = 'flex';
+    document.getElementById('vehicle-photo-upload-area').style.borderStyle = 'solid';
+  } else {
+    document.getElementById('vehicle-photo-input').click();
+  }
+};
+
+window.triggerVehiclePhotoPickerEdit = async function() {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    const result = await _nativeCapturePhoto();
+    if (!result) return;
+    pendingEditVehiclePhoto = { file: result.file, preview: result.dataUrl };
+    document.getElementById('edit-vehicle-photo-preview').src = result.dataUrl;
+    document.getElementById('edit-vehicle-photo-preview').style.display = 'block';
+    document.getElementById('edit-vehicle-photo-placeholder').style.display = 'none';
+    document.getElementById('edit-vehicle-photo-remove').style.display = 'flex';
+    document.getElementById('edit-vehicle-photo-upload-area').style.borderStyle = 'solid';
+  } else {
+    document.getElementById('edit-vehicle-photo-input').click();
+  }
+};
+
 async function openVehiclePhotos(vehicleId, vehicleName) {
   currentPhotoVehicleId = vehicleId;
   const modal = document.getElementById('vehicle-photos-modal');
@@ -2010,13 +2078,23 @@ function renderVehiclePhotosGrid(photos) {
     </div>
   `).join('');
   if (!addDisabled) {
-    html += `
-      <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-        <span style="font-size:0.78rem;">Add Photo</span>
-        <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
-      </label>
-    `;
+    const _isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+    if (_isNative) {
+      html += `
+        <div style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onclick="triggerVehiclePhotoModalCapture()" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <span style="font-size:0.78rem;">Add Photo</span>
+        </div>
+      `;
+    } else {
+      html += `
+        <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <span style="font-size:0.78rem;">Add Photo</span>
+          <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
+        </label>
+      `;
+    }
   }
   if (!photos.length && addDisabled) {
     html = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;grid-column:1/-1;padding:20px 0;">No photos yet. Add up to 6 photos.</div>';
@@ -2057,18 +2135,22 @@ async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
 // uploadVehiclePhoto — called from the photo modal's file input (onchange handler)
 async function uploadVehiclePhoto(input) {
   if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
+  await _doUploadVehiclePhotoToModal(input.files[0]);
+}
+
+// _doUploadVehiclePhotoToModal — shared by file-input path and native camera path
+async function _doUploadVehiclePhotoToModal(file) {
   if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return; }
   if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return; }
   try {
     showToast('Uploading photo...', 'info');
-    const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace('heic', 'jpg');
     const session = await supabaseClient.auth.getSession();
     const uid = session.data.session?.user?.id;
     const token = session.data.session?.access_token;
     if (!uid || !token) throw new Error('Not authenticated');
     const fileName = uid + '/' + currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
-    const { data: uploadData, error: uploadErr } = await supabaseClient.storage
+    const { error: uploadErr } = await supabaseClient.storage
       .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
     if (uploadErr) throw uploadErr;
     // Do NOT use getPublicUrl — send only storage_path; server generates signed URL
@@ -2084,6 +2166,12 @@ async function uploadVehiclePhoto(input) {
     showToast('Upload failed: ' + e.message, 'error');
   }
 }
+
+window.triggerVehiclePhotoModalCapture = async function() {
+  const result = await _nativeCapturePhoto();
+  if (!result) return;
+  await _doUploadVehiclePhotoToModal(result.file);
+};
 
 async function setVehiclePhotoPrimary(photoId) {
   try {
@@ -2132,3 +2220,193 @@ function closePhotoLightbox() {
   if (lb) lb.style.display = 'none';
 }
 // ========== END VEHICLE PHOTOS ==========
+
+// ========== OBD SCANNER SECTION ==========
+// Restored: this UI was fully implemented but its trigger button and handler
+// functions were dropped from the vehicle card / this file during an earlier
+// refactor, leaving the feature unreachable. Rewired to call the deployed
+// netlify/functions/obd-scan.js contract directly (/api/obd/interpret takes
+// one { code, vehicle_id } at a time; there is no /api/obd/scan endpoint in
+// production — the old members.js.bak version targeted a different,
+// no-longer-deployed server.js backend).
+let currentOBDScan = null;
+let obdPhotoBase64 = null;
+
+function openOBDScanner(vehicleId) {
+  document.getElementById('obd-scan-vehicle-id').value = vehicleId;
+  document.getElementById('obd-codes-input').value = '';
+  document.getElementById('obd-notes').value = '';
+  document.getElementById('obd-photo-preview').style.display = 'none';
+  document.getElementById('obd-extracted-codes').style.display = 'none';
+  document.getElementById('obd-ocr-loading').style.display = 'none';
+  obdPhotoBase64 = null;
+  currentOBDScan = null;
+  document.getElementById('obd-scanner-modal').classList.add('active');
+}
+
+async function handleOBDPhotoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    obdPhotoBase64 = e.target.result.split(',')[1];
+    document.getElementById('obd-photo-img').src = e.target.result;
+    document.getElementById('obd-photo-preview').style.display = 'block';
+    document.getElementById('obd-photo-upload-area').style.display = 'none';
+
+    document.getElementById('obd-ocr-loading').style.display = 'block';
+    try {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const response = await fetch(`${apiBase}/api/obd/scan-ocr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ image_base64: obdPhotoBase64, vehicle_id: document.getElementById('obd-scan-vehicle-id').value })
+      });
+      const data = await response.json();
+      document.getElementById('obd-ocr-loading').style.display = 'none';
+
+      if (data.codes && data.codes.length > 0) {
+        document.getElementById('obd-extracted-codes').style.display = 'block';
+        document.getElementById('obd-extracted-codes-list').textContent = data.codes.join(', ');
+        document.getElementById('obd-codes-input').value = data.codes.join(', ');
+      } else {
+        showToast('No codes found in image. Please enter codes manually.', 'warning');
+      }
+    } catch (err) {
+      document.getElementById('obd-ocr-loading').style.display = 'none';
+      showToast('Could not read image. Please enter codes manually.', 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearOBDPhoto() {
+  obdPhotoBase64 = null;
+  document.getElementById('obd-photo-input').value = '';
+  document.getElementById('obd-photo-preview').style.display = 'none';
+  document.getElementById('obd-photo-upload-area').style.display = 'block';
+  document.getElementById('obd-extracted-codes').style.display = 'none';
+}
+
+async function submitOBDScan() {
+  const vehicleId = document.getElementById('obd-scan-vehicle-id').value;
+  const codesInput = document.getElementById('obd-codes-input').value.trim();
+
+  if (!codesInput) {
+    showToast('Please enter at least one diagnostic code', 'error');
+    return;
+  }
+
+  const codes = codesInput.toUpperCase().match(/[PCBU][0-9]{4}/g);
+  if (!codes || codes.length === 0) {
+    showToast('No valid codes found. Codes should be like P0420, C0035, etc.', 'error');
+    return;
+  }
+  const uniqueCodes = [...new Set(codes)];
+
+  document.getElementById('obd-submit-btn').disabled = true;
+  document.getElementById('obd-submit-btn').textContent = 'Analyzing...';
+
+  try {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const session = await supabaseClient.auth.getSession();
+    const token = session.data.session?.access_token;
+
+    // netlify/functions/obd-scan.js only implements /api/obd/interpret (one code per
+    // call, via { code, vehicle_id }) and /api/obd/scan-ocr — there is no /api/obd/scan
+    // "submit" endpoint in production, so interpret each code directly.
+    const results = [];
+    for (const code of uniqueCodes) {
+      const res = await fetch(`${apiBase}/api/obd/interpret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ code, vehicle_id: vehicleId })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || `Failed to interpret ${code}`);
+      }
+      results.push(data.interpretation || {});
+    }
+
+    currentOBDScan = { codes: uniqueCodes, results };
+    closeModal('obd-scanner-modal');
+    showOBDResults(currentOBDScan);
+
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    document.getElementById('obd-submit-btn').disabled = false;
+    document.getElementById('obd-submit-btn').textContent = 'Analyze Codes';
+  }
+}
+
+function showOBDResults(scan) {
+  const severityColors = {
+    low: 'var(--accent-green)',
+    medium: 'var(--accent-gold)',
+    high: 'var(--accent-orange)',
+    critical: 'var(--accent-red)'
+  };
+  const severityLabels = {
+    low: '✅ Low - Minor issue',
+    medium: '⚠️ Medium - Should address soon',
+    high: '🔶 High - Address promptly',
+    critical: '🚨 Critical - Immediate attention needed'
+  };
+
+  const sections = (scan.results || []).map(interp => {
+    const sev = (interp.severity || '').toLowerCase();
+    const color = severityColors[sev] || 'var(--bg-input)';
+    return `
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border-subtle);">
+        <div style="font-family:monospace;font-size:1.1rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;">${interp.code || ''}${interp.name ? ' — ' + interp.name : ''}</div>
+
+        <div style="padding:14px 16px;background:${color}20;border:1px solid ${color};border-radius:var(--radius-md);margin-bottom:16px;">
+          <div style="font-weight:600;color:${color};">${severityLabels[sev] || 'Unknown Severity'}</div>
+          ${interp.urgency ? `<div style="margin-top:6px;font-size:0.9rem;">${interp.urgency}</div>` : ''}
+        </div>
+
+        ${interp.description ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">What This Means:</div>
+            <div style="line-height:1.6;color:var(--text-secondary);">${interp.description}</div>
+          </div>
+        ` : ''}
+
+        ${interp.symptoms?.length ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">Symptoms:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interp.symptoms.map(s => `<li style="margin-bottom:4px;">${s}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interp.common_causes?.length ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">Common Causes:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interp.common_causes.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interp.estimated_repair_cost_range ? `
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;">Estimated Repair Cost:</div>
+            <div style="font-size:1.05rem;color:var(--accent-gold);">${interp.estimated_repair_cost_range}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('obd-results-body').innerHTML = sections || '<p style="color:var(--text-muted);">No results returned.</p>';
+  document.getElementById('obd-results-modal').classList.add('active');
+}
+// ========== END OBD SCANNER SECTION ==========

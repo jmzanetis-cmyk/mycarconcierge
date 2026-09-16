@@ -17,9 +17,19 @@ MOBILE_CRUFT_DIRS=(
   "tests"
   "test-results"
   "playwright-report"
-  # Marketing / dev-only asset trees — referenced by public website pages,
-  # but the mobile app loads from server.url at runtime so these are dead
-  # weight in the offline fallback bundle.
+  # CORRECTED 2026-09-16: the original note here said "the mobile app loads
+  # from server.url at runtime" — that stopped being true on 2026-06-09
+  # (commit 7495414, "fix(ios): Phase 1 — remove server.url, ship bundled
+  # assets (Guideline 4.2)"), and this file was never updated to match.
+  # These marketing asset trees are excluded on a narrower, still-valid
+  # basis: nothing in the shipped app (providers.html/providers-core.js/
+  # providers-settings.js/index.html/login.html, checked directly) links to
+  # them by a relative in-app path — only the public website's own pages
+  # reference them, and any outbound link from inside the app is an
+  # absolute https://www.mycarconcierge.com/... URL (same pattern the
+  # 7495414 fix relied on for API calls), unaffected by server.url being
+  # gone. Re-verify this if a new in-app feature ever links into one of
+  # these trees with a relative path.
   "social-media"
   "docs"
   "screenshots"
@@ -60,16 +70,27 @@ MOBILE_CRUFT_FILES=(
   "admin-outreach.js"
   "generate-admin-hash.html"
   "iOS_App_Store_Submission_Guide.html"
-  # ---- Provider-only pages & scripts ----
-  "providers.html"
+  # ---- Provider PRE-SIGNUP / marketing / legal pages only ----
+  # CORRECTED 2026-09-16: this block used to also list providers.html and
+  # every core provider-dashboard file (providers-core.js,
+  # providers-settings.js, providers-care-plans.js, providers-jobs.js,
+  # providers-bids.js, providers-analytics.js, provider-onboarding.js,
+  # car-club-provider.html, job-board.html) as "dead weight" under the
+  # same now-stale server.url assumption above. That was wrong even on its
+  # own terms: www/login.html and www/index.html — both REQUIRED files —
+  # explicitly redirect any profile.role === 'provider' straight to
+  # providers.html on login, so stripping it (and everything it loads,
+  # statically via <script src> or dynamically via providers-core.js's
+  # loadModule('bids'/'jobs'/'analytics')) left every provider who opened
+  # the native app with a dead redirect target. Verified directly (grep
+  # against the shipped app files, not assumed) before removing them from
+  # this list — see the corrected MOBILE_CRUFT_FILES entries below, which
+  # keep ONLY the files confirmed to have zero references from
+  # providers.html/providers-core.js/providers-settings.js/index.html/
+  # login.html: pages a prospective provider sees on the public website
+  # before they have the app installed, not anything the already-logged-in
+  # native app ever navigates to.
   "providers.js"
-  "providers-jobs.js"
-  "providers-bids.js"
-  "providers-care-plans.js"
-  "providers-core.js"
-  "providers-settings.js"
-  "providers-analytics.js"
-  "provider-onboarding.js"
   "signup-provider.html"
   "signup-provider.js"
   "onboarding-provider.html"
@@ -79,9 +100,7 @@ MOBILE_CRUFT_FILES=(
   "provider-faq.html"
   "provider-info.html"
   "provider-pilot.html"
-  "car-club-provider.html"
   "founding-partner-agreement.html"
-  "job-board.html"
   # ---- Fleet-operator pages (not consumer member UI) ----
   "fleet.html"
   "fleet.js"

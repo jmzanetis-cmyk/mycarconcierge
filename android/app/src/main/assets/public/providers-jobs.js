@@ -1,6 +1,22 @@
 // ========== PROVIDERS JOBS MODULE ==========
 // Active jobs, GPS tracking, evidence, inspections, emergency, fleet
 
+// Local HTML-escape for user-supplied text rendered into templates.
+// Used at message-thread render sites to prevent XSS via message content
+// (the content arrives from the server-arbiter as plain text + redactions;
+// escaping at render keeps the threat model defensive even if upstream
+// sanitization is bypassed). Defined locally because providers-jobs.js is
+// loaded dynamically from providers-core.js and providers.html does not
+// expose a global escapeHtml helper.
+function _jobsEscapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ---- Task #369: Concierge driver coordination (provider side) ----
 // Shared with member side via members-extras.js window.renderConciergeStatusCard.
 async function providerConciergeAuthHeaderJobs() {
@@ -163,7 +179,7 @@ window.refreshProviderJobConcierge = async function(packageId) {
   try {
     const resp = await fetch('/api/concierge?role=provider', { headers });
     if (!resp.ok) { host.textContent = 'Driver requests unavailable.'; return; }
-    const { jobs = [] } = await resp.json();
+    const { jobs = [] } = await resp.json().catch(() => ({}));
     const mine = apptId ? jobs.filter(j => j.appointment_id === apptId) : [];
     if (!mine.length) {
       host.innerHTML = '<em style="color:var(--text-muted);font-size:0.85rem;">No driver requests for this job yet.</em>';
@@ -211,7 +227,7 @@ window.refreshProviderVehicleTransfers = async function() {
   try {
     const resp = await fetch('/api/concierge?role=provider', { headers });
     if (!resp.ok) { host.innerHTML = ''; return; }
-    const { jobs = [] } = await resp.json();
+    const { jobs = [] } = await resp.json().catch(() => ({}));
     const live = jobs.filter(j => j.status !== 'cancelled' && j.status !== 'completed');
     if (!live.length) { host.innerHTML = ''; return; }
     const enriched = await Promise.all(live.slice(0, 6).map(async j => {
@@ -221,9 +237,22 @@ window.refreshProviderVehicleTransfers = async function() {
       } catch {}
       return j;
     }));
-    const cards = enriched.map(j => (window.renderConciergeStatusCard
-      ? window.renderConciergeStatusCard(j, { packageId: '' })
-      : '')).join('');
+    const cards = enriched.map(j => {
+      if (!j || !j.id) return '';
+      const cardHtml = window.renderConciergeStatusCard
+        ? window.renderConciergeStatusCard(j, { packageId: '' })
+        : '';
+      const jId = String(j.id).replace(/[^a-zA-Z0-9-]/g, '');
+      const roadTestBtn = j.live_tracking_enabled
+        ? `<button id="ptr-roadtest-btn-${jId}" class="btn btn-sm"
+             style="margin-top:8px;background:var(--accent-blue,#3b82f6);color:#fff;"
+             onclick="window.startProviderRoadTest('${jId}')">&#128663; Start Road Test</button>`
+        : '';
+      return `<div>${cardHtml}
+        <div id="ptr-arrival-${jId}" style="margin-top:4px;"></div>
+        ${roadTestBtn}
+      </div>`;
+    }).join('');
     host.innerHTML = `
       <div style="margin-bottom:18px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-elevated);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -233,6 +262,18 @@ window.refreshProviderVehicleTransfers = async function() {
         <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>
       </div>
     `;
+    // Start live tracking maps + inbound arrival watches after cards mount.
+    setTimeout(() => {
+      enriched.forEach(j => {
+        if (!j || !j.id) return;
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + j.id)) {
+          window.startConciergeTracking(j.id);
+        }
+        if (j.live_tracking_enabled && window.startProviderInboundWatch) {
+          window.startProviderInboundWatch(j.id);
+        }
+      });
+    }, 250);
   } catch (e) {
     host.innerHTML = '';
     console.warn('[concierge] vehicle transfers refresh failed', e);
@@ -261,35 +302,13 @@ function renderActiveJobs() {
     const vehicle = pkg?.vehicles;
     const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
     const isTracking = activeTrackingPackageId === job.package_id;
-    const isPendingSplit = pkg?.status === 'pending_split_payment';
-    
-    if (isPendingSplit) {
-      return `
-        <div class="package-card" style="border-left:4px solid var(--accent-amber, #f59e0b);">
-          <div class="package-header">
-            <div>
-              <div class="package-title">${pkg?.title || 'Job'}</div>
-              <div class="package-vehicle">${mccIcon('car', 16)} ${vehicleName}</div>
-            </div>
-            <span class="package-badge" style="background:#fef3c7;color:#d97706;">${mccIcon('clock', 16)} ${I18n.t('provider.splitPayment.awaitingPayment')}</span>
-            ${pkg?.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;margin-left:4px;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
-          </div>
-          <div class="package-meta">
-            <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
-            <span>${mccIcon('calendar', 16)} Accepted ${formatTimeAgo(job.updated_at || job.created_at)}</span>
-          </div>
-          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-md);padding:12px;margin:8px 0;color:#92400e;font-size:0.9rem;">
-            ${mccIcon('alert-triangle', 16)} ${I18n.t('provider.splitPayment.pendingBanner')}
-          </div>
-          <div class="package-footer">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-secondary btn-sm" onclick="openMessageModal('${pkg?.member_id}', '${job.package_id}')">${mccIcon('message-square', 16)} Message</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    
+
+    // CR5: removed the `pending_split_payment` branch + the `crowd_funded` badge.
+    // Both were maintenance_packages-only concepts. care_plans models payment
+    // via care_plans.payment_status (none/requires_payment/held/captured/...)
+    // and has no crowd_funded column. Re-introducing either should be done
+    // deliberately as a separate feature on care_plans, not silently grafted in.
+
     return `
       <div class="package-card" style="border-left:4px solid var(--accent-green);">
         <div class="package-header">
@@ -298,7 +317,6 @@ function renderActiveJobs() {
             <div class="package-vehicle">${mccIcon('car', 16)} ${vehicleName}</div>
           </div>
           <span class="package-badge" style="background:var(--accent-green-soft);color:var(--accent-green);">Active</span>
-          ${pkg?.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;margin-left:4px;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
         </div>
         <div class="package-meta">
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
@@ -467,7 +485,7 @@ async function loadConversation(memberId, packageId) {
     container.innerHTML = data.map(m => `
       <div style="margin-bottom:12px;${m.sender_id === currentUser.id ? 'text-align:right;' : ''}">
         <div style="display:inline-block;max-width:80%;padding:12px 16px;border-radius:12px;${m.sender_id === currentUser.id ? 'background:var(--accent-gold-soft);' : 'background:var(--bg-elevated);'}">
-          <p style="margin:0;">${m.content}</p>
+          <p style="margin:0;">${_jobsEscapeHtml(m.content)}</p>
           <span style="font-size:0.75rem;color:var(--text-muted);">${formatTimeAgo(m.created_at)}</span>
         </div>
       </div>
@@ -489,18 +507,35 @@ async function sendMessage() {
   }
   
   try {
-    const { error } = await supabaseClient.from('messages').insert({
-      sender_id: currentUser.id,
-      recipient_id: currentMessageMemberId,
-      package_id: currentMessagePackageId,
-      content
+    // Server arbiter (see members-extras.js sendMessage for rationale).
+    // The endpoint also denormalizes provider_alias server-side, so we no
+    // longer need to send it from the client.
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { showToast('Please sign in to send', 'error'); return; }
+    const res = await fetch('/api/messages/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({
+        package_id: currentMessagePackageId,
+        recipient_id: currentMessageMemberId,
+        content,
+      }),
     });
-    
-    if (error) throw error;
-    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      showToast(data.error === 'no_active_relationship'
+        ? 'You can only message this member on a job your bid has been accepted on.'
+        : 'Failed to send message', 'error');
+      return;
+    }
+
     textarea.value = '';
     await loadConversation(currentMessageMemberId, currentMessagePackageId);
-    showToast('Message sent!', 'success');
+    if (data.warning) showToast(data.warning, 'info');
+    else              showToast('Message sent!', 'success');
   } catch (err) {
     console.error('Send message error:', err);
     showToast('Failed to send message', 'error');
@@ -546,8 +581,8 @@ async function submitJobCompletion() {
         completion_notes: notes
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to complete job');
     
     closeModal('complete-job-modal');
@@ -639,8 +674,8 @@ async function submitAdditionalWorkRequest() {
         photos
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to submit request');
     
     closeModal('additional-work-modal');
@@ -706,8 +741,8 @@ async function submitDiscountOffer() {
         reason
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to offer discount');
     
     closeModal('discount-modal');
@@ -731,8 +766,8 @@ async function viewAdditionalWorkRequests(packageId) {
     const response = await fetch(`/api/additional-work/${packageId}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to load requests');
     
     const requests = result.requests || result || [];
@@ -780,8 +815,8 @@ async function viewDiscountsOffered(packageId) {
     const response = await fetch(`/api/discounts/${packageId}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to load discounts');
     
     const discounts = result.discounts || result || [];
@@ -1512,9 +1547,9 @@ async function confirmMemberArrival(packageId, token) {
       },
       body: JSON.stringify({ token })
     });
-    
-    const result = await response.json();
-    
+
+    const result = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       throw new Error(result.error || 'Failed to confirm arrival');
     }
@@ -1570,7 +1605,7 @@ async function loadProviderRefundBadge() {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     if (!res.ok) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     const refunds = data.refunds || data || [];
     const pendingCount = Array.isArray(refunds) ? refunds.filter(r => r.status === 'pending').length : 0;
     const badge = document.getElementById('refund-count');
@@ -1609,7 +1644,7 @@ async function loadProviderRefunds() {
       throw new Error(`Failed to load refunds: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     const refunds = data.refunds || data || [];
 
     if (!Array.isArray(refunds) || refunds.length === 0) {
@@ -1882,7 +1917,7 @@ async function loadProviderMediations() {
         });
         if (!resp.ok) continue;
 
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         if (!data.mediation) continue;
 
         const m = data.mediation;
@@ -1941,7 +1976,7 @@ async function providerGenerateDebrief(packageId) {
       },
       body: JSON.stringify({ package_id: packageId })
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to generate summary');
 
     const summaryText = data.summary || '';
@@ -1990,7 +2025,7 @@ async function saveProviderDebrief(packageId) {
       },
       body: JSON.stringify({ package_id: packageId, summary: summaryText })
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to save summary');
 
     const panel = document.getElementById(`provider-debrief-panel-${packageId}`);

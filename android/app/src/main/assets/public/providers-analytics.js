@@ -318,8 +318,12 @@ async function loadPosRevenueChart() {
       : {};
     
     const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=500`, { headers });
-    const data = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[pos-revenue] /api/pos/transactions returned', response.status);
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+
     if (!data.transactions || data.transactions.length === 0) {
       const container = document.getElementById('pos-revenue-chart-container');
       if (container) {
@@ -394,8 +398,12 @@ async function loadAllPosTransactions() {
       : {};
     
     const response = await fetch(`/api/pos/transactions/${currentUser.id}?limit=50`, { headers });
-    const data = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[pos-transactions] /api/pos/transactions returned', response.status);
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+
     const tbody = document.getElementById('all-pos-transactions-body');
     if (!tbody) return;
     

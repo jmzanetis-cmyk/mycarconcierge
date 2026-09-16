@@ -10,13 +10,14 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/logo-lockup.css">
   <style>
     :root {
       --bg-deep: #12161c;
@@ -42,7 +43,7 @@
 
     body {
       min-height: 100vh;
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-deep);
       color: var(--text-primary);
       line-height: 1.6;
@@ -104,8 +105,8 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      
+      
       filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
       transition: filter 0.3s ease;
     }
@@ -122,7 +123,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -134,7 +135,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -158,7 +159,7 @@
     }
 
     .page-header h1 {
-      font-family: 'Playfair Display', serif;
+      font-family: 'Fraunces', serif;
       font-size: clamp(2rem, 4vw, 3rem);
       font-weight: 500;
       letter-spacing: -0.02em;
@@ -174,7 +175,7 @@
 
     .page-header p {
       color: var(--text-secondary);
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       max-width: 600px;
       margin: 0 auto;
     }
@@ -209,15 +210,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-2xl);
       font-weight: 600;
       color: #0a0a0f;
     }
 
     .step-content h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-2xl);
       font-weight: 500;
       margin-bottom: 12px;
       color: var(--text-primary);
@@ -225,7 +226,7 @@
 
     .step-content p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       line-height: 1.7;
       margin-bottom: 16px;
     }
@@ -240,7 +241,7 @@
       padding-left: 24px;
       position: relative;
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
     }
 
     .step-features li::before {
@@ -264,8 +265,8 @@
     }
 
     .cta-section h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-family: 'Fraunces', serif;
+      font-size: var(--text-3xl);
       margin-bottom: 16px;
     }
 
@@ -280,7 +281,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -289,13 +290,13 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #c49a45 100%);
       color: #0a0a0f;
       box-shadow: 0 8px 32px rgba(212, 168, 85, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
@@ -304,7 +305,7 @@
       header .container { flex-direction: column; gap: 16px; }
       nav { width: 100%; justify-content: center; }
       .step-card { flex-direction: column; padding: 32px 24px; }
-      .step-number { width: 56px; height: 56px; font-size: 1.25rem; }
+      .step-number { width: 56px; height: 56px; font-size: var(--text-xl); }
     }
   </style>
 <!-- SEO-INJECT:START -->
@@ -334,15 +335,21 @@
 
   <header>
     <div class="container">
-      <a href="/" class="brand">
-        <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
-      </a>
+      <a href="/" class="mcc-logo" aria-label="MyCarConcierge home">
+  <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
+  <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g transform="translate(0,1302) scale(0.1,-0.1)">
+      <path fill="#f5f0e6" d="M7030 8083 c-19 -2 -170 -24 -335 -48 -375 -55 -437 -61 -820 -80 -331 -17 -401 -28 -475 -73 -166 -102 -140 -370 49 -491 176 -113 413 -141 874 -105 398 31 584 11 657 -72 52 -60 43 -68 -95 -76 -233 -14 -345 -44 -700 -190 -435 -179 -508 -194 -711 -143 -180 45 -1110 370 -1364 477 -350 147 -416 166 -537 154 -245 -25 -394 -237 -300 -429 39 -79 43 -81 509 -321 227 -117 460 -238 518 -268 525 -277 1302 -667 1395 -701 175 -62 436 -82 635 -48 41 7 239 41 440 76 935 164 1043 177 1284 156 167 -15 296 -40 424 -82 51 -17 95 -29 97 -27 4 4 363 1089 450 1362 35 107 42 142 33 148 -7 5 -83 45 -168 90 -85 45 -194 103 -242 129 -589 326 -910 480 -1098 527 -148 37 -367 52 -520 35z"/>
+      <path fill="#c7a466" d="M9314 7451 c5 -8 2 -11 -9 -9 -21 4 -106 -229 -97 -264 3 -14 1 -19 -5 -15 -7 5 -9 -1 -5 -15 3 -13 1 -19 -5 -15 -12 7 -106 -280 -96 -296 3 -5 2 -7 -4 -4 -9 6 -80 -204 -77 -230 1 -7 -3 -13 -8 -13 -6 0 -8 -6 -5 -14 3 -8 2 -16 -3 -18 -5 -2 -11 -14 -12 -28 -2 -14 -5 -27 -8 -30 -9 -8 -174 -513 -174 -532 0 -10 -4 -18 -9 -18 -4 0 -5 -5 -1 -11 3 -6 2 -14 -4 -18 -7 -4 -13 -18 -14 -31 -2 -14 -6 -27 -9 -30 -12 -11 -141 -419 -137 -436 2 -11 11 -18 21 -18 9 1 14 -3 10 -9 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 14 4 20 2 15 -5 -4 -6 2 -8 15 -5 12 4 20 3 17 -1 -6 -11 293 -103 307 -95 6 4 8 3 5 -3 -8 -12 59 -34 81 -26 11 5 13 3 7 -6 -6 -10 -2 -11 15 -6 16 5 20 4 15 -5 -5 -9 -2 -10 12 -6 11 4 31 2 44 -3 14 -6 18 -10 9 -11 -18 -2 158 -60 182 -60 23 0 41 35 32 63 -3 12 -3 18 2 14 10 -9 126 331 118 344 -3 5 0 9 7 9 7 0 9 8 6 21 -3 12 -3 18 0 15 9 -9 213 606 207 624 -3 8 -2 11 2 7 10 -9 306 883 299 901 -3 7 0 10 5 7 6 -3 10 4 9 17 0 13 -3 18 -5 11 -4 -8 -11 -7 -23 5 -10 9 -16 21 -13 26 2 4 -6 5 -18 1 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -16 -5 -20 -4 -15 5 5 9 1 10 -15 5 -17 -5 -21 -4 -15 6 6 9 2 11 -13 7 -14 -4 -20 -2 -16 4 5 7 -2 9 -19 6 -16 -3 -24 -1 -20 5 3 5 -3 6 -17 2 -14 -4 -20 -3 -16 3 7 12 -40 25 -56 16 -6 -4 -8 -3 -5 3 7 11 -255 98 -290 96 -13 0 -20 4 -17 9 4 6 -2 7 -16 3 -14 -4 -20 -3 -16 3 7 12 -80 35 -96 26 -6 -4 -8 -3 -5 3 4 6 -4 14 -17 17 -13 3 -32 9 -42 13 -12 4 -15 3 -10 -6z m-82 -1634 c9 -1 15 -3 13 -5 -2 -3 7 -14 22 -25 105 -83 37 -267 -100 -267 -45 0 -102 24 -121 51 -7 10 -16 16 -20 12 -4 -4 -4 1 0 11 6 14 4 17 -6 11 -8 -5 -11 -3 -8 6 3 8 1 26 -3 42 -5 19 -2 39 9 65 9 20 17 44 17 52 0 8 5 15 10 16 21 2 45 17 39 25 -3 5 2 6 10 3 9 -3 16 -2 16 4 0 8 23 8 122 -1z"/>
+    </g>
+  </svg>
+</a>
       <nav>
         <a href="/">Home</a>
         <a href="/how-it-works.html">How It Works</a>
         <a href="/faq.html">FAQ</a>
         <a href="/contact.html">Contact</a>
-        <a href="/login.html" class="btn-login">Sign In</a>
+        <a href="/login.html" class="btn--primary">Sign In</a>
       </nav>
     </div>
   </header>
@@ -399,11 +406,11 @@
         <div class="step-number">4</div>
         <div class="step-content">
           <h3>Choose Your Provider</h3>
-          <p>Compare all bids side-by-side to make an informed decision. Your funds are held securely in escrow, protecting both you and the service provider. Payment only releases when you confirm the job is complete to your satisfaction.</p>
+          <p>Compare all bids side-by-side to make an informed decision. Your funds are held securely, protecting both you and the service provider. Payment only releases when you confirm the job is complete to your satisfaction.</p>
           <ul class="step-features">
             <li>Compare bids side-by-side with all details</li>
             <li>Select the provider that best fits your needs and budget</li>
-            <li>Funds held securely in escrow during the service</li>
+            <li>Funds held securely during the service</li>
             <li>If additional work is discovered, you get 4 hours to accept or decline the update</li>
           </ul>
         </div>
@@ -427,7 +434,7 @@
     <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
 
     <div style="margin-top: 60px; padding: 48px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
-      <h2 style="font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 24px; color: var(--text-primary);">Beyond Service: Additional Platform Features</h2>
+      <h2 style="font-family: 'Fraunces', serif; font-size: var(--text-3xl); margin-bottom: 24px; color: var(--text-primary);">Beyond Service: Additional Platform Features</h2>
       <p style="color: var(--text-secondary); margin-bottom: 20px; line-height: 1.7;">My Car Concierge offers more than just service requests. Manage your automotive needs comprehensively with these additional tools:</p>
       <ul class="step-features" style="margin-bottom: 24px;">
         <li><strong>Vehicle Management</strong> – Track maintenance reminders, recalls, service history, and important documents all in one place</li>
@@ -439,9 +446,9 @@
     <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
 
     <div style="margin-top: 40px; padding: 48px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl);">
-      <h2 style="font-family: 'Playfair Display', serif; font-size: 1.6rem; margin-bottom: 20px; color: var(--text-primary);">For Service Providers</h2>
+      <h2 style="font-family: 'Fraunces', serif; font-size: var(--text-3xl); margin-bottom: 20px; color: var(--text-primary);">For Service Providers</h2>
       <p style="color: var(--text-secondary); margin-bottom: 24px; line-height: 1.7;">Are you a service provider looking to grow your business? Learn how My Car Concierge connects you with qualified customers seeking your expertise.</p>
-      <a href="/provider-info.html" class="btn btn-primary" style="display: inline-flex;">Learn About Provider Opportunities</a>
+      <a href="/provider-info.html" class="btn btn--primary" style="display: inline-flex;">Learn About Provider Opportunities</a>
     </div>
 
     <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
@@ -449,12 +456,12 @@
     <div class="cta-section">
       <h2>Ready to Get Started?</h2>
       <p>Join members across the country who trust My Car Concierge to find quality service providers and manage their vehicle maintenance.</p>
-      <a href="/onboarding-member.html" class="btn btn-primary">Create Your Free Account</a>
+      <a href="/onboarding-member.html" class="btn btn--primary">Create Your Free Account</a>
     </div>
   </main>
 
-  <script src="/footer.js"></script>
-  <script src="/utils.js"></script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="footer.js"></script>
+  <script src="utils.js"></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

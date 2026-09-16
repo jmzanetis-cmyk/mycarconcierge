@@ -201,7 +201,7 @@ async function mountGuestCard() {
       style: {
         base: {
           color: '#f5f5f7',
-          fontFamily: 'Outfit, -apple-system, sans-serif',
+          fontFamily: 'Inter, -apple-system, sans-serif',
           fontSize: '16px',
           '::placeholder': { color: '#6b7280' }
         },
@@ -322,7 +322,7 @@ async function mountCard() {
       style: {
         base: {
           color: '#f5f5f7',
-          fontFamily: 'Outfit, -apple-system, sans-serif',
+          fontFamily: 'Inter, -apple-system, sans-serif',
           fontSize: '16px',
           '::placeholder': { color: '#6b7280' }
         },
