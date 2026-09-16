@@ -192,6 +192,15 @@
 # [functions."auto-bid-engine-scheduled"]
 #   schedule = "0 * * * *"
 
+# Auto-bid prefill-notify engine (Phase 4 of the redesign). Every 5 minutes,
+# scans open care plans and — for each provider with ≥1 active rate card
+# item that clean-matches the plan and is within their distance radius —
+# inserts an auto_bid_prefills row and dispatches a push. Replaces the
+# paused auto-bid-engine-scheduled above; deliberately a separate function
+# and a separate table so the two systems never interfere.
+[functions."auto-bid-prefill-notify-scheduled"]
+  schedule = "*/5 * * * *"
+
 # Maintenance reminders: checks vehicles due for service and sends email/SMS
 # to members based on their notification preferences. Runs daily at 08:00 UTC.
 [functions."maintenance-reminders-scheduled"]
