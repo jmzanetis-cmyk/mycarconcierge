@@ -208,6 +208,275 @@ window.toggleMatchPausedUntilRow = toggleMatchPausedUntilRow;
 window.resumeMatchesFromBanner = resumeMatchesFromBanner;
 window.updateMatchPauseBanner = updateMatchPauseBanner;
 
+// ========== RATE CARD (Phase 2 auto-bid redesign) ==========
+// State: the catalog + the caller's rate card. Both are fetched once on
+// panel open and kept in memory so per-row saves render optimistically
+// (server truth is re-read only on error). rateCardById maps item_key →
+// saved row so the render can distinguish "not on my card" from "priced".
+let rateCardCatalog = null;         // { categories: [{slug,label,items:[...]}, ...] }
+let rateCardByItemKey = new Map();  // item_key → server row
+let rateCardPendingKeys = new Set(); // item_keys currently in "add mode"
+                                     // (row shown but not yet saved)
+
+function _rateCardShowError(msg) {
+  const box = document.getElementById('rate-card-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+function _rateCardAuthHeaders(session) {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + session.access_token,
+  };
+}
+
+async function loadRateCard() {
+  const container = document.getElementById('rate-card-groups');
+  if (!container) return;
+  _rateCardShowError('');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    // Catalog is public (no auth required), but sending the header is cheap
+    // and matches the pattern used by other endpoints for consistency.
+    const [menuRes, cardRes] = await Promise.all([
+      fetch('/api/service-menu'),
+      fetch('/api/provider/rate-card', { headers: { 'Authorization': 'Bearer ' + session.access_token } }),
+    ]);
+    if (!menuRes.ok) throw new Error('service menu load failed');
+    if (!cardRes.ok) throw new Error('rate card load failed');
+
+    rateCardCatalog = await menuRes.json();
+    const cardPayload = await cardRes.json();
+    rateCardByItemKey = new Map();
+    for (const it of cardPayload.items || []) rateCardByItemKey.set(it.item_key, it);
+
+    renderRateCard();
+  } catch (err) {
+    console.error('loadRateCard error:', err);
+    _rateCardShowError('Could not load rate card. Refresh to try again.');
+  }
+}
+
+function renderRateCard() {
+  const container = document.getElementById('rate-card-groups');
+  const emptyEl = document.getElementById('rate-card-empty');
+  if (!container || !rateCardCatalog) return;
+  container.innerHTML = '';
+
+  // Only render categories that actually have priceable items in the current
+  // seed. Categories with items:[] would just be dead cards.
+  const categories = (rateCardCatalog.categories || []).filter(c => (c.items || []).length > 0);
+
+  const hasAnyPriced = rateCardByItemKey.size > 0;
+  if (emptyEl) emptyEl.style.display = hasAnyPriced ? 'none' : '';
+
+  for (const cat of categories) {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-weight:600;color:var(--accent-gold);font-size:var(--text-base);';
+    title.textContent = cat.label;
+    header.appendChild(title);
+    card.appendChild(header);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    for (const item of cat.items) {
+      list.appendChild(_renderRateCardRow(item));
+    }
+    card.appendChild(list);
+    container.appendChild(card);
+  }
+}
+
+function _renderRateCardRow(menuItem) {
+  const row = document.createElement('div');
+  row.dataset.itemKey = menuItem.item_key;
+  const saved = rateCardByItemKey.get(menuItem.item_key);
+  const isPending = rateCardPendingKeys.has(menuItem.item_key);
+
+  // Unpriced + not-in-add-mode: compact one-liner with an Add button.
+  if (!saved && !isPending) {
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+    row.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);">' + escHtml(menuItem.label) + '</span>';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn--secondary';
+    addBtn.style.cssText = 'padding:4px 12px;font-size:var(--text-sm);';
+    addBtn.textContent = '+ Add';
+    addBtn.onclick = () => {
+      rateCardPendingKeys.add(menuItem.item_key);
+      renderRateCard();
+      // Focus the new price input after render.
+      setTimeout(() => {
+        const el = document.querySelector('[data-item-key="' + CSS.escape(menuItem.item_key) + '"] .rate-price-input');
+        if (el) el.focus();
+      }, 0);
+    };
+    row.appendChild(addBtn);
+    return row;
+  }
+
+  // Priced OR pending: full editable row.
+  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+
+  const labelEl = document.createElement('div');
+  labelEl.style.cssText = 'font-size:var(--text-sm);color:var(--text-primary);';
+  labelEl.textContent = menuItem.label;
+  row.appendChild(labelEl);
+
+  const priceWrap = document.createElement('div');
+  priceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;';
+  priceWrap.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);">$</span>';
+  const priceInput = document.createElement('input');
+  priceInput.type = 'number';
+  priceInput.className = 'form-input rate-price-input';
+  priceInput.min = '1';
+  priceInput.step = '1';
+  priceInput.placeholder = '0';
+  priceInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  priceInput.value = saved ? String(Math.round(saved.price_cents / 100)) : '';
+  priceInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  priceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') priceInput.blur(); });
+  priceWrap.appendChild(priceInput);
+  row.appendChild(priceWrap);
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'form-input rate-type-input';
+  typeSelect.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  typeSelect.innerHTML = '<option value="fixed">Fixed</option><option value="starting_at">Starting at</option>';
+  typeSelect.value = (saved && saved.price_type) || 'fixed';
+  typeSelect.addEventListener('change', () => _rateCardMaybeSave(menuItem, row));
+  row.appendChild(typeSelect);
+
+  const condsInput = document.createElement('input');
+  condsInput.type = 'text';
+  condsInput.className = 'form-input rate-conds-input';
+  condsInput.maxLength = 500;
+  condsInput.placeholder = 'Conditions (optional)';
+  condsInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  condsInput.value = (saved && saved.conditions) || '';
+  condsInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  row.appendChild(condsInput);
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  const activeLabel = document.createElement('label');
+  activeLabel.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer;';
+  const activeInput = document.createElement('input');
+  activeInput.type = 'checkbox';
+  activeInput.className = 'rate-active-input';
+  activeInput.checked = saved ? !!saved.active : true;
+  activeInput.addEventListener('change', () => _rateCardMaybeSave(menuItem, row));
+  activeLabel.appendChild(activeInput);
+  activeLabel.appendChild(document.createTextNode('Active'));
+  actions.appendChild(activeLabel);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn btn--secondary';
+  removeBtn.style.cssText = 'padding:4px 10px;font-size:var(--text-sm);color:var(--accent-red);';
+  removeBtn.textContent = 'Remove';
+  removeBtn.onclick = () => _rateCardRemove(menuItem);
+  actions.appendChild(removeBtn);
+  row.appendChild(actions);
+
+  return row;
+}
+
+async function _rateCardMaybeSave(menuItem, rowEl) {
+  const priceEl = rowEl.querySelector('.rate-price-input');
+  const typeEl = rowEl.querySelector('.rate-type-input');
+  const condsEl = rowEl.querySelector('.rate-conds-input');
+  const activeEl = rowEl.querySelector('.rate-active-input');
+  if (!priceEl) return;
+
+  const raw = priceEl.value.trim();
+  if (!raw) {
+    // Pending row cleared to empty → cancel add without a save.
+    if (rateCardPendingKeys.has(menuItem.item_key) && !rateCardByItemKey.has(menuItem.item_key)) {
+      rateCardPendingKeys.delete(menuItem.item_key);
+      renderRateCard();
+    }
+    return;
+  }
+  const dollars = Number(raw);
+  if (!Number.isFinite(dollars) || dollars < 1 || dollars > 100000) {
+    showToast('Enter a price between $1 and $100,000', 'error');
+    return;
+  }
+  const priceCents = Math.round(dollars * 100);
+  const priceType = typeEl && typeEl.value === 'starting_at' ? 'starting_at' : 'fixed';
+  const conditions = condsEl && condsEl.value.trim() ? condsEl.value.trim().slice(0, 500) : null;
+  const active = activeEl ? !!activeEl.checked : true;
+
+  const saved = rateCardByItemKey.get(menuItem.item_key);
+  if (saved
+      && saved.price_cents === priceCents
+      && saved.price_type === priceType
+      && (saved.conditions || null) === conditions
+      && !!saved.active === active) {
+    // No-op — nothing changed since last save.
+    return;
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/rate-card', {
+      method: 'POST',
+      headers: _rateCardAuthHeaders(session),
+      body: JSON.stringify({
+        item_key: menuItem.item_key,
+        price_cents: priceCents,
+        price_type: priceType,
+        conditions,
+        active,
+      }),
+    });
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok || !payload.item) throw new Error(payload.error || 'save failed');
+    rateCardByItemKey.set(menuItem.item_key, payload.item);
+    rateCardPendingKeys.delete(menuItem.item_key);
+    showToast('Rate saved', 'success');
+    renderRateCard();
+  } catch (err) {
+    console.error('rate card save error:', err);
+    showToast('Could not save this rate — try again', 'error');
+  }
+}
+
+async function _rateCardRemove(menuItem) {
+  // If the row is only a pending add (never actually saved), skip the API call.
+  if (!rateCardByItemKey.has(menuItem.item_key)) {
+    rateCardPendingKeys.delete(menuItem.item_key);
+    renderRateCard();
+    return;
+  }
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/rate-card?item_key=' + encodeURIComponent(menuItem.item_key), {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + session.access_token },
+    });
+    if (!resp.ok) throw new Error('delete failed');
+    rateCardByItemKey.delete(menuItem.item_key);
+    rateCardPendingKeys.delete(menuItem.item_key);
+    showToast('Removed', 'success');
+    renderRateCard();
+  } catch (err) {
+    console.error('rate card remove error:', err);
+    showToast('Could not remove this rate — try again', 'error');
+  }
+}
+
+window.loadRateCard = loadRateCard;
+// ========== END RATE CARD ==========
+
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
   const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;

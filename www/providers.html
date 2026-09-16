@@ -2910,6 +2910,19 @@
         <button class="btn btn--primary" onclick="saveMatchPreferences()">Save Match Preferences</button>
       </div>
 
+      <!-- Rate Card (Phase 2 auto-bid redesign) -->
+      <div class="card" id="rate-card-panel">
+        <div class="card-header">
+          <h2 class="card-title">💵 Rate Card</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">Publish standing prices for the services you offer most often. Members see these on your public profile, and matching jobs will pre-fill your bid amount so you're not typing prices in for every request.</p>
+        <div id="rate-card-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
+        <div id="rate-card-empty" style="display:none;margin-bottom:16px;padding:14px;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px dashed var(--border-subtle);color:var(--text-muted);font-size:var(--text-sm);">
+          No rates saved yet. Add items below to publish prices — you can set fixed prices ("$59") or a starting-at floor ("from $180") and include conditions if needed.
+        </div>
+        <div id="rate-card-groups" style="display:flex;flex-direction:column;gap:20px;"></div>
+      </div>
+
       <!-- Emergency Services Settings -->
       <div class="card" style="border:1px solid rgba(239, 95, 95, 0.3);background:linear-gradient(135deg, var(--bg-card), rgba(239, 95, 95, 0.05));">
         <div class="card-header">
