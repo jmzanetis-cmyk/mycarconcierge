@@ -121,9 +121,15 @@
         renderAiSuggestions(data.suggestions);
       } catch (err) {
         if (err.name === 'AbortError') return;
+        // /api/package/ai-suggestions has no backend route (no function, no
+        // redirect) — this always fails. Rather than show a permanent "could
+        // not load" error on every service request, fail quiet like the
+        // no-session case above: hide the panel instead of leaving a visible
+        // broken-feature message on screen. Remove this once the endpoint
+        // is actually implemented.
         loading.style.display = 'none';
-        content.innerHTML = '<div style="padding:8px 0;font-size:0.82rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg> Could not load suggestions. You can continue without them.</div>';
-        console.log('AI suggestions error:', err);
+        panel.style.display = 'none';
+        console.log('AI suggestions error (panel hidden, no backend route yet):', err);
       }
     }
 
@@ -775,9 +781,9 @@
             </div>
             <div class="package-meta">
               <span>${mccIcon('calendar', 16)} ${new Date(p.created_at).toLocaleDateString()}</span>
-              <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>
+              ${p.frequency ? `<span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>` : ''}
               <span>${mccIcon('wrench', 16)} ${p.parts_preference || 'Standard'} parts</span>
-              <span>${mccIcon('car', 16)} ${formatPickup(p.pickup_preference)}</span>
+              ${p.pickup_preference ? `<span>${mccIcon('car', 16)} ${formatPickup(p.pickup_preference)}</span>` : ''}
             </div>
             ${p._isSplitParticipant ? `<div style="margin-top:8px;padding:6px 10px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--accent-blue);display:inline-block;">${mccIcon('users', 16)} Split Payment — Your Share: $${(p._splitAmountCents / 100).toFixed(2)}</div>` : ''}
             ${p.description ? `<div class="package-description">${p.description}</div>` : ''}
@@ -2383,7 +2389,7 @@
           <div class="package-meta" style="margin-bottom:0;">
             <span>${mccIcon('car', 16)} ${vehicleName}</span>
             <span>${mccIcon('calendar', 16)} Created ${new Date(pkg.created_at).toLocaleDateString()}</span>
-            <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(pkg.frequency)}</span>
+            ${pkg.frequency ? `<span>${mccIcon('refresh-cw', 16)} ${formatFrequency(pkg.frequency)}</span>` : ''}
             <span>${mccIcon('wrench', 16)} ${pkg.parts_preference || 'Standard'} parts</span>
           </div>
           ${pkg.description ? `<p style="color:var(--text-secondary);margin-top:16px;line-height:1.6;">${pkg.description}</p>` : ''}
