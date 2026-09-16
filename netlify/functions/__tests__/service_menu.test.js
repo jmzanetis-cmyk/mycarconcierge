@@ -299,11 +299,16 @@ t('ITEM_KEYS mirrors the 22 keys in 20260921a_service_menu_items.sql', () => {
     return;
   }
   const migration = fs.readFileSync(migrationPath, 'utf8');
-  // Pull the item_key column from the INSERT — first column of each VALUES row.
-  const inValues = migration.split(/VALUES/i)[1] || '';
-  const seeded = [...inValues.matchAll(/^\s*\('([a-z0-9_]+)'/gim)].map(m => m[1]);
-  assert.strictEqual(seeded.length, 22, `expected 22 seeded keys, got ${seeded.length}`);
-  assert.deepStrictEqual([...ITEM_KEYS].sort(), [...seeded].sort(), 'ITEM_KEYS and seed drift');
+  // Match seed rows by their full shape ("('<item_key>', '<category>'...").
+  // Earlier version split() on the word VALUES, which also matched the
+  // English phrase "current seed values" in the migration header and gave
+  // the wrong slice. The full-row pattern won't match anything inside a
+  // prose comment.
+  const rows = [...migration.matchAll(
+    /^\s*\('([a-z0-9_]+)',\s*'(maintenance|detailing|cosmetic)'/gim
+  )].map(m => m[1]);
+  assert.strictEqual(rows.length, 22, `expected 22 seeded keys, got ${rows.length}`);
+  assert.deepStrictEqual([...ITEM_KEYS].sort(), [...rows].sort(), 'ITEM_KEYS and seed drift');
 });
 
 // ─── 6. Bad input hygiene ───────────────────────────────────────────────
