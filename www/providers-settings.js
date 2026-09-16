@@ -53,12 +53,22 @@ async function saveProviderProfile() {
     providerProfile = { ...providerProfile, ...fields };
     if (result.slug) providerProfile.directory_slug = result.slug;
 
-    // Surface geocoding outcome so the provider knows the distance-gate is wired.
-    const precisionToast = {
-      street: 'Profile saved — address geocoded for nearby-job matching.',
-      zip:    'Profile saved — using ZIP for matching (add a street address for more precise matches).',
-    }[result.precision] || "Profile saved — but address couldn't be geocoded. Provider matching will be limited; add a ZIP or correct the address.";
-    showToast(precisionToast, 'success');
+    // Surface geocoding outcome so the provider knows the distance-gate is
+    // wired. precision:null means Nominatim couldn't resolve either the
+    // street or the ZIP centroid — same signal the persistent banner in the
+    // Business Address block reads on load. Keep the two in sync.
+    const geocodedOk = result.precision === 'street' || result.precision === 'zip';
+    const precisionToast = geocodedOk
+      ? (result.precision === 'street'
+          ? 'Profile saved — address geocoded for nearby-job matching.'
+          : 'Profile saved — using ZIP for matching (add a street address for more precise matches).')
+      : "Profile saved — but address couldn't be geocoded. Provider matching will be limited; add a ZIP or correct the address.";
+    showToast(precisionToast, geocodedOk ? 'success' : 'warning');
+    const geocodeBanner = document.getElementById('profile-geocode-banner');
+    if (geocodeBanner) {
+      const hasAddress = !!(fields.street_address || fields.city || fields.state || fields.zip_code);
+      geocodeBanner.style.display = (hasAddress && !geocodedOk) ? '' : 'none';
+    }
 
     const displayName = fields.business_name || providerProfile.full_name || 'Provider';
     document.getElementById('user-name').textContent = displayName;

@@ -961,6 +961,21 @@ function populateProfileForm(profile) {
   if (typeof initPublicProfileCard === 'function') {
     initPublicProfileCard();
   }
+
+  // Persistent "didn't geocode" banner. Provider-profile-save runs Nominatim
+  // (street then ZIP centroid) on any address change and writes lat/lng back
+  // into profiles; a row with a saved address but null coords means the
+  // geocoder couldn't find anything — the distance filter treats null coords
+  // as permissive so jobs still show up, but the "3.2 mi away" prefill on
+  // notify won't work until it's resolved. Show the banner iff there's at
+  // least ONE address field filled in but no coords — a blank profile
+  // shouldn't nag the provider before they've entered anything.
+  const geocodeBanner = document.getElementById('profile-geocode-banner');
+  if (geocodeBanner) {
+    const hasAddress = !!(profile.street_address || profile.city || profile.state || profile.zip_code);
+    const hasCoords = profile.lat != null && profile.lng != null;
+    geocodeBanner.style.display = (hasAddress && !hasCoords) ? '' : 'none';
+  }
 }
 
 // ========== SUBSCRIPTION ==========

@@ -35,6 +35,7 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const { serviceTypesToCategories } = require('./_taxonomy');
 
 function getServiceSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -314,7 +315,7 @@ async function handleFinalize(event, supabase, user) {
   const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data: app, error: appErr } = await supabase
     .from('provider_applications')
-    .select('id, is_founding_provider, founding_agreement_id, status')
+    .select('id, is_founding_provider, founding_agreement_id, status, service_radius_miles')
     .eq('user_id', user.id)
     .gte('created_at', cutoff)
     .order('created_at', { ascending: false })
@@ -353,6 +354,48 @@ async function handleFinalize(event, supabase, user) {
   if (updErr) {
     console.error('[provider-onboarding] finalize profile update failed:', updErr.message);
     return jsonResponse(500, { error: 'failed to finalize profile', details: updErr.message });
+  }
+
+  // Seed provider_match_preferences from the signup answers. Before this
+  // upsert, brand-new providers hit the Job Board / Browse Packages with an
+  // empty match_categories (→ "categories_required" empty state) and a
+  // radius of 25 mi regardless of what they typed at signup — the finalize
+  // step was written before this table existed and never got retro-fitted.
+  //
+  //   - match_categories: the checkbox slugs the client sends (oil_change,
+  //     brakes, ...) are legacy service_type values, not category slugs, so
+  //     they route through _taxonomy.serviceTypesToCategories() — same
+  //     classifier the bid gate + job board use to read plans. That way a
+  //     provider who checks "Oil Change / Fluids" ends up with `maintenance`
+  //     in match_categories, aligned with how care_plans.categories is
+  //     written by member intake.
+  //   - match_radius_miles: comes from the just-loaded provider_applications
+  //     row (signup-provider.js writes it to /api/provider/application via
+  //     the allowed-fields list) — the finalize payload itself doesn't carry
+  //     it. CHECK constraint 1-500 (20260524 migration); clamp defensively.
+  //
+  // Upsert-on-profile_id: idempotent across finalize retries + safe if the
+  // provider later hits Settings and writes their own row first.
+  const matchCategories = serviceTypesToCategories(body.services_offered);
+  const rawRadius = Number(app.service_radius_miles);
+  const clampedRadius = Number.isFinite(rawRadius) && rawRadius >= 1 && rawRadius <= 500
+    ? Math.round(rawRadius)
+    : 25;
+  const { error: prefErr } = await supabase
+    .from('provider_match_preferences')
+    .upsert(
+      {
+        profile_id: user.id,
+        match_categories: matchCategories,
+        match_radius_miles: clampedRadius,
+      },
+      { onConflict: 'profile_id' }
+    );
+  if (prefErr) {
+    // Don't fail the whole finalize — the profile row is already updated and
+    // the provider can set preferences from Settings. Log so the drift is
+    // visible in Netlify logs.
+    console.error('[provider-onboarding] finalize match_preferences upsert failed:', prefErr.message);
   }
 
   return jsonResponse(200, {
