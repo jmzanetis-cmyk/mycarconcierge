@@ -178,8 +178,19 @@
 
 # Auto-bid engine: scans open care plans hourly and places bids for providers
 # with auto-bid enabled (settings saved in provider_auto_bid_settings table).
-[functions."auto-bid-engine-scheduled"]
-  schedule = "0 * * * *"
+#
+# PAUSED 2026-09-15 — the current design (scheduled scan + auto-place) is being
+# replaced by an instant-notify-with-prefilled-bid flow. Nothing is deleted:
+# the scheduled block below is commented out so Netlify won't cron it, the
+# provider-facing panel is hidden behind window.MCC_CONFIG?.autoBidEnabled
+# (default false), and auto-bid.js POST returns 403 auto_bid_paused for any
+# straggler client that still hits the save endpoint. Un-pause by uncommenting
+# the two lines below AND flipping the config flag.
+#
+# NOTE 2026-09-16 — this block was re-added after db4ccdc turned out to be an
+# orphan (never merged to main). See fix/repause-auto-bid-engine.
+# [functions."auto-bid-engine-scheduled"]
+#   schedule = "0 * * * *"
 
 # Maintenance reminders: checks vehicles due for service and sends email/SMS
 # to members based on their notification preferences. Runs daily at 08:00 UTC.
