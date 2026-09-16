@@ -200,6 +200,7 @@
         loadStripeConnectStatus(),
         (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
         (typeof loadRateCard === 'function' ? loadRateCard() : Promise.resolve()),
+        (typeof loadAutoBidActivity === 'function' ? loadAutoBidActivity() : Promise.resolve()),
         loadProviderTransportRequests(),
         loadCustodyFlag()
       ]);
@@ -1395,11 +1396,6 @@
       if (id === 'availability') {
         loadAvailabilitySection();
       }
-      // Load auto-bid settings when section is shown
-      if (id === 'auto-bid') {
-        if (typeof loadAutoBidSettings === 'function') loadAutoBidSettings();
-      }
-
     }
 
     async function loadOpenPackages() {

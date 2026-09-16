@@ -487,6 +487,121 @@ async function _rateCardRemove(menuItem) {
 window.loadRateCard = loadRateCard;
 // ========== END RATE CARD ==========
 
+// ========== AUTO-BID ACTIVITY (Phase 7 auto-bid redesign) ==========
+// Ledger (GET /api/auto-bid-ledger) is read-only — see that file's own
+// header comment. The daily cap (GET/PATCH /api/auto-bid-daily-cap) is a
+// separate, small write path. Loaded together since they render into the
+// same card, but kept as two requests because they're two different
+// backend concerns (activity stats vs. a notification preference) — same
+// separation the endpoints themselves keep.
+
+function _autoBidActivityShowError(msg) {
+  const box = document.getElementById('auto-bid-activity-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+async function loadAutoBidActivity() {
+  const panel = document.getElementById('auto-bid-activity-panel');
+  if (!panel) return;
+  _autoBidActivityShowError('');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    const headers = { 'Authorization': 'Bearer ' + session.access_token };
+    const [ledgerRes, capRes] = await Promise.all([
+      fetch('/api/auto-bid-ledger', { headers }),
+      fetch('/api/auto-bid-daily-cap', { headers }),
+    ]);
+    if (!ledgerRes.ok) throw new Error('ledger load failed');
+    if (!capRes.ok) throw new Error('daily cap load failed');
+
+    const ledger = await ledgerRes.json();
+    const cap = await capRes.json();
+
+    renderAutoBidActivity(ledger);
+    const capInput = document.getElementById('ab-daily-cap-input');
+    if (capInput) capInput.value = (cap && typeof cap.daily_cap === 'number') ? cap.daily_cap : '';
+  } catch (err) {
+    console.error('loadAutoBidActivity error:', err);
+    _autoBidActivityShowError('Could not load auto-bid activity. Refresh to try again.');
+  }
+}
+
+function renderAutoBidActivity(ledger) {
+  const emptyEl = document.getElementById('auto-bid-activity-empty');
+  const statsEl = document.getElementById('auto-bid-activity-stats');
+  if (!emptyEl || !statsEl || !ledger || !ledger.all_time) return;
+
+  const allTime = ledger.all_time;
+  if (allTime.total === 0) {
+    emptyEl.style.display = '';
+    statsEl.style.display = 'none';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  statsEl.style.display = '';
+
+  const totalEl = document.getElementById('ab-activity-total');
+  const confirmedEl = document.getElementById('ab-activity-confirmed');
+  const pendingEl = document.getElementById('ab-activity-pending');
+  const sevenDayEl = document.getElementById('ab-activity-7day');
+  const confirmedAmountEl = document.getElementById('ab-activity-confirmed-amount');
+
+  if (totalEl) totalEl.textContent = String(allTime.total);
+  if (confirmedEl) confirmedEl.textContent = String(allTime.confirmed);
+  if (pendingEl) pendingEl.textContent = String(allTime.pending);
+  if (sevenDayEl) sevenDayEl.textContent = String((ledger.last_7_days && ledger.last_7_days.total) || 0);
+  if (confirmedAmountEl) {
+    const dollars = Math.round((ledger.confirmed_prefilled_amount_cents || 0) / 100);
+    confirmedAmountEl.textContent = allTime.confirmed > 0
+      ? `Prefilled amount across your ${allTime.confirmed} confirmed bid${allTime.confirmed === 1 ? '' : 's'}: $${dollars.toLocaleString()} (the amount pre-filled at confirm time — if you edited a bid before confirming, the actual amount may differ).`
+      : '';
+  }
+}
+
+async function saveAutoBidDailyCap() {
+  const input = document.getElementById('ab-daily-cap-input');
+  const savedMsg = document.getElementById('ab-daily-cap-saved-msg');
+  if (!input) return;
+  _autoBidActivityShowError('');
+
+  const raw = input.value.trim();
+  const dailyCap = raw === '' ? null : parseInt(raw, 10);
+  if (dailyCap !== null && (!Number.isInteger(dailyCap) || dailyCap <= 0)) {
+    _autoBidActivityShowError('Daily cap must be a whole number greater than 0, or blank for unlimited.');
+    return;
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const resp = await fetch('/api/auto-bid-daily-cap', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ daily_cap: dailyCap }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error || 'save failed');
+    }
+    if (savedMsg) {
+      savedMsg.style.display = '';
+      setTimeout(() => { savedMsg.style.display = 'none'; }, 2500);
+    }
+  } catch (err) {
+    console.error('saveAutoBidDailyCap error:', err);
+    _autoBidActivityShowError('Could not save your daily cap — try again.');
+  }
+}
+
+window.loadAutoBidActivity = loadAutoBidActivity;
+window.saveAutoBidDailyCap = saveAutoBidDailyCap;
+// ========== END AUTO-BID ACTIVITY ==========
+
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
   const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;
@@ -2338,103 +2453,3 @@ async function saveBusinessHours() {
 }
 // ========== END BUSINESS HOURS EDITOR ==========
 
-// ========== AUTO-BID SETTINGS ==========
-async function loadAutoBidSettings() {
-  if (typeof currentUser === 'undefined' || !currentUser) return;
-  try {
-    const res = await fetch('/api/auto-bid/settings', {
-      headers: { 'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session?.access_token }
-    });
-    if (!res.ok) return;
-    const d = await res.json().catch(() => ({}));
-    const enabled = d.auto_bid_enabled || false;
-    const toggle = document.getElementById('auto-bid-toggle');
-    const slider = document.getElementById('auto-bid-slider');
-    const thumb = document.getElementById('auto-bid-thumb');
-    const label = document.getElementById('auto-bid-status-label');
-    if (toggle) toggle.checked = enabled;
-    applyAutoBidToggleStyle(enabled, slider, thumb, label);
-    const dist = document.getElementById('ab-max-distance');
-    if (dist) dist.value = d.auto_bid_max_distance_miles || 25;
-    const pct = document.getElementById('ab-pct');
-    if (pct) {
-      pct.value = d.auto_bid_percent_of_estimate || 85;
-      const pctLabel = document.getElementById('ab-pct-label');
-      if (pctLabel) pctLabel.textContent = (d.auto_bid_percent_of_estimate || 85) + '%';
-    }
-    const types = d.auto_bid_service_types || [];
-    document.querySelectorAll('.ab-svc-chip').forEach(chip => {
-      chip.classList.toggle('active', types.includes(chip.dataset.type));
-    });
-    await updateAutoBidPreview();
-  } catch (e) {
-    console.error('Auto-bid load error', e);
-  }
-}
-
-function applyAutoBidToggleStyle(on, slider, thumb, label) {
-  if (!slider || !thumb || !label) {
-    slider = document.getElementById('auto-bid-slider');
-    thumb = document.getElementById('auto-bid-thumb');
-    label = document.getElementById('auto-bid-status-label');
-  }
-  if (slider) slider.style.background = on ? 'var(--accent-gold)' : 'var(--bg-input)';
-  if (slider) slider.style.borderColor = on ? 'var(--accent-gold)' : 'var(--border-subtle)';
-  if (thumb) { thumb.style.insetInlineStart = on ? '24px' : '2px'; thumb.style.background = on ? 'var(--bg-deep)' : 'var(--text-muted)'; }
-  if (label) { label.textContent = on ? 'Enabled' : 'Disabled'; label.style.color = on ? 'var(--accent-gold)' : 'var(--text-muted)'; }
-}
-
-function onAutoBidToggle(checked) {
-  applyAutoBidToggleStyle(checked);
-}
-
-function toggleAbServiceType(el) {
-  el.classList.toggle('active');
-  updateAutoBidPreview();
-}
-
-async function updateAutoBidPreview() {
-  const countEl = document.getElementById('ab-preview-count');
-  if (!countEl) return;
-  try {
-    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
-    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
-    const params = new URLSearchParams({ max_distance: dist });
-    if (selected.length) params.set('service_types', selected.join(','));
-    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
-    const res = await fetch('/api/care-plans/preview?' + params, { headers: { 'Authorization': 'Bearer ' + token } });
-    if (!res.ok) { countEl.textContent = '—'; return; }
-    const d = await res.json().catch(() => ({}));
-    const n10 = d.count_of_last_10 || 0;
-    countEl.textContent = `${n10} of the last 10 plans posted match your settings`;
-  } catch (e) {
-    countEl.textContent = '—';
-  }
-}
-
-async function saveAutoBidSettings() {
-  try {
-    const enabled = document.getElementById('auto-bid-toggle')?.checked || false;
-    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
-    const pct = Number.parseInt(document.getElementById('ab-pct')?.value || 85);
-    const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
-      .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
-    const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
-    const res = await fetch('/api/auto-bid/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({
-        auto_bid_enabled: enabled,
-        auto_bid_max_distance_miles: dist,
-        auto_bid_percent_of_estimate: pct,
-        auto_bid_service_types: selected
-      })
-    });
-    if (!res.ok) throw new Error('Save failed');
-    showToast('Auto-bid settings saved!', 'success');
-  } catch (e) {
-    showToast('Failed to save auto-bid settings: ' + e.message, 'error');
-  }
-}
-// ========== END AUTO-BID SETTINGS ==========

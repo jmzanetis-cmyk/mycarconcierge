@@ -26,9 +26,17 @@
 //      The auto_bid_prefills UNIQUE (provider_id, care_plan_id)
 //      constraint is the real backstop against races between overlapping
 //      runs.
-//   3. isServiceFit(plan, provider effective match_categories) — same
+//   3. [Phase 7] Daily cap not reached — optional, per-provider,
+//      provider_notification_preferences.auto_bid_prefill_daily_cap
+//      (null = unlimited, the default). Checked in-memory against a
+//      running count seeded from today's (UTC) real auto_bid_prefills
+//      rows, so one run can't blow past the cap across many candidate
+//      plans. Placed right after the dedup pre-check since it's cheap
+//      and most providers have no cap set (the Map only holds providers
+//      with a non-null cap, so the check is a no-op for everyone else).
+//   4. isServiceFit(plan, provider effective match_categories) — same
 //      _eligibility.js call the boards + bid gate use.
-//   4. planWithinRadius(plan, provider.lat, provider.lng, radius) —
+//   5. planWithinRadius(plan, provider.lat, provider.lng, radius) —
 //      _distance.js helper. IMPORTANT INVERSION: the helper's default
 //      posture is "miles===null → withinRadius:true" (never-block, so
 //      legacy providers without coords don't disappear from the boards).
@@ -36,7 +44,7 @@
 //      can't be sent if there's no coordinate. So we check miles !== null
 //      explicitly BEFORE trusting withinRadius:true. Do not modify the
 //      helper — the boards depend on the permissive default.
-//   5. matchItem(plan) resolves to exactly one item_key AND that
+//   6. matchItem(plan) resolves to exactly one item_key AND that
 //      item_key exists in this provider's active rate card. Ambiguous or
 //      zero-match plans (per _service_menu.js) never fire — matches the
 //      never-guess rule that file already commits to.
@@ -98,6 +106,7 @@ exports.handler = async function (event) {
     skipped_ambiguous_item: 0,
     skipped_not_on_rate_card: 0,
     skipped_self_bid: 0,
+    skipped_daily_cap: 0,
     errors: 0,
   };
 
@@ -174,6 +183,40 @@ exports.handler = async function (event) {
     .select('item_key, label');
   const menuLabelByKey = new Map((menuRows || []).map(m => [m.item_key, m.label]));
 
+  // ── Phase 7: per-provider daily cap on prefills sent ───────────────────
+  // Optional soft cap (provider_notification_preferences.auto_bid_prefill_daily_cap,
+  // null = unlimited, the default). Two pieces: the configured cap per
+  // provider, and how many this provider has already received today (UTC
+  // day boundary — this is a server-side scheduled job with no user
+  // timezone context, same convention as driver-api.js's `since` cutoff).
+  // A single in-memory Map tracks the running per-provider count for the
+  // rest of this run, seeded from today's real count and incremented on
+  // every successful insert below, so a provider can't blow past their
+  // cap within one run even across many candidate plans.
+  const { data: notifPrefs } = await supabase
+    .from('provider_notification_preferences')
+    .select('provider_id, auto_bid_prefill_daily_cap')
+    .in('provider_id', providerIds);
+  const dailyCapByProvider = new Map(
+    (notifPrefs || [])
+      .filter(p => p.auto_bid_prefill_daily_cap !== null && p.auto_bid_prefill_daily_cap !== undefined)
+      .map(p => [p.provider_id, p.auto_bid_prefill_daily_cap])
+  );
+
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const dailyCountByProvider = new Map();
+  if (dailyCapByProvider.size > 0) {
+    const { data: todaysPrefills } = await supabase
+      .from('auto_bid_prefills')
+      .select('provider_id')
+      .in('provider_id', [...dailyCapByProvider.keys()])
+      .gte('created_at', todayStart.toISOString());
+    for (const row of todaysPrefills || []) {
+      dailyCountByProvider.set(row.provider_id, (dailyCountByProvider.get(row.provider_id) || 0) + 1);
+    }
+  }
+
   // ── 3. The plan × provider loop ────────────────────────────────────────
   // Same short-circuit style as auto-bid-engine-scheduled.js — every gate
   // is a `continue` on failure, ordered from cheapest to most expensive.
@@ -189,6 +232,16 @@ exports.handler = async function (event) {
       // Dedup — pre-check, cheap.
       if (alreadyPrefilled.has(`${providerId}::${plan.id}`)) {
         counts.skipped_duplicate++;
+        continue;
+      }
+
+      // Daily cap — cheap in-memory check, so a capped-out provider skips
+      // before any of the profile/service-fit/distance/matching work below.
+      // Only providers with a non-null cap are even in this Map; everyone
+      // else is unlimited (the default).
+      const dailyCap = dailyCapByProvider.get(providerId);
+      if (dailyCap !== undefined && (dailyCountByProvider.get(providerId) || 0) >= dailyCap) {
+        counts.skipped_daily_cap++;
         continue;
       }
 
@@ -268,6 +321,9 @@ exports.handler = async function (event) {
       }
       counts.prefills_inserted++;
       alreadyPrefilled.add(`${providerId}::${plan.id}`);
+      if (dailyCapByProvider.has(providerId)) {
+        dailyCountByProvider.set(providerId, (dailyCountByProvider.get(providerId) || 0) + 1);
+      }
 
       // Fire push. Failures are already logged inside the dispatcher;
       // we just tally sent/skipped here.

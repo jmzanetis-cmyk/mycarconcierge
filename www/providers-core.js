@@ -273,7 +273,17 @@ async function initializeProviderDashboard(user) {
     loadProviderProfile(),
     loadSubscription(),
     loadPosIntegrationStatus(),
-    loadPerformance()
+    loadPerformance(),
+    // Phase 2/3/7 auto-bid redesign panels (Match Preferences, Rate Card,
+    // Auto-Bid Activity) live in the 'profile' section. providers-settings.js
+    // is loaded statically (see loadModule's own comment above), so these
+    // are safe to call directly here without a loadModule() wrapper — same
+    // as every other call in this Promise.all. Guarded with typeof checks
+    // for defensive parity with the rest of this function, in case the
+    // settings module is ever changed to load asynchronously later.
+    (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
+    (typeof loadRateCard === 'function' ? loadRateCard() : Promise.resolve()),
+    (typeof loadAutoBidActivity === 'function' ? loadAutoBidActivity() : Promise.resolve())
   ]);
   
   updateStats();
