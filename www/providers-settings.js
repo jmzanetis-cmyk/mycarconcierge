@@ -7,6 +7,78 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// One-shot CSS injection for the Rate Card row + stepper. Kept alongside the
+// component's JS instead of the global stylesheet because it's tightly coupled
+// to _renderRateCardRow's DOM shape — moving one without the other silently
+// breaks the layout. Inlined via a <style> block on first call so `@media`
+// queries + `::-webkit-inner-spin-button` work (neither can be done via
+// element.style.cssText). Idempotent — guarded by a data-flag on <head>.
+function _ensureRateCardStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.head.querySelector('style[data-mcc-rate-card-styles]')) return;
+  const style = document.createElement('style');
+  style.setAttribute('data-mcc-rate-card-styles', '1');
+  style.textContent = `
+    /* Wide layout — 5 columns on one line, same as before the stepper. */
+    .rate-card-row-priced {
+      display: grid;
+      grid-template-columns: minmax(0,1.5fr) minmax(140px,1.4fr) minmax(0,1fr) minmax(0,1.6fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+    }
+    /* Narrow layout — stack the five columns vertically so the label doesn't
+       collide with the neighboring column and the Fixed/Starting-at select
+       doesn't truncate to "Con". Break at 640px, above which the standard
+       tablet+ row fits fine. Every child except .rate-actions goes full-width;
+       .rate-actions right-aligns because Active+Remove reads best as a
+       button-cluster footer on mobile. */
+    @media (max-width: 640px) {
+      .rate-card-row-priced { grid-template-columns: 1fr; row-gap: 10px; }
+      .rate-card-row-priced .rate-actions { justify-content: flex-end; }
+    }
+    /* Stepper container — flex row with buttons flanking the input. */
+    .rate-price-stepper { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    /* Kill the native number-input spinner (WebKit + Firefox both) so the
+       browser's own up/down arrows don't render alongside — and, on some
+       phone widths, on top of — the custom –/+ buttons. */
+    input.rate-price-input {
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+      appearance: none;
+      padding: 6px 4px;
+      font-size: var(--text-base);
+      font-weight: 600;
+      text-align: center;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    input.rate-price-input::-webkit-inner-spin-button,
+    input.rate-price-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    /* –/+ step buttons — sized for a comfortable tap target on touch. */
+    .rate-price-step {
+      width: 34px; height: 34px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0; font-size: var(--text-lg); font-weight: 600; line-height: 1;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      color: var(--text-primary);
+      cursor: pointer;
+      user-select: none;
+    }
+    .rate-price-step:active { background: var(--bg-input); }
+    .rate-actions { display: flex; align-items: center; gap: 8px; }
+  `;
+  document.head.appendChild(style);
+}
+
 // ========== PROFILE MANAGEMENT ==========
 async function saveProviderProfile() {
   // Certifications — TEXT column, comma-separated. Combine #certifications-grid
@@ -307,6 +379,7 @@ function renderRateCard() {
 }
 
 function _renderRateCardRow(menuItem) {
+  _ensureRateCardStyles();
   const row = document.createElement('div');
   row.dataset.itemKey = menuItem.item_key;
   const saved = rateCardByItemKey.get(menuItem.item_key);
@@ -333,11 +406,11 @@ function _renderRateCardRow(menuItem) {
     return row;
   }
 
-  // Priced OR pending: full editable row.
-  // Price column bumped from 1fr → 1.3fr so the new –/+ stepper (34px per
-  // button + $ prefix + input) doesn't crowd the number display below the
-  // wrap width of a phone.
-  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1.5fr) minmax(140px,1.3fr) minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+  // Priced OR pending: full editable row. Grid layout + narrow-width
+  // stacking lives in the injected stylesheet (_ensureRateCardStyles);
+  // below 640px the five columns stack vertically so the label doesn't
+  // wrap into its neighbor and the type select doesn't truncate to "Con".
+  row.className = 'rate-card-row-priced';
 
   const labelEl = document.createElement('div');
   labelEl.style.cssText = 'font-size:var(--text-sm);color:var(--text-primary);';
@@ -348,23 +421,17 @@ function _renderRateCardRow(menuItem) {
   // $5; tapping the number itself still lets a provider type an exact
   // figure. The input keeps the .rate-price-input class + integer-dollar
   // value semantics unchanged, so _rateCardMaybeSave doesn't need to know
-  // the control shape changed.
+  // the control shape changed. Layout + native-spinner suppression live in
+  // the injected stylesheet — see _ensureRateCardStyles.
   const priceWrap = document.createElement('div');
-  priceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;min-width:0;';
+  priceWrap.className = 'rate-price-stepper';
   priceWrap.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;">$</span>';
-
-  const btnStyle =
-    'width:34px;height:34px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;'
-    + 'padding:0;font-size:var(--text-lg);font-weight:600;line-height:1;'
-    + 'background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:6px;'
-    + 'color:var(--text-primary);cursor:pointer;user-select:none;';
 
   const decBtn = document.createElement('button');
   decBtn.type = 'button';
   decBtn.className = 'rate-price-step rate-price-step-dec';
   decBtn.setAttribute('aria-label', 'Decrease price by $5');
   decBtn.textContent = '–';
-  decBtn.style.cssText = btnStyle;
 
   const priceInput = document.createElement('input');
   priceInput.type = 'number';
@@ -374,11 +441,6 @@ function _renderRateCardRow(menuItem) {
   priceInput.placeholder = '0';
   priceInput.setAttribute('inputmode', 'numeric');
   priceInput.setAttribute('aria-label', 'Price in dollars');
-  // Larger, centered numeric readout that still doubles as a direct-edit
-  // input on tap/focus. Flex-grows to eat the middle of the stepper.
-  priceInput.style.cssText =
-    'padding:6px 4px;font-size:var(--text-base);font-weight:600;text-align:center;'
-    + 'min-width:0;flex:1 1 auto;';
   priceInput.value = saved ? String(Math.round(saved.price_cents / 100)) : '';
   priceInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   priceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') priceInput.blur(); });
@@ -388,43 +450,42 @@ function _renderRateCardRow(menuItem) {
   incBtn.className = 'rate-price-step rate-price-step-inc';
   incBtn.setAttribute('aria-label', 'Increase price by $5');
   incBtn.textContent = '+';
-  incBtn.style.cssText = btnStyle;
 
-  // Step logic. Default step is $5 per tap. Clamp to the same $1–$100,000
-  // range _rateCardMaybeSave enforces on save so the stepper can't push
-  // the input into a state that would reject on blur. Each step fires a
-  // blur immediately so the change round-trips to the server the same
-  // way as a manual keyboard edit — no separate save path.
+  // Step logic. Default step is $5 per tap. Clamp inside the stepper to the
+  // same $1–$100,000 range _rateCardMaybeSave enforces on save so the display
+  // never shows an out-of-range number. Saves are debounced ~600ms so a burst
+  // of taps coalesces to a single POST — calling _rateCardMaybeSave directly
+  // (rather than priceInput.blur()) avoids kicking focus off the input if the
+  // provider had just typed a value and then reached for a stepper button.
   const STEP_DOLLARS = 5;
   const MIN_DOLLARS = 1;
   const MAX_DOLLARS = 100000;
+  let stepSaveTimer = null;
+  function scheduleStepSave() {
+    if (stepSaveTimer) clearTimeout(stepSaveTimer);
+    stepSaveTimer = setTimeout(() => {
+      stepSaveTimer = null;
+      _rateCardMaybeSave(menuItem, row);
+    }, 600);
+  }
   function stepPrice(delta) {
     const raw = priceInput.value.trim();
     let cur = raw === '' ? 0 : Number.parseFloat(raw);
     if (!Number.isFinite(cur)) cur = 0;
-    // If the current value is a non-multiple of STEP_DOLLARS, snap toward
-    // the next multiple in the direction of the tap so a provider whose
-    // rate was $87 doesn't end up at $92/$82 on the first tap. Same idea
-    // as most native steppers.
-    let next;
-    if (cur === 0) {
-      next = delta > 0 ? STEP_DOLLARS : MIN_DOLLARS;
-    } else if (cur % STEP_DOLLARS !== 0) {
-      next = delta > 0
-        ? Math.ceil(cur / STEP_DOLLARS) * STEP_DOLLARS
-        : Math.floor(cur / STEP_DOLLARS) * STEP_DOLLARS;
-    } else {
-      next = cur + delta * STEP_DOLLARS;
-    }
+    let next = cur + delta * STEP_DOLLARS;
     if (next < MIN_DOLLARS) next = MIN_DOLLARS;
     if (next > MAX_DOLLARS) next = MAX_DOLLARS;
+    if (next === cur && priceInput.value !== '') return;
     priceInput.value = String(next);
-    // Trigger the same save path as a manual edit. Using blur() (rather
-    // than dispatchEvent 'blur') so the browser's focus state also
-    // updates if the input happened to be focused when the button was
-    // tapped — no ghost focus rings.
-    priceInput.blur();
+    scheduleStepSave();
   }
+  // mousedown.preventDefault keeps focus on priceInput when the provider taps
+  // a stepper button — otherwise the button would steal focus, fire the input's
+  // blur handler (which runs a save synchronously), and race the debounced
+  // scheduleStepSave. Preventing the focus shift means the debounce actually
+  // coalesces a rapid tap burst into one save.
+  decBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  incBtn.addEventListener('mousedown', (e) => e.preventDefault());
   decBtn.addEventListener('click', () => stepPrice(-1));
   incBtn.addEventListener('click', () => stepPrice(+1));
 
@@ -452,7 +513,7 @@ function _renderRateCardRow(menuItem) {
   row.appendChild(condsInput);
 
   const actions = document.createElement('div');
-  actions.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  actions.className = 'rate-actions';
   const activeLabel = document.createElement('label');
   activeLabel.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer;';
   const activeInput = document.createElement('input');
