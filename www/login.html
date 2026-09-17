@@ -114,6 +114,23 @@
 
     .login-container { position: relative; z-index: 1; width: 100%; max-width: 420px; }
 
+    /* Phone-width brand lockup spacing/centering. The badge markup was
+       switched from a bespoke `.login-brand` anchor to the shared
+       `.mcc-logo` component (base rule lives in shared-styles.css:
+       display:inline-flex, no margin), but `.login-brand`'s own
+       centering + 40px gap-to-card rule below was never migrated to the
+       new class — leaving `.login-brand` matching no element in this file
+       and the logo sitting flush left with no breathing room above the
+       card. Restore the same centered/spaced treatment `.login-brand` used
+       to provide, scoped so it doesn't touch `.mcc-logo` elsewhere in the
+       app (sidebar, other pages). The >=768px split-panel layout below
+       re-declares its own margin (0) so this doesn't leak into tablet. */
+    .login-container > .mcc-logo {
+      display: flex;
+      width: fit-content;
+      margin: 0 auto 40px;
+    }
+
     .login-brand {
       display: flex;
       align-items: center;
@@ -646,7 +663,7 @@
     body.native-app #language-switcher      { display: none !important; }
     body.native-app #mcc-auth-theme-toggle  { display: none !important; }
 
-    body.native-app .login-brand            { margin-bottom: 16px; }
+    body.native-app .login-container > .mcc-logo { margin-bottom: 16px; }
     body.native-app .brand-icon             { height: 56px; filter: drop-shadow(0 3px 12px rgba(212,168,85,0.25)); }
 
     body.native-app .login-card             { padding: 22px 20px; }
@@ -770,6 +787,12 @@
         border-radius: 0;
         padding: 24px 0 0;
         gap: 18px;
+        /* Undo the phone-width auto-centering margin above — this grid
+           layout centers/positions the badge via grid-area + align-self,
+           not margin, so the inherited 40px bottom margin would just add
+           unwanted extra space on top of the grid's own row-gap. */
+        margin: 0;
+        width: auto;
       }
       /* :hover on the base rule adds a gold outline glow — kill it too so
          the pointerless native surface doesn't get a stray focus ring. */
@@ -929,8 +952,16 @@
   <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
-  <!-- Set native-app class before first paint so compact CSS applies without flash -->
-  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
+  <!-- Set native-app class before first paint so compact CSS applies without flash.
+       Capacitor.isNativePlatform() alone can read false for a brief window on cold
+       app launch, before the native bridge finishes attaching — this class (and
+       everything gated on it, including the cookie-consent-banner CSS failsafe
+       below) would miss that window too. location.hostname is available with zero
+       async init, so check it first: the native app always serves from
+       https://localhost with no port (see capacitor.config.json), the real site is
+       always https://www.mycarconcierge.com. (!location.port excludes a local dev
+       server also on localhost, which always carries an explicit port.) -->
+  <script>(function(){var isNative=(location.hostname==='localhost'&&!location.port)||(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());if(isNative){document.body.classList.add('native-app');}})();</script>
 
   <!-- Native-only intro slides — hidden by default, shown by mccIntroInit() -->
   <div id="mcc-intro" style="display:none;" aria-hidden="true" role="dialog" aria-label="Welcome to My Car Concierge">

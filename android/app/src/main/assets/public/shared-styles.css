@@ -1161,11 +1161,28 @@ button:active,
 }
 
 /* Offline indicator */
+/* This element is created and appended to <body> unconditionally on EVERY
+   page load (utils.js's initErrorRecovery(), wired to run on DOMContentLoaded
+   site-wide) — regardless of actual connectivity, native vs. web. Its hidden
+   resting state used to rely solely on `transform: translateY(100px)` to push
+   it below the fold. On the native app's viewport (no browser chrome, and
+   safe-area/100vh math that differs from a normal web tab), that transform
+   alone doesn't clear the visible area on every device — its rounded,
+   gold-bordered top edge was peeking up above the home indicator, looking
+   like a small floating arch, on every load, not just when actually offline.
+   Diagnosed 2026-09-16 via Xcode's native view-hierarchy debugger (Safari's
+   Web Inspector's own DOM search missed it too — border-radius here is
+   var(--radius-lg) = 16px, just under the >20px threshold that search used).
+   Fix: don't depend on position math alone for something that should be
+   completely invisible at rest — add opacity+pointer-events so no viewport
+   quirk on any device can ever leak a pixel of it again. */
 .offline-indicator {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%) translateY(100px);
+  opacity: 0;
+  pointer-events: none;
   background: var(--bg-elevated);
   border: 1px solid var(--accent-orange);
   color: var(--text-primary);
@@ -1176,12 +1193,14 @@ button:active,
   gap: 10px;
   z-index: 9998;
   box-shadow: var(--shadow-lg);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease;
   font-size: var(--text-base);
 }
 
 .offline-indicator.visible {
   transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .offline-indicator .offline-dot {

@@ -234,15 +234,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 (function loadCookieConsent() {
-  // Two independent native checks, not one — this banner (a gold-bordered
-  // pill fixed to the bottom of the screen) was showing up as a stray
-  // curved line/arc peeking above the home indicator on iOS. Root cause:
-  // window.Capacitor.isNativePlatform() alone isn't a reliable enough
-  // signal for every load path, so also honor the body.native-app class
-  // that's already stamped synchronously in <head> (see the inline script
-  // near the top of login.html/members.html) — a signal already proven
-  // reliable elsewhere in this app (it's what hides the web-only signup
-  // links and trust bar on native).
+  // Three independent native checks, not two — the Sep 2 fix (two checks:
+  // Capacitor.isNativePlatform() + body.native-app) turned out to still
+  // race on cold app launch: right after the app process starts, there's a
+  // brief window before Capacitor's native bridge finishes attaching where
+  // isNativePlatform() reads false, so the body.native-app class (which is
+  // ALSO gated on that same isNativePlatform() check, in the inline script
+  // near the top of login.html/members.html) never gets set in time either
+  // — both checks share the one flaky dependency. That let this banner's
+  // gold-bordered 999px-radius pill get created and painted for a frame or
+  // two before self-correcting, and WKWebView was leaving a visual "ghost"
+  // of that pill on screen even after the CSS failsafe hid the (now
+  // correctly-classed) element — same arc bug, reported again 2026-09-16.
+  //
+  // Fix: check the page's own origin first. Since the June 9 Guideline 4.2
+  // fix (commit 7495414) removed server.url, the native app always serves
+  // its pages from https://localhost with no port (Capacitor's default
+  // local origin for iosScheme/androidScheme: "https"); the real website
+  // is always https://www.mycarconcierge.com. This is available from the
+  // very first line of script — no bridge, no async init, nothing to race.
+  // (!location.port guards against a local dev server also on localhost,
+  // e.g. `npx serve` on :3000 — those always carry an explicit port.)
+  var onLocalhostNoPort = location.hostname === 'localhost' && !location.port;
+  if (onLocalhostNoPort) return;
   if (window.Capacitor?.isNativePlatform?.()) return;
   if (document.body.classList.contains('native-app')) return;
   if (document.getElementById('mcc-cookie-consent-script')) return;
