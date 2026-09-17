@@ -53,7 +53,12 @@ function getBearerToken(event) {
   return m ? m[1].trim() : null;
 }
 
-const STATUSES = ['pending', 'confirmed', 'dismissed', 'expired'];
+// Phase 8: 'auto_confirmed' added to reflect the new automatic-submission
+// outcome. Same shape as 'confirmed', but distinguishable in the UI as
+// "we bid on your behalf" vs "you tapped confirm." The financial total
+// (confirmed_prefilled_amount_cents) now includes both variants because
+// both spent a real credit.
+const STATUSES = ['pending', 'confirmed', 'dismissed', 'expired', 'auto_confirmed'];
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function emptyCounts() {
@@ -76,7 +81,11 @@ function buildLedger(rows, nowMs) {
 
     allTime.total++;
     allTime[status]++;
-    if (status === 'confirmed') confirmedPrefilledAmountCents += row.prefilled_amount_cents || 0;
+    // Both manual 'confirmed' and Phase-8 automatic 'auto_confirmed' spent
+    // a credit → both count toward the total-prefilled-amount metric.
+    if (status === 'confirmed' || status === 'auto_confirmed') {
+      confirmedPrefilledAmountCents += row.prefilled_amount_cents || 0;
+    }
 
     const createdMs = row.created_at ? new Date(row.created_at).getTime() : NaN;
     if (Number.isFinite(createdMs) && createdMs >= cutoff) {
