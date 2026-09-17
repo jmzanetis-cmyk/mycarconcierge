@@ -1534,6 +1534,43 @@
       });
     }
 
+    // Defensive guard 2026-09-17: if an already-authenticated user lands here
+    // with NO recognized entry-point query param (?from=dashboard for the
+    // survey overlay, ?source=facebook for OAuth-completion), redirect them
+    // to /members.html rather than silently showing the full guest signup
+    // wizard. Symptom this closes: a logged-in member tapping "+ Add Vehicle"
+    // on the iOS/Android Simulator app landed on the guest wizard because
+    // Capacitor's WebView restored /onboarding-member.html (no query params)
+    // as the last URL from a prior session. Without this guard, a fresh
+    // email in the wizard would create a duplicate auth account for a user
+    // who's already signed in; a re-used email 500s with "User already
+    // registered". Either way it's a dead-end for the user.
+    //
+    // Wrapped in typeof-check for supabaseClient because it's loaded via a
+    // later <script src> in the head. On a cold load where supabaseClient
+    // hasn't parsed yet, the fallback poll waits up to ~3s before giving up
+    // and letting the guest wizard render (unchanged pre-guard behavior for
+    // any actual first-time visitor).
+    (function guardAgainstAuthedGuestWizardLand() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('from') === 'dashboard') return;   // survey overlay flow
+      if (params.get('source')) return;                  // OAuth completion / any recognized entry-point source
+      document.addEventListener('DOMContentLoaded', async () => {
+        let tries = 0;
+        while (typeof supabaseClient === 'undefined' && tries < 30) {
+          await new Promise(r => setTimeout(r, 100));
+          tries++;
+        }
+        if (typeof supabaseClient === 'undefined') return;
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session && session.user) {
+            window.location.replace('/members.html');
+          }
+        } catch (_) { /* getSession failed → let the guest wizard render */ }
+      });
+    })();
+
     function renderSurveyQuestion() {
       const q = SURVEY_QUESTIONS[surveyStep];
       if (!q) { submitSurveyAndClose(); return; }
