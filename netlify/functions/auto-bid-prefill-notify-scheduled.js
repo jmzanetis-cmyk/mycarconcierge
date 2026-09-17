@@ -95,6 +95,71 @@ function isDryRun(event) {
   return qs.dry === '1' || qs.dry === 'true';
 }
 
+// Race recovery for the narrow case where our alreadyPrefilled pre-check
+// missed a concurrent worker's row, our place_plan_bid RPC then succeeded
+// (bid + credit already committed), and our own INSERT hit 23505 on the
+// UNIQUE (provider_id, care_plan_id) constraint. Without reconciliation
+// the bid would be visible via plan_bids everywhere (Job Board "My Bids",
+// member's plan bid list, etc.), but the Auto-Bid Activity ledger would
+// misrepresent it as a pending prefill the user might try to manually
+// confirm — hitting the RPC's duplicate_bid path and getting a confusing
+// error.
+//
+// Reconcile: UPDATE the existing pending prefill row into an authoritative
+// auto_confirmed shape linked to the real bid. Guarded to `status='pending'`
+// so we can't clobber a row the user has already dismissed/confirmed. Every
+// call writes to ai_action_log so this shows up on the AI Ops admin
+// dashboard (same channel payment-tracker / api-key-expiry use for their
+// own "credit charged, bookkeeping might be off" anomalies) — the log
+// entry is the primary alerting mechanism, since Netlify function logs
+// alone aren't watched.
+async function _reconcileAfterRPCRace(supabase, opts) {
+  const nowIso = new Date().toISOString();
+  let recoveredId = null;
+  let updateErrMsg = null;
+  try {
+    const { data, error } = await supabase
+      .from('auto_bid_prefills')
+      .update({ status: 'auto_confirmed', plan_bid_id: opts.placedBidId, responded_at: nowIso })
+      .eq('provider_id', opts.providerId)
+      .eq('care_plan_id', opts.careePlanId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
+    if (error) updateErrMsg = error.message;
+    recoveredId = data && data.id ? data.id : null;
+  } catch (e) {
+    updateErrMsg = e && e.message ? e.message : String(e);
+  }
+  const reconciled = !!recoveredId;
+  const escalated = !reconciled; // pending row was gone (dismissed/expired/etc) → ledger stays wrong
+
+  try {
+    await supabase.from('ai_action_log').insert({
+      module: 'auto_bid_prefill_notify_scheduled',
+      action_type: 'auto_bid_dedup_race_recovered',
+      target_id: opts.placedBidId,
+      decision: {
+        recovered_prefill_id: recoveredId,
+        provider_id: opts.providerId,
+        care_plan_id: opts.careePlanId,
+        plan_bid_id: opts.placedBidId,
+      },
+      confidence: 1.0,
+      auto_executed: true,
+      escalated,
+      outcome: reconciled ? 'reconciled' : 'orphan_bid_ledger_inconsistent',
+      error_details: updateErrMsg
+        || (reconciled ? null : 'existing prefill row was not in pending status — bid + credit committed but Auto-Bid Activity ledger will not show it as auto_confirmed'),
+    });
+  } catch (e) {
+    // Log-only — never fail the whole scheduled run over a bookkeeping row.
+    console.error('[prefill-notify] ai_action_log write failed:', e && e.message);
+  }
+
+  return { reconciled, recoveredId, escalated };
+}
+
 exports.handler = async function (event) {
   const dryRun = isDryRun(event);
   const started = Date.now();
@@ -447,18 +512,60 @@ exports.handler = async function (event) {
         .single();
       if (insErr) {
         if (insErr.code === '23505') {
-          counts.skipped_duplicate++;
-          // NB: if we already placed a bid via the RPC above and the
-          // insert then bounced on dedup, the bid still exists in
-          // plan_bids and the credit was spent. Log it so it's not
-          // silently lost — this is a very narrow race window (another
-          // process wrote a prefill row between our alreadyPrefilled
-          // pre-check and this insert). In practice the schedule is
-          // single-tenant per run, so 0 hits expected in normal ops.
+          // ── Dedup race ────────────────────────────────────────────────
+          // A concurrent worker wrote a prefill row for (provider, plan)
+          // between our alreadyPrefilled pre-check and this INSERT.
           if (placedBidId) {
-            console.warn('[prefill-notify] dedup race — bid placed but prefill row lost:',
-              { providerId, planId: plan.id, bidId: placedBidId });
+            // We already succeeded in place_plan_bid — bid + credit are
+            // committed. Reconcile the losing prefill row into the
+            // authoritative auto_confirmed shape so the Auto-Bid Activity
+            // ledger reflects reality (and ai_action_log surfaces the race
+            // on the admin dashboard). Bid is visible in every plan_bids
+            // reader regardless of this reconcile — this only fixes the
+            // ledger view + gives the provider a working deep-link.
+            const rec = await _reconcileAfterRPCRace(supabase, {
+              providerId,
+              careePlanId: plan.id,
+              placedBidId,
+            });
+            counts.prefills_auto_submitted++;
+            counts.prefills_inserted++; // reconciled row counts as a written prefill
+            if (rec.escalated) counts.errors++;
+            alreadyPrefilled.add(`${providerId}::${plan.id}`);
+            if (dailyCapByProvider.has(providerId)) {
+              dailyCountByProvider.set(providerId, (dailyCountByProvider.get(providerId) || 0) + 1);
+            }
+            // Fire the auto_submitted push using the reconciled row's id
+            // so the deep-link opens the right entry. If the reconcile
+            // couldn't find a pending row (escalated case), still fire so
+            // the provider knows a bid was placed — using a sentinel id
+            // makes the tap fall through to the section rather than
+            // opening a non-existent entry.
+            try {
+              const label = menuLabelByKey.get(itemKey) || itemKey;
+              const pushPrefill = {
+                id: rec.recoveredId,
+                care_plan_id: plan.id,
+                item_key: itemKey,
+                prefilled_amount_cents: priceCents,
+                plan_bid_id: placedBidId,
+              };
+              const pushResult = await dispatchAutoBidPrefill(
+                supabase, providerId, pushPrefill, label, miles, 'auto_submitted'
+              );
+              if (pushResult.sent) counts.pushes_sent++;
+              else counts.pushes_skipped++;
+            } catch (e) {
+              counts.pushes_skipped++;
+              console.error('[prefill-notify] post-recovery push exception:', e.message);
+            }
+            continue;
           }
+          // No placedBidId → we went down the over-cap / no-credits branch
+          // and the race is just a plain dedup (concurrent worker wrote
+          // the same 'pending' row we would have). No reconcile needed;
+          // no credit spent.
+          counts.skipped_duplicate++;
           continue;
         }
         counts.errors++;
@@ -491,3 +598,7 @@ exports.handler = async function (event) {
   console.log('[prefill-notify]', { ...counts, duration_ms, dry_run: dryRun });
   return { statusCode: 200, body: JSON.stringify({ ...counts, duration_ms, dry_run: dryRun }) };
 };
+
+// Exported for the race-recovery unit test. Not called from anywhere else in
+// this codebase — the scheduler above is the sole in-process caller.
+exports._reconcileAfterRPCRace = _reconcileAfterRPCRace;
