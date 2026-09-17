@@ -119,7 +119,8 @@ async function projectItem(supabase, providerId, itemKey) {
   const { data, error } = await supabase
     .from('provider_rate_card_items')
     .select(`
-      id, provider_id, item_key, price_cents, price_type, conditions, active,
+      id, provider_id, item_key, price_cents, min_price_cents,
+      price_type, conditions, active,
       created_at, updated_at,
       menu:item_key ( category, label, sort_order )
     `)
@@ -136,6 +137,7 @@ async function projectItem(supabase, providerId, itemKey) {
       label: data.menu && data.menu.label,
       sort_order: data.menu && data.menu.sort_order,
       price_cents: data.price_cents,
+      min_price_cents: data.min_price_cents,
       price_type: data.price_type,
       conditions: data.conditions,
       active: data.active,
@@ -150,7 +152,8 @@ async function handleGet(supabase, user) {
   const { data, error } = await supabase
     .from('provider_rate_card_items')
     .select(`
-      id, item_key, price_cents, price_type, conditions, active,
+      id, item_key, price_cents, min_price_cents,
+      price_type, conditions, active,
       created_at, updated_at,
       menu:item_key ( category, label, sort_order )
     `)
@@ -167,6 +170,7 @@ async function handleGet(supabase, user) {
     label: r.menu && r.menu.label,
     sort_order: r.menu && r.menu.sort_order,
     price_cents: r.price_cents,
+    min_price_cents: r.min_price_cents,
     price_type: r.price_type,
     conditions: r.conditions,
     active: r.active,
@@ -219,6 +223,22 @@ async function handleUpsert(supabase, user, body) {
     else active = body.active;
   }
 
+  // Auto-Bid decay floor (2026-09-17). null / omitted / empty means the
+  // caller isn't configuring decay for this item — persists as null. Must
+  // be a positive integer <= price_cents when set; the CHECK constraint on
+  // the column enforces the same rule, so this validator catches a bad
+  // value before the DB write with a clear error sentinel instead of a 500.
+  let minPriceCents = null;
+  if (body.min_price_cents !== undefined && body.min_price_cents !== null) {
+    const m = coercePriceCents(body.min_price_cents);
+    if (m === null) errors.push('min_price_cents (positive integer, or null to clear)');
+    else if (priceCents !== null && m > priceCents) {
+      errors.push('min_price_cents must be <= price_cents');
+    } else {
+      minPriceCents = m;
+    }
+  }
+
   if (errors.length) return jsonResp(400, { error: 'validation_failed', details: errors });
 
   // Validate item_key against the menu — must exist and be active. This
@@ -243,6 +263,7 @@ async function handleUpsert(supabase, user, body) {
     price_type: priceType,
     conditions,
     active,
+    min_price_cents: minPriceCents,
   };
   const { error: upErr } = await supabase
     .from('provider_rate_card_items')

@@ -512,6 +512,40 @@ function _renderRateCardRow(menuItem) {
   condsInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   row.appendChild(condsInput);
 
+  // Auto-Bid decay floor — only shown when Auto-Bid is active. Sits inside
+  // the conditions column (row's 4th grid track) as a small addendum so
+  // it doesn't push the grid width — the row layout is already tight on
+  // mobile. Hidden when the provider has Auto-Bid off; visibility gets
+  // re-synced by _syncAutoBidDecayFloorVisibility() whenever the toggle
+  // changes state. Class name lets the CSS match all such fields at once.
+  const minWrap = document.createElement('div');
+  minWrap.className = 'rate-min-price-wrap';
+  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;';
+  minWrap.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;flex-shrink:0;">Auto-decay to</span>';
+  const minPrefix = document.createElement('span');
+  minPrefix.style.cssText = 'color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;margin:0 4px 0 6px;';
+  minPrefix.textContent = '$';
+  const minInput = document.createElement('input');
+  minInput.type = 'number';
+  minInput.className = 'form-input rate-min-price-input';
+  minInput.min = '1';
+  minInput.step = '1';
+  minInput.placeholder = 'No floor';
+  minInput.setAttribute('inputmode', 'numeric');
+  minInput.setAttribute('aria-label', 'Auto-decay floor price');
+  minInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);width:90px;';
+  minInput.value = (saved && saved.min_price_cents) ? String(Math.round(saved.min_price_cents / 100)) : '';
+  minInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') minInput.blur(); });
+  const minHint = document.createElement('span');
+  minHint.style.cssText = 'color:var(--text-muted);font-size:0.75rem;margin-left:8px;';
+  minHint.textContent = '(if contested)';
+  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;align-items:center;flex-wrap:wrap;';
+  minWrap.appendChild(minPrefix);
+  minWrap.appendChild(minInput);
+  minWrap.appendChild(minHint);
+  row.appendChild(minWrap);
+
   const actions = document.createElement('div');
   actions.className = 'rate-actions';
   const activeLabel = document.createElement('label');
@@ -541,6 +575,7 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
   const typeEl = rowEl.querySelector('.rate-type-input');
   const condsEl = rowEl.querySelector('.rate-conds-input');
   const activeEl = rowEl.querySelector('.rate-active-input');
+  const minEl = rowEl.querySelector('.rate-min-price-input');
   if (!priceEl) return;
 
   const raw = priceEl.value.trim();
@@ -562,12 +597,32 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
   const conditions = condsEl && condsEl.value.trim() ? condsEl.value.trim().slice(0, 500) : null;
   const active = activeEl ? !!activeEl.checked : true;
 
+  // Auto-decay floor — nullable, must be a positive integer ≤ priceCents.
+  // Empty input clears the floor. Invalid input shows a toast and doesn't
+  // save. Same client-side rules the endpoint enforces so a bad value
+  // fails fast without a round trip.
+  let minPriceCents = null;
+  if (minEl && minEl.value.trim() !== '') {
+    const md = Number(minEl.value.trim());
+    if (!Number.isFinite(md) || md < 1 || !Number.isInteger(md)) {
+      showToast('Auto-decay floor must be a whole dollar amount, or blank.', 'error');
+      return;
+    }
+    const mCents = md * 100;
+    if (mCents > priceCents) {
+      showToast('Auto-decay floor must be less than or equal to your price.', 'error');
+      return;
+    }
+    minPriceCents = mCents;
+  }
+
   const saved = rateCardByItemKey.get(menuItem.item_key);
   if (saved
       && saved.price_cents === priceCents
       && saved.price_type === priceType
       && (saved.conditions || null) === conditions
-      && !!saved.active === active) {
+      && !!saved.active === active
+      && (saved.min_price_cents || null) === minPriceCents) {
     // No-op — nothing changed since last save.
     return;
   }
@@ -583,6 +638,7 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
         price_type: priceType,
         conditions,
         active,
+        min_price_cents: minPriceCents,
       }),
     });
     const payload = await resp.json().catch(() => ({}));
@@ -659,6 +715,23 @@ async function loadAutoBidActivity() {
     const ledger = await ledgerRes.json();
     const cap = await capRes.json();
 
+    // Phase 8: the /api/auto-bid-daily-cap response now carries three
+    // fields (daily_cap, auto_bid_paused, auto_bid_max_price_cents). Fan
+    // out from one load so the Rate Card header toggle, the dashboard
+    // banner, the description copy, and the Activity empty state all
+    // stay consistent with the same server truth.
+    const paused = !!(cap && cap.auto_bid_paused);
+    _syncAutoBidToggle(paused);
+    _updateAutoBidPauseBanner(paused);
+    _updateAutoBidActivityEmpty(paused);
+    _updateAutoBidCopyOnOff(paused);
+    // Save the last-known max_price so the "Edit auto-submit limit" modal
+    // can prefill without a second round-trip.
+    window.__mccAutoBidState = {
+      auto_bid_paused: paused,
+      auto_bid_max_price_cents: (cap && cap.auto_bid_max_price_cents) || null,
+    };
+
     renderAutoBidActivity(ledger);
     const capInput = document.getElementById('ab-daily-cap-input');
     if (capInput) capInput.value = (cap && typeof cap.daily_cap === 'number') ? cap.daily_cap : '';
@@ -667,6 +740,173 @@ async function loadAutoBidActivity() {
     _autoBidActivityShowError('Could not load auto-bid activity. Refresh to try again.');
   }
 }
+
+// ─── Phase 8: master toggle (three synced surfaces) ─────────────────────
+// All state changes fan out through these tiny helpers so the toggle
+// label, the dashboard banner, the description copy, and the Activity
+// empty state can't drift on a single load.
+
+function _syncAutoBidToggle(paused) {
+  const toggle = document.getElementById('rate-card-autobid-toggle');
+  const label = document.getElementById('rate-card-autobid-label');
+  if (toggle) toggle.checked = !paused;
+  if (label) label.textContent = paused ? 'Auto-Bid: Off' : 'Auto-Bid: Active';
+}
+function _updateAutoBidPauseBanner(paused) {
+  const banner = document.getElementById('auto-bid-pause-banner');
+  if (banner) banner.style.display = paused ? '' : 'none';
+}
+function _updateAutoBidActivityEmpty(paused) {
+  const el = document.getElementById('auto-bid-activity-empty');
+  if (!el) return;
+  if (paused) el.textContent = 'Auto-Bid is paused — turn it on above to start receiving matches.';
+  else el.textContent = 'No auto-bid activity yet. Turn on Auto-Bid above and matching jobs will start bidding here.';
+}
+function _updateAutoBidCopyOnOff(paused) {
+  const offEl = document.getElementById('rate-card-autobid-copy-off');
+  const onEl = document.getElementById('rate-card-autobid-copy-on');
+  if (offEl) offEl.style.display = paused ? '' : 'none';
+  if (onEl) onEl.style.display = paused ? 'none' : '';
+  // Auto-Bid decay floor fields (2026-09-17) are useful only when
+  // Auto-Bid is on — a provider with it off has no bids to decay. Hide
+  // them when paused so the row doesn't grow a control the provider
+  // can't act on right now.
+  const wraps = document.querySelectorAll('.rate-min-price-wrap');
+  wraps.forEach((el) => { el.style.display = paused ? 'none' : 'flex'; });
+}
+
+// Toggle handler. Switch state is presented as on/off (checked = on),
+// column is auto_bid_paused (true = off). For OFF→ON (user is turning
+// it on), OPEN the confirmation modal instead of PATCHing — the modal
+// collects the optional max_price and PATCHes both fields atomically on
+// confirm. Toggle is visually snapped back off until confirm.
+// For ON→OFF (turning off), no confirmation — pausing is the safe
+// direction, matches how the existing Matches Paused banner behaves.
+async function onRateCardAutoBidToggleChange(isOn) {
+  if (isOn) {
+    // Prep modal state: prefill the cap input with the last-known value.
+    const currentMax = (window.__mccAutoBidState && window.__mccAutoBidState.auto_bid_max_price_cents) || null;
+    const priceInput = document.getElementById('ab-confirm-max-price');
+    if (priceInput) priceInput.value = currentMax ? String(Math.round(currentMax / 100)) : '';
+    const errBox = document.getElementById('ab-confirm-error');
+    if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+    // Visually snap toggle back off until confirm. It becomes checked
+    // again inside confirmAutoBidTurnOn() once the PATCH succeeds.
+    _syncAutoBidToggle(true);
+    openModal('auto-bid-confirm-modal');
+    return;
+  }
+  // Turning OFF is direct — no confirmation.
+  await _patchAutoBid({ auto_bid_paused: true }, 'Auto-Bid paused. Your rates are saved.');
+}
+
+async function confirmAutoBidTurnOn() {
+  const priceInput = document.getElementById('ab-confirm-max-price');
+  const errBox = document.getElementById('ab-confirm-error');
+  const btn = document.getElementById('ab-confirm-turn-on-btn');
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  let maxPriceCents = null;
+  if (priceInput && priceInput.value.trim() !== '') {
+    const dollars = Number(priceInput.value);
+    if (!Number.isFinite(dollars) || dollars < 1 || !Number.isInteger(dollars)) {
+      if (errBox) { errBox.textContent = 'Enter a whole-dollar limit greater than 0, or leave blank for no limit.'; errBox.style.display = ''; }
+      return;
+    }
+    maxPriceCents = dollars * 100;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const ok = await _patchAutoBid(
+    { auto_bid_paused: false, auto_bid_max_price_cents: maxPriceCents },
+    'Auto-Bid is on. Matching jobs will bid automatically at your Rate Card price.'
+  );
+  if (btn) { btn.disabled = false; btn.textContent = 'Turn On Auto-Bid'; }
+  if (ok) closeModal('auto-bid-confirm-modal');
+  else if (errBox) { errBox.textContent = 'Could not save — try again.'; errBox.style.display = ''; }
+}
+
+function cancelAutoBidConfirm() {
+  _syncAutoBidToggle(true);   // keep off — user cancelled
+  closeModal('auto-bid-confirm-modal');
+}
+
+function openAutoBidLimitEdit() {
+  const currentMax = (window.__mccAutoBidState && window.__mccAutoBidState.auto_bid_max_price_cents) || null;
+  const el = document.getElementById('ab-limit-max-price');
+  if (el) el.value = currentMax ? String(Math.round(currentMax / 100)) : '';
+  const errBox = document.getElementById('ab-limit-error');
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  openModal('auto-bid-limit-modal');
+}
+
+async function saveAutoBidLimit() {
+  const el = document.getElementById('ab-limit-max-price');
+  const errBox = document.getElementById('ab-limit-error');
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  let maxPriceCents = null;
+  if (el && el.value.trim() !== '') {
+    const dollars = Number(el.value);
+    if (!Number.isFinite(dollars) || dollars < 1 || !Number.isInteger(dollars)) {
+      if (errBox) { errBox.textContent = 'Enter a whole-dollar limit greater than 0, or leave blank for no limit.'; errBox.style.display = ''; }
+      return;
+    }
+    maxPriceCents = dollars * 100;
+  }
+  const ok = await _patchAutoBid({ auto_bid_max_price_cents: maxPriceCents }, 'Auto-submit limit saved.');
+  if (ok) closeModal('auto-bid-limit-modal');
+  else if (errBox) { errBox.textContent = 'Could not save — try again.'; errBox.style.display = ''; }
+}
+
+async function resumeAutoBidFromBanner() {
+  // Same OFF→ON path as flipping the toggle: open the confirmation modal
+  // rather than resuming silently. Consistent with the toggle handler.
+  const currentMax = (window.__mccAutoBidState && window.__mccAutoBidState.auto_bid_max_price_cents) || null;
+  const priceInput = document.getElementById('ab-confirm-max-price');
+  if (priceInput) priceInput.value = currentMax ? String(Math.round(currentMax / 100)) : '';
+  const errBox = document.getElementById('ab-confirm-error');
+  if (errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+  openModal('auto-bid-confirm-modal');
+}
+
+// Shared PATCH helper — returns true on success. Fans out the returned
+// canonical row through _sync* so the entire UI reflects server truth,
+// not the caller's optimistic guess.
+async function _patchAutoBid(patchBody, successToast) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return false;
+    const resp = await fetch('/api/auto-bid-daily-cap', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify(patchBody),
+    });
+    if (!resp.ok) throw new Error('save failed');
+    const canon = await resp.json();
+    const paused = !!(canon && canon.auto_bid_paused);
+    _syncAutoBidToggle(paused);
+    _updateAutoBidPauseBanner(paused);
+    _updateAutoBidActivityEmpty(paused);
+    _updateAutoBidCopyOnOff(paused);
+    window.__mccAutoBidState = {
+      auto_bid_paused: paused,
+      auto_bid_max_price_cents: (canon && canon.auto_bid_max_price_cents) || null,
+    };
+    if (typeof showToast === 'function' && successToast) showToast(successToast, 'success');
+    return true;
+  } catch (err) {
+    console.error('_patchAutoBid error:', err);
+    // Roll UI back to last-known-good by re-loading from server.
+    if (typeof loadAutoBidActivity === 'function') loadAutoBidActivity();
+    if (typeof showToast === 'function') showToast('Could not update Auto-Bid — try again.', 'error');
+    return false;
+  }
+}
+
+window.onRateCardAutoBidToggleChange = onRateCardAutoBidToggleChange;
+window.confirmAutoBidTurnOn = confirmAutoBidTurnOn;
+window.cancelAutoBidConfirm = cancelAutoBidConfirm;
+window.openAutoBidLimitEdit = openAutoBidLimitEdit;
+window.saveAutoBidLimit = saveAutoBidLimit;
+window.resumeAutoBidFromBanner = resumeAutoBidFromBanner;
 
 function renderAutoBidActivity(ledger) {
   const emptyEl = document.getElementById('auto-bid-activity-empty');
@@ -688,15 +928,33 @@ function renderAutoBidActivity(ledger) {
   const sevenDayEl = document.getElementById('ab-activity-7day');
   const confirmedAmountEl = document.getElementById('ab-activity-confirmed-amount');
 
+  // Phase 8: 'auto_confirmed' + 'confirmed' both represent a real bid
+  // placed. Manual (Phase 5's tap-to-confirm) and automatic (Phase 8's
+  // no-review submit) both spent a credit, so they roll up together in
+  // the "confirmed" stat card. The distinction stays available in the
+  // raw ledger response for a future entry-list view.
+  const autoConfirmed = allTime.auto_confirmed || 0;
+  const manualConfirmed = allTime.confirmed || 0;
+  const totalConfirmed = autoConfirmed + manualConfirmed;
+
   if (totalEl) totalEl.textContent = String(allTime.total);
-  if (confirmedEl) confirmedEl.textContent = String(allTime.confirmed);
+  if (confirmedEl) confirmedEl.textContent = String(totalConfirmed);
   if (pendingEl) pendingEl.textContent = String(allTime.pending);
   if (sevenDayEl) sevenDayEl.textContent = String((ledger.last_7_days && ledger.last_7_days.total) || 0);
   if (confirmedAmountEl) {
     const dollars = Math.round((ledger.confirmed_prefilled_amount_cents || 0) / 100);
-    confirmedAmountEl.textContent = allTime.confirmed > 0
-      ? `Prefilled amount across your ${allTime.confirmed} confirmed bid${allTime.confirmed === 1 ? '' : 's'}: $${dollars.toLocaleString()} (the amount pre-filled at confirm time — if you edited a bid before confirming, the actual amount may differ).`
-      : '';
+    // Break down auto vs manual so a provider can see how much of their
+    // spend came from the automatic path.
+    let breakdown = '';
+    if (totalConfirmed > 0) {
+      const parts = [];
+      if (autoConfirmed > 0) parts.push(`${autoConfirmed} auto-submitted`);
+      if (manualConfirmed > 0) parts.push(`${manualConfirmed} manually confirmed`);
+      breakdown = parts.length ? ` (${parts.join(', ')})` : '';
+      confirmedAmountEl.textContent = `Prefilled amount across your ${totalConfirmed} bid${totalConfirmed === 1 ? '' : 's'}${breakdown}: $${dollars.toLocaleString()}.`;
+    } else {
+      confirmedAmountEl.textContent = '';
+    }
   }
 }
 

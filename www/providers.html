@@ -1091,6 +1091,23 @@
         <p class="page-subtitle" style="margin-top:4px;">Find jobs and grow your business.</p>
       </div>
 
+      <!-- Auto-Bid Pause banner (Phase 8) — shown when the provider has
+           Auto-Bid off. Same two-piece pattern as Match Pause below: this
+           surfaces the state at the top of #overview, and the actual
+           toggle lives in-context in the Rate Card card header at #settings. -->
+      <div id="auto-bid-pause-banner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(201,162,39,0.10),rgba(201,162,39,0.03));border:1px solid rgba(201,162,39,0.35);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <span aria-hidden="true" style="font-size:var(--text-2xl);">⏸️</span>
+            <div style="min-width:0;">
+              <div style="font-weight:600;font-size:var(--text-base);">Auto-Bid is paused</div>
+              <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:2px;">Matching jobs won't be automatically bid until you resume. Your Rate Card prices are saved.</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn--secondary" onclick="resumeAutoBidFromBanner()" style="white-space:nowrap;">Resume Auto-Bid</button>
+        </div>
+      </div>
+
       <!-- Match Pause banner (Task #389) — shown when matches_paused=true -->
       <div id="match-pause-banner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(201,162,39,0.18),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.45);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
@@ -2914,10 +2931,25 @@
 
       <!-- Rate Card (Phase 2 auto-bid redesign) -->
       <div class="card" id="rate-card-panel">
-        <div class="card-header">
-          <h2 class="card-title">💵 Rate Card</h2>
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <h2 class="card-title" style="margin:0;">💵 Rate Card</h2>
+          <!-- Phase 8 master toggle. Reuses the shared .toggle-switch component
+               (see :924-929). "On" = automatic bid submission (real credits
+               spent, no review). "Off" = paused; matching jobs are silent.
+               Turning ON triggers a confirmation dialog (opens the modal at
+               #auto-bid-confirm-modal) that also collects the optional
+               max-price cap in the same PATCH. Turning OFF is one-tap. -->
+          <label class="toggle-switch" for="rate-card-autobid-toggle" style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:var(--text-sm);color:var(--text-secondary);">
+            <span id="rate-card-autobid-label">Auto-Bid: Off</span>
+            <input type="checkbox" id="rate-card-autobid-toggle" onchange="onRateCardAutoBidToggleChange(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">Publish standing prices for the services you offer most often. Members see these on your public profile, and matching jobs will pre-fill your bid amount so you're not typing prices in for every request.</p>
+        <p style="color:var(--text-secondary);margin-bottom:8px;font-size:var(--text-base);">Publish standing prices for the services you offer most often. Members see these on your public profile.</p>
+        <p id="rate-card-autobid-copy" style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-sm);">
+          <span id="rate-card-autobid-copy-off" style="display:none;">Auto-Bid is off. Turn it on above to have matching jobs bid automatically at your Rate Card price.</span>
+          <span id="rate-card-autobid-copy-on" style="display:none;">Auto-Bid is on. Matching jobs are automatically bid at your Rate Card price — no review needed. <a href="#" onclick="openAutoBidLimitEdit();return false;" style="color:var(--accent-gold);">Edit auto-submit limit</a></span>
+        </p>
         <div id="rate-card-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
         <div id="rate-card-empty" style="display:none;margin-bottom:16px;padding:14px;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px dashed var(--border-subtle);color:var(--text-muted);font-size:var(--text-sm);">
           No rates saved yet. Add items below to publish prices — you can set fixed prices ("$59") or a starting-at floor ("from $180") and include conditions if needed.
@@ -2930,7 +2962,7 @@
         <div class="card-header">
           <h2 class="card-title">📊 Auto-Bid Activity</h2>
         </div>
-        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">When a job matches your Rate Card, we notify you with a pre-filled bid you can review, edit, and confirm with one tap. This is what that's been doing.</p>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">A log of every job Auto-Bid has bid on or matched you with. Auto-submitted entries were bid automatically at your Rate Card price. Over-cap and out-of-credits matches stay reviewable here so you can confirm them manually.</p>
         <div id="auto-bid-activity-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
         <div id="auto-bid-activity-empty" style="display:none;margin-bottom:16px;padding:14px;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px dashed var(--border-subtle);color:var(--text-muted);font-size:var(--text-sm);">
           No auto-bid activity yet. Once you've priced items on your Rate Card above, matching jobs will start notifying you here.
@@ -4678,6 +4710,67 @@
         <div id="ab-prefill-actions" style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
           <button class="btn btn--secondary" id="ab-prefill-dismiss-btn" onclick="respondToAutoBidPrefill('dismissed')">Dismiss</button>
           <button class="btn" id="ab-prefill-submit-btn" style="background:linear-gradient(135deg,var(--accent-gold),#e6b84a);color:var(--bg-deep);font-weight:600;" onclick="respondToAutoBidPrefill('confirmed')">Submit Bid</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-Bid Turn-On Confirmation Modal (Phase 8) — warns before enabling
+       automatic bid submission, and collects the optional per-job price
+       cap in the same PATCH so nothing is saved without both intents
+       captured. Cancel snaps the toggle back off. Used only for OFF→ON
+       transitions; ON→OFF is a plain one-tap action (safe direction). -->
+  <div class="modal-backdrop" id="auto-bid-confirm-modal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Turn on Auto-Bid?</h3>
+        <button class="modal-close" onclick="cancelAutoBidConfirm()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="ab-confirm-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
+        <p style="color:var(--text-primary);margin-bottom:16px;font-size:var(--text-base);line-height:1.5;">
+          Turning this on will automatically submit bids on matching jobs and spend your paid bid credits — <strong>you won't review them first</strong>. Continue?
+        </p>
+        <div class="form-group" style="margin-top:20px;">
+          <label class="form-label" for="ab-confirm-max-price">Only auto-submit bids under (optional):</label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);">$</span>
+            <input type="number" min="1" step="1" class="form-input" id="ab-confirm-max-price" placeholder="No limit" style="max-width:180px;">
+          </div>
+          <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);">Leave blank for no limit. Jobs priced higher on your Rate Card will fall back to manual review instead of being silently skipped.</div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+          <button class="btn btn--secondary" onclick="cancelAutoBidConfirm()">Cancel</button>
+          <button class="btn btn--primary" id="ab-confirm-turn-on-btn" onclick="confirmAutoBidTurnOn()">Turn On Auto-Bid</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-Bid Limit Edit Modal (Phase 8) — small companion to change the
+       auto_bid_max_price_cents after Auto-Bid is already on, without
+       pausing and re-confirming from scratch. -->
+  <div class="modal-backdrop" id="auto-bid-limit-modal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Auto-Submit Limit</h3>
+        <button class="modal-close" onclick="closeModal('auto-bid-limit-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="ab-limit-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:var(--text-sm);line-height:1.5;">
+          Jobs priced above this limit won't auto-submit — they'll fall back to manual review. Leave blank for no limit.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="ab-limit-max-price">Only auto-submit bids under:</label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);">$</span>
+            <input type="number" min="1" step="1" class="form-input" id="ab-limit-max-price" placeholder="No limit" style="max-width:180px;">
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
+          <button class="btn btn--secondary" onclick="closeModal('auto-bid-limit-modal')">Cancel</button>
+          <button class="btn btn--primary" onclick="saveAutoBidLimit()">Save Limit</button>
         </div>
       </div>
     </div>

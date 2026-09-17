@@ -322,6 +322,12 @@ async function handlePatch(supabase, user, bidId, body) {
     const a = Number.parseFloat(body.amount);
     if (!Number.isFinite(a) || a <= 0) return jsonResp(400, { error: 'invalid_amount' });
     update.amount = a;
+    // Auto-Bid decay (2026-09-17): stamp last_price_change_at any time the
+    // amount moves via this manual PATCH, so the hourly decay engine
+    // resets its clock and doesn't step this bid down immediately after
+    // the provider just adjusted it manually. Same column decay itself
+    // writes — one timestamp covers both movers.
+    update.last_price_change_at = new Date().toISOString();
   }
   if (typeof body.note !== 'undefined') {
     update.note = (typeof body.note === 'string') ? body.note.slice(0, 2000) : null;

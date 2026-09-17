@@ -1,22 +1,36 @@
 // ============================================================================
 // netlify/functions/auto-bid-prefill-notify-scheduled.js
-// Phase 4 of the auto-bid redesign — prefill-notify engine.
+// Auto-bid matching engine — Phase 4 (notify) + Phase 8 (automatic submit).
 //
 // SCHEDULE: "*/5 * * * *" (registered in netlify.toml). Every 5 minutes it
 // scans currently-open care_plans, evaluates each against every provider
-// who has ≥1 active rate card item, and — for the ones that pass all gates
-// — inserts an auto_bid_prefills row and dispatches a push.
+// who has explicitly turned Auto-Bid on (auto_bid_paused=false), and
+// splits into three outcomes at the end:
+//   - price <= optional cap (or no cap set) → place_plan_bid RPC with
+//     p_is_auto_bid=true, real bid + credit spent, prefill 'auto_confirmed'
+//   - price > cap → prefill 'pending' (falls back to Phase 5's manual
+//     review-and-confirm flow)
+//   - RPC returns no-credits → prefill 'pending' + a distinct "no credits"
+//     push, so the match is preserved for a top-up + manual confirm
+//
+// Phase 4 originally built this as pure notify. Phase 8 reshaped it into
+// true automatic submission — the outcome branch below is the new part.
+// Everything above the outcome branch is unchanged.
 //
 // UNRELATED TO auto-bid-engine-scheduled.js:
 //   That is the OLD system (currently paused per 4af7eac). This is a
 //   parallel new system. Do not consolidate them; the old one will be
 //   removed in Phase 7 once this is proven.
 //
-// ELIGIBILITY IS IMPLICIT VIA RATE CARD:
-//   A provider is opted in by having at least one active
-//   provider_rate_card_items row. No separate provider_auto_bid_settings
-//   / feature flag / toggle. This is the decision for Phase 4; Phase 6
-//   may add an explicit toggle.
+// ELIGIBILITY IS EXPLICIT VIA THE PHASE-8 TOGGLE:
+//   A provider participates iff (a) they have ≥1 active
+//   provider_rate_card_items row AND (b) their
+//   provider_notification_preferences.auto_bid_paused is explicitly
+//   false. The DB column defaults to true, so a fresh provider (or one
+//   without a prefs row at all) is paused by default. This flipped in
+//   Phase 8 from the earlier "implicit via rate card only" contract —
+//   the new semantics mean real bids are placed automatically, so an
+//   explicit opt-in via the in-app confirmation dialog is required.
 //
 // THE GATES (short-circuit — bail on first failure, same style as the
 // old auto-bid engine's loop):
@@ -81,6 +95,71 @@ function isDryRun(event) {
   return qs.dry === '1' || qs.dry === 'true';
 }
 
+// Race recovery for the narrow case where our alreadyPrefilled pre-check
+// missed a concurrent worker's row, our place_plan_bid RPC then succeeded
+// (bid + credit already committed), and our own INSERT hit 23505 on the
+// UNIQUE (provider_id, care_plan_id) constraint. Without reconciliation
+// the bid would be visible via plan_bids everywhere (Job Board "My Bids",
+// member's plan bid list, etc.), but the Auto-Bid Activity ledger would
+// misrepresent it as a pending prefill the user might try to manually
+// confirm — hitting the RPC's duplicate_bid path and getting a confusing
+// error.
+//
+// Reconcile: UPDATE the existing pending prefill row into an authoritative
+// auto_confirmed shape linked to the real bid. Guarded to `status='pending'`
+// so we can't clobber a row the user has already dismissed/confirmed. Every
+// call writes to ai_action_log so this shows up on the AI Ops admin
+// dashboard (same channel payment-tracker / api-key-expiry use for their
+// own "credit charged, bookkeeping might be off" anomalies) — the log
+// entry is the primary alerting mechanism, since Netlify function logs
+// alone aren't watched.
+async function _reconcileAfterRPCRace(supabase, opts) {
+  const nowIso = new Date().toISOString();
+  let recoveredId = null;
+  let updateErrMsg = null;
+  try {
+    const { data, error } = await supabase
+      .from('auto_bid_prefills')
+      .update({ status: 'auto_confirmed', plan_bid_id: opts.placedBidId, responded_at: nowIso })
+      .eq('provider_id', opts.providerId)
+      .eq('care_plan_id', opts.careePlanId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
+    if (error) updateErrMsg = error.message;
+    recoveredId = data && data.id ? data.id : null;
+  } catch (e) {
+    updateErrMsg = e && e.message ? e.message : String(e);
+  }
+  const reconciled = !!recoveredId;
+  const escalated = !reconciled; // pending row was gone (dismissed/expired/etc) → ledger stays wrong
+
+  try {
+    await supabase.from('ai_action_log').insert({
+      module: 'auto_bid_prefill_notify_scheduled',
+      action_type: 'auto_bid_dedup_race_recovered',
+      target_id: opts.placedBidId,
+      decision: {
+        recovered_prefill_id: recoveredId,
+        provider_id: opts.providerId,
+        care_plan_id: opts.careePlanId,
+        plan_bid_id: opts.placedBidId,
+      },
+      confidence: 1.0,
+      auto_executed: true,
+      escalated,
+      outcome: reconciled ? 'reconciled' : 'orphan_bid_ledger_inconsistent',
+      error_details: updateErrMsg
+        || (reconciled ? null : 'existing prefill row was not in pending status — bid + credit committed but Auto-Bid Activity ledger will not show it as auto_confirmed'),
+    });
+  } catch (e) {
+    // Log-only — never fail the whole scheduled run over a bookkeeping row.
+    console.error('[prefill-notify] ai_action_log write failed:', e && e.message);
+  }
+
+  return { reconciled, recoveredId, escalated };
+}
+
 exports.handler = async function (event) {
   const dryRun = isDryRun(event);
   const started = Date.now();
@@ -94,7 +173,10 @@ exports.handler = async function (event) {
     plans_scanned: 0,
     providers_scanned: 0,
     candidate_pairs: 0,
-    prefills_inserted: 0,
+    prefills_inserted: 0,             // total prefill rows written (sum of the three outcomes below)
+    prefills_auto_submitted: 0,       // Phase 8: real bid placed via place_plan_bid RPC (status='auto_confirmed')
+    prefills_over_cap_notify_only: 0, // Phase 8: price > auto_bid_max_price_cents → fell back to review-and-confirm
+    skipped_auto_submit_no_credits: 0,// Phase 8: RPC returned P0001, prefill written as 'pending' for manual review after top-up
     prefills_dry_run: 0,
     pushes_sent: 0,
     pushes_skipped: 0,
@@ -107,6 +189,7 @@ exports.handler = async function (event) {
     skipped_not_on_rate_card: 0,
     skipped_self_bid: 0,
     skipped_daily_cap: 0,
+    skipped_auto_bid_paused: 0,       // Phase 8: master pause toggle is on
     errors: 0,
   };
 
@@ -193,14 +276,37 @@ exports.handler = async function (event) {
   // rest of this run, seeded from today's real count and incremented on
   // every successful insert below, so a provider can't blow past their
   // cap within one run even across many candidate plans.
+  // Phase 8: one query for all three per-provider prefs.
+  //   - auto_bid_prefill_daily_cap  → optional per-provider cap on notify volume
+  //   - auto_bid_paused             → master switch. NB: DB column defaults to
+  //                                     true, so a missing row means "paused"
+  //                                     (not opted in). Only explicit false
+  //                                     unpauses.
+  //   - auto_bid_max_price_cents    → optional ceiling. null = no cap, all
+  //                                     matches auto-submit. When set, prices
+  //                                     over the cap fall back to the
+  //                                     review-and-confirm path.
   const { data: notifPrefs } = await supabase
     .from('provider_notification_preferences')
-    .select('provider_id, auto_bid_prefill_daily_cap')
+    .select('provider_id, auto_bid_prefill_daily_cap, auto_bid_paused, auto_bid_max_price_cents')
     .in('provider_id', providerIds);
   const dailyCapByProvider = new Map(
     (notifPrefs || [])
       .filter(p => p.auto_bid_prefill_daily_cap !== null && p.auto_bid_prefill_daily_cap !== undefined)
       .map(p => [p.provider_id, p.auto_bid_prefill_daily_cap])
+  );
+  // Set of providers who have explicitly opted IN (auto_bid_paused=false). A
+  // provider with no row, or with the default true, is considered paused —
+  // Phase 8 flipped the default to true so nobody is silently auto-submitting.
+  const unpausedProviders = new Set(
+    (notifPrefs || [])
+      .filter(p => p.auto_bid_paused === false)
+      .map(p => p.provider_id)
+  );
+  const maxPriceByProvider = new Map(
+    (notifPrefs || [])
+      .filter(p => p.auto_bid_max_price_cents !== null && p.auto_bid_max_price_cents !== undefined)
+      .map(p => [p.provider_id, p.auto_bid_max_price_cents])
   );
 
   const todayStart = new Date();
@@ -242,6 +348,17 @@ exports.handler = async function (event) {
       const dailyCap = dailyCapByProvider.get(providerId);
       if (dailyCap !== undefined && (dailyCountByProvider.get(providerId) || 0) >= dailyCap) {
         counts.skipped_daily_cap++;
+        continue;
+      }
+
+      // Phase 8 master pause toggle. auto_bid_paused defaults to true
+      // (Phase 8 flipped this from the earlier notify-only draft's false),
+      // so a provider only participates if their row has explicit false.
+      // Deliberately NOT bypassed for admins — unlike verification and
+      // suspension (system safety gates), pause is the provider's own
+      // preference and should always be honored.
+      if (!unpausedProviders.has(providerId)) {
+        counts.skipped_auto_bid_paused++;
         continue;
       }
 
@@ -288,30 +405,166 @@ exports.handler = async function (event) {
       }
       const priceCents = rateCard.get(itemKey);
 
-      // ── Passed every gate — insert + push ─────────────────────────────
+      // ── Passed every gate — decide outcome (Phase 8 three-way branch) ─
+      // Everything above is unchanged from Phase 4/7. What's new below:
+      //   (a) if the provider set a max-price cap and this job exceeds it,
+      //       fall back to the pre-Phase-8 review-and-confirm path (prefill
+      //       row as 'pending', push with notify_only copy). The provider
+      //       can still confirm manually through Phase 5's flow.
+      //   (b) otherwise, attempt the auto-submit: call place_plan_bid with
+      //       p_is_auto_bid=true. The RPC is the single source of truth
+      //       for atomic credit-decrement + plan_bids insert, shared with
+      //       Phase 5's manual confirm path — no duplicated credit logic.
+      //       Success → prefill row as 'auto_confirmed' linked via plan_bid_id
+      //       to the real bid + push with auto_submitted copy.
+      //       P0001 no_credits → prefill row as 'pending' (visible/manually
+      //       confirmable after top-up) + push with no_credits copy.
+      // The auto_bid_prefills UNIQUE (provider_id, care_plan_id) constraint
+      // still blocks double-inserts across overlapping runs regardless of
+      // which of the three outcomes above ends up writing the row.
       if (dryRun) {
         counts.prefills_dry_run++;
         continue;
       }
 
-      const insertRow = {
-        provider_id: providerId,
-        care_plan_id: plan.id,
-        item_key: itemKey,
-        prefilled_amount_cents: priceCents,
-        status: 'pending',
-      };
+      const maxPrice = maxPriceByProvider.get(providerId);
+      const overCap = maxPrice !== undefined && priceCents > maxPrice;
+
+      let insertRow;
+      let outcomeKind = 'notify_only';  // 'notify_only' | 'auto_submitted' | 'no_credits'
+      let placedBidId = null;
+
+      if (overCap) {
+        // Over-cap → fall back to notify-only. Prefill row is 'pending' so
+        // it shows up in the provider's Auto-Bid Activity as a reviewable
+        // entry, exactly like a Phase 4/5 prefill.
+        insertRow = {
+          provider_id: providerId,
+          care_plan_id: plan.id,
+          item_key: itemKey,
+          prefilled_amount_cents: priceCents,
+          status: 'pending',
+        };
+        counts.prefills_over_cap_notify_only++;
+      } else {
+        // Attempt real bid submission via the shared RPC.
+        const rpc = await supabase.rpc('place_plan_bid', {
+          p_provider_id:  providerId,
+          p_care_plan_id: plan.id,
+          p_amount:       priceCents / 100,   // RPC takes numeric dollars
+          p_note:         `Auto-bid from rate card: ${menuLabelByKey.get(itemKey) || itemKey}`,
+          p_is_auto_bid:  true,
+        });
+        if (rpc.error) {
+          // P0001 is our "no credits" sentinel — insert 'pending' so the
+          // prefill still surfaces in the activity feed and can be
+          // manually confirmed once the provider tops up.
+          const msg = rpc.error.message || '';
+          if (rpc.error.code === 'P0001' || msg.indexOf('no_credits_available') !== -1) {
+            counts.skipped_auto_submit_no_credits++;
+            insertRow = {
+              provider_id: providerId,
+              care_plan_id: plan.id,
+              item_key: itemKey,
+              prefilled_amount_cents: priceCents,
+              status: 'pending',
+            };
+            outcomeKind = 'no_credits';
+          } else {
+            // Any other RPC failure is a real bug — do NOT insert a prefill
+            // (we don't want a phantom row without a matching plan_bid),
+            // count the error, and move on.
+            counts.errors++;
+            console.error('[prefill-notify] place_plan_bid RPC failed:',
+              msg, 'code=' + rpc.error.code, { providerId, planId: plan.id });
+            continue;
+          }
+        } else {
+          // Success — RPC returns a table; supabase-js gives us the first row.
+          const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+          if (!row || !row.bid_id) {
+            counts.errors++;
+            console.error('[prefill-notify] place_plan_bid returned empty row:', rpc.data);
+            continue;
+          }
+          placedBidId = row.bid_id;
+          insertRow = {
+            provider_id: providerId,
+            care_plan_id: plan.id,
+            item_key: itemKey,
+            prefilled_amount_cents: priceCents,
+            status: 'auto_confirmed',
+            plan_bid_id: placedBidId,
+            responded_at: new Date().toISOString(),
+          };
+          counts.prefills_auto_submitted++;
+          outcomeKind = 'auto_submitted';
+        }
+      }
+
+      // Insert the prefill row. UNIQUE (provider_id, care_plan_id) races
+      // between overlapping runs still bounce off 23505 and are counted
+      // as a duplicate, matching the pre-Phase-8 behavior.
       const { data: inserted, error: insErr } = await supabase
         .from('auto_bid_prefills')
         .insert(insertRow)
-        .select('id, provider_id, care_plan_id, item_key, prefilled_amount_cents')
+        .select('id, provider_id, care_plan_id, item_key, prefilled_amount_cents, status, plan_bid_id')
         .single();
-
       if (insErr) {
-        // UNIQUE violation (23505) is our real dedup backstop — treat as
-        // "someone else prefilled between the pre-check and now" and
-        // move on quietly rather than logging a spurious error.
         if (insErr.code === '23505') {
+          // ── Dedup race ────────────────────────────────────────────────
+          // A concurrent worker wrote a prefill row for (provider, plan)
+          // between our alreadyPrefilled pre-check and this INSERT.
+          if (placedBidId) {
+            // We already succeeded in place_plan_bid — bid + credit are
+            // committed. Reconcile the losing prefill row into the
+            // authoritative auto_confirmed shape so the Auto-Bid Activity
+            // ledger reflects reality (and ai_action_log surfaces the race
+            // on the admin dashboard). Bid is visible in every plan_bids
+            // reader regardless of this reconcile — this only fixes the
+            // ledger view + gives the provider a working deep-link.
+            const rec = await _reconcileAfterRPCRace(supabase, {
+              providerId,
+              careePlanId: plan.id,
+              placedBidId,
+            });
+            counts.prefills_auto_submitted++;
+            counts.prefills_inserted++; // reconciled row counts as a written prefill
+            if (rec.escalated) counts.errors++;
+            alreadyPrefilled.add(`${providerId}::${plan.id}`);
+            if (dailyCapByProvider.has(providerId)) {
+              dailyCountByProvider.set(providerId, (dailyCountByProvider.get(providerId) || 0) + 1);
+            }
+            // Fire the auto_submitted push using the reconciled row's id
+            // so the deep-link opens the right entry. If the reconcile
+            // couldn't find a pending row (escalated case), still fire so
+            // the provider knows a bid was placed — using a sentinel id
+            // makes the tap fall through to the section rather than
+            // opening a non-existent entry.
+            try {
+              const label = menuLabelByKey.get(itemKey) || itemKey;
+              const pushPrefill = {
+                id: rec.recoveredId,
+                care_plan_id: plan.id,
+                item_key: itemKey,
+                prefilled_amount_cents: priceCents,
+                plan_bid_id: placedBidId,
+              };
+              const pushResult = await dispatchAutoBidPrefill(
+                supabase, providerId, pushPrefill, label, miles, 'auto_submitted'
+              );
+              if (pushResult.sent) counts.pushes_sent++;
+              else counts.pushes_skipped++;
+            } catch (e) {
+              counts.pushes_skipped++;
+              console.error('[prefill-notify] post-recovery push exception:', e.message);
+            }
+            continue;
+          }
+          // No placedBidId → we went down the over-cap / no-credits branch
+          // and the race is just a plain dedup (concurrent worker wrote
+          // the same 'pending' row we would have). No reconcile needed;
+          // no credit spent.
           counts.skipped_duplicate++;
           continue;
         }
@@ -325,11 +578,13 @@ exports.handler = async function (event) {
         dailyCountByProvider.set(providerId, (dailyCountByProvider.get(providerId) || 0) + 1);
       }
 
-      // Fire push. Failures are already logged inside the dispatcher;
-      // we just tally sent/skipped here.
+      // Fire the outcome-specific push. Failures are logged inside the
+      // dispatcher; we just tally sent/skipped here.
       try {
         const label = menuLabelByKey.get(itemKey) || itemKey;
-        const pushResult = await dispatchAutoBidPrefill(supabase, providerId, inserted, label, miles);
+        const pushResult = await dispatchAutoBidPrefill(
+          supabase, providerId, inserted, label, miles, outcomeKind
+        );
         if (pushResult.sent) counts.pushes_sent++;
         else counts.pushes_skipped++;
       } catch (e) {
@@ -343,3 +598,7 @@ exports.handler = async function (event) {
   console.log('[prefill-notify]', { ...counts, duration_ms, dry_run: dryRun });
   return { statusCode: 200, body: JSON.stringify({ ...counts, duration_ms, dry_run: dryRun }) };
 };
+
+// Exported for the race-recovery unit test. Not called from anywhere else in
+// this codebase — the scheduler above is the sole in-process caller.
+exports._reconcileAfterRPCRace = _reconcileAfterRPCRace;

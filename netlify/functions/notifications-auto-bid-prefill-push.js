@@ -56,13 +56,38 @@ async function isAutoBidPrefillAllowed(supabase, providerId) {
 // Format the body message. Distance rounds to one decimal (matches how
 // the boards render distance chips); price prints as a plain dollar
 // figure (no cents — a rate card is round-number pricing).
-function _formatBody(itemLabel, distanceMiles, priceCents) {
+//
+// Kind selects the copy variant added in Phase 8:
+//   - 'notify_only'    — original review-and-confirm push (was the only
+//                         variant pre-Phase 8). Fires when auto-bid is
+//                         paused, or when the job's price exceeds the
+//                         provider's auto_bid_max_price_cents cap.
+//   - 'auto_submitted' — Phase 8 automatic-submission success. The bid
+//                         is real, credit was already spent — this is
+//                         informational, not a call to action.
+//   - 'no_credits'     — Phase 8 automatic-submission blocked because
+//                         the provider had no credits. Prefill saved as
+//                         'pending' so it can still be reviewed/confirmed
+//                         once they top up.
+function _formatBody(kind, itemLabel, distanceMiles, priceCents) {
   const dollars = Math.round((priceCents || 0) / 100);
   const miles = typeof distanceMiles === 'number' && isFinite(distanceMiles)
     ? distanceMiles.toFixed(1).replace(/\.0$/, '')
     : '?';
   const label = itemLabel || 'matching';
+  if (kind === 'auto_submitted') {
+    return `We auto-bid $${dollars} on a ${label} job ${miles} mi away.`;
+  }
+  if (kind === 'no_credits') {
+    return `Match found for a ${label} job ${miles} mi away, but you're out of bid credits — top up or review manually.`;
+  }
   return `New ${label} job ${miles} mi away — review your $${dollars} bid.`;
+}
+
+function _formatTitle(kind) {
+  if (kind === 'auto_submitted') return 'Bid placed';
+  if (kind === 'no_credits') return 'Match — no credits';
+  return 'New matching job';
 }
 
 // Dispatch. Returns { sent, success, failure, reason? } — same shape as
@@ -71,10 +96,13 @@ function _formatBody(itemLabel, distanceMiles, priceCents) {
 // Arguments:
 //   supabase       — service-role client from the caller
 //   providerId     — profiles.id / auth.users.id
-//   prefill        — { care_plan_id, item_key, prefilled_amount_cents } from the row we just wrote
-//   itemLabel      — service_menu_items.label (caller looked it up already; passing in avoids a re-query)
-//   distanceMiles  — from planWithinRadius (never null at the notify stage — the engine gates on that)
-async function dispatchAutoBidPrefill(supabase, providerId, prefill, itemLabel, distanceMiles) {
+//   prefill        — { id, care_plan_id, item_key, prefilled_amount_cents,
+//                      plan_bid_id? } from the row we just wrote/updated
+//   itemLabel      — service_menu_items.label (caller looked it up already)
+//   distanceMiles  — from planWithinRadius (never null at the notify stage)
+//   kind           — 'notify_only' | 'auto_submitted' | 'no_credits'
+//                    (default 'notify_only' for backward compat)
+async function dispatchAutoBidPrefill(supabase, providerId, prefill, itemLabel, distanceMiles, kind = 'notify_only') {
   if (!process.env.FCM_SERVICE_ACCOUNT_JSON) {
     return { sent: false, reason: 'not_configured', success: 0, failure: 0 };
   }
@@ -104,8 +132,8 @@ async function dispatchAutoBidPrefill(supabase, providerId, prefill, itemLabel, 
   try { projectId = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON).project_id; }
   catch { return { sent: false, reason: 'invalid_service_account', success: 0, failure: 0 }; }
 
-  const title = 'New matching job';
-  const body = _formatBody(itemLabel, distanceMiles, prefill.prefilled_amount_cents);
+  const title = _formatTitle(kind);
+  const body = _formatBody(kind, itemLabel, distanceMiles, prefill.prefilled_amount_cents);
 
   // Phase 5 shipped: deep-link straight to the review/confirm card via
   // the shared handleNotificationDeepLink() convention in
@@ -118,7 +146,9 @@ async function dispatchAutoBidPrefill(supabase, providerId, prefill, itemLabel, 
     care_plan_id: prefill.care_plan_id,
     item_key: prefill.item_key,
     prefilled_amount_cents: String(prefill.prefilled_amount_cents),
+    kind,
   };
+  if (prefill.plan_bid_id) payloadData.plan_bid_id = prefill.plan_bid_id;
 
   const stale = [];
   let success = 0, failure = 0;
