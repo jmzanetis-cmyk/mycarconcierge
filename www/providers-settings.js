@@ -375,6 +375,40 @@ function _renderRateCardRow(menuItem) {
   condsInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   row.appendChild(condsInput);
 
+  // Auto-Bid decay floor — only shown when Auto-Bid is active. Sits inside
+  // the conditions column (row's 4th grid track) as a small addendum so
+  // it doesn't push the grid width — the row layout is already tight on
+  // mobile. Hidden when the provider has Auto-Bid off; visibility gets
+  // re-synced by _syncAutoBidDecayFloorVisibility() whenever the toggle
+  // changes state. Class name lets the CSS match all such fields at once.
+  const minWrap = document.createElement('div');
+  minWrap.className = 'rate-min-price-wrap';
+  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;';
+  minWrap.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;flex-shrink:0;">Auto-decay to</span>';
+  const minPrefix = document.createElement('span');
+  minPrefix.style.cssText = 'color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;margin:0 4px 0 6px;';
+  minPrefix.textContent = '$';
+  const minInput = document.createElement('input');
+  minInput.type = 'number';
+  minInput.className = 'form-input rate-min-price-input';
+  minInput.min = '1';
+  minInput.step = '1';
+  minInput.placeholder = 'No floor';
+  minInput.setAttribute('inputmode', 'numeric');
+  minInput.setAttribute('aria-label', 'Auto-decay floor price');
+  minInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);width:90px;';
+  minInput.value = (saved && saved.min_price_cents) ? String(Math.round(saved.min_price_cents / 100)) : '';
+  minInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
+  minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') minInput.blur(); });
+  const minHint = document.createElement('span');
+  minHint.style.cssText = 'color:var(--text-muted);font-size:0.75rem;margin-left:8px;';
+  minHint.textContent = '(if contested)';
+  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;align-items:center;flex-wrap:wrap;';
+  minWrap.appendChild(minPrefix);
+  minWrap.appendChild(minInput);
+  minWrap.appendChild(minHint);
+  row.appendChild(minWrap);
+
   const actions = document.createElement('div');
   actions.style.cssText = 'display:flex;align-items:center;gap:8px;';
   const activeLabel = document.createElement('label');
@@ -404,6 +438,7 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
   const typeEl = rowEl.querySelector('.rate-type-input');
   const condsEl = rowEl.querySelector('.rate-conds-input');
   const activeEl = rowEl.querySelector('.rate-active-input');
+  const minEl = rowEl.querySelector('.rate-min-price-input');
   if (!priceEl) return;
 
   const raw = priceEl.value.trim();
@@ -425,12 +460,32 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
   const conditions = condsEl && condsEl.value.trim() ? condsEl.value.trim().slice(0, 500) : null;
   const active = activeEl ? !!activeEl.checked : true;
 
+  // Auto-decay floor — nullable, must be a positive integer ≤ priceCents.
+  // Empty input clears the floor. Invalid input shows a toast and doesn't
+  // save. Same client-side rules the endpoint enforces so a bad value
+  // fails fast without a round trip.
+  let minPriceCents = null;
+  if (minEl && minEl.value.trim() !== '') {
+    const md = Number(minEl.value.trim());
+    if (!Number.isFinite(md) || md < 1 || !Number.isInteger(md)) {
+      showToast('Auto-decay floor must be a whole dollar amount, or blank.', 'error');
+      return;
+    }
+    const mCents = md * 100;
+    if (mCents > priceCents) {
+      showToast('Auto-decay floor must be less than or equal to your price.', 'error');
+      return;
+    }
+    minPriceCents = mCents;
+  }
+
   const saved = rateCardByItemKey.get(menuItem.item_key);
   if (saved
       && saved.price_cents === priceCents
       && saved.price_type === priceType
       && (saved.conditions || null) === conditions
-      && !!saved.active === active) {
+      && !!saved.active === active
+      && (saved.min_price_cents || null) === minPriceCents) {
     // No-op — nothing changed since last save.
     return;
   }
@@ -446,6 +501,7 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
         price_type: priceType,
         conditions,
         active,
+        min_price_cents: minPriceCents,
       }),
     });
     const payload = await resp.json().catch(() => ({}));
@@ -574,6 +630,12 @@ function _updateAutoBidCopyOnOff(paused) {
   const onEl = document.getElementById('rate-card-autobid-copy-on');
   if (offEl) offEl.style.display = paused ? '' : 'none';
   if (onEl) onEl.style.display = paused ? 'none' : '';
+  // Auto-Bid decay floor fields (2026-09-17) are useful only when
+  // Auto-Bid is on — a provider with it off has no bids to decay. Hide
+  // them when paused so the row doesn't grow a control the provider
+  // can't act on right now.
+  const wraps = document.querySelectorAll('.rate-min-price-wrap');
+  wraps.forEach((el) => { el.style.display = paused ? 'none' : 'flex'; });
 }
 
 // Toggle handler. Switch state is presented as on/off (checked = on),

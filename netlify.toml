@@ -201,6 +201,14 @@
 [functions."auto-bid-prefill-notify-scheduled"]
   schedule = "*/5 * * * *"
 
+# Auto-Bid price decay (2026-09-17). Hourly — decay is slow-moving by design;
+# each pending auto-bid steps its price down by $5 at most every 6h, and only
+# when the plan is contested. Reads a binary "contested or not" fact and a
+# clock — never a competitor's amount. See the scheduled fn's own header for
+# the guardrail.
+[functions."auto-bid-price-decay-scheduled"]
+  schedule = "0 * * * *"
+
 # Maintenance reminders: checks vehicles due for service and sends email/SMS
 # to members based on their notification preferences. Runs daily at 08:00 UTC.
 [functions."maintenance-reminders-scheduled"]
