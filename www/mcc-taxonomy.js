@@ -116,9 +116,20 @@
       html += '<div class="taxonomy-group" data-group="' + grp.key + '" style="grid-column:1/-1;margin-top:' + (g ? '14px' : '0') + ';font-size:0.8rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted);">' + esc(grp.label) + '</div>';
       for (var i = 0; i < grp.categories.length; i++) {
         var c = grp.categories[i];
-        html += '<label class="service-checkbox" title="' + esc(EXAMPLES[c] || '') + '">' +
+        // Hint text (EXAMPLES) is rendered as a visible sub-line under the
+        // label, not just as the hover title — provider settings screens
+        // are primarily used from the iOS/Android app where there's no
+        // hover state. The `--with-hint` modifier class scopes the
+        // two-line-alignment CSS to just these labels; the base
+        // .service-checkbox is also used by the static "Services Offered"
+        // list on the Business Profile page (single-line items), which
+        // must stay centered.
+        html += '<label class="service-checkbox service-checkbox--with-hint" title="' + esc(EXAMPLES[c] || '') + '">' +
           '<input type="checkbox" value="' + c + '" class="' + esc(inputClass) + '"' + (checked.has(c) ? ' checked' : '') + '> ' +
-          '<span>' + esc(label(c)) + '</span>' +
+          '<span class="service-checkbox-label">' +
+            '<span class="service-checkbox-title">' + esc(label(c)) + '</span>' +
+            (EXAMPLES[c] ? '<span class="service-checkbox-hint">' + esc(EXAMPLES[c]) + '</span>' : '') +
+          '</span>' +
           '</label>';
       }
     }
