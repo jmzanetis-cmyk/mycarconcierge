@@ -334,27 +334,103 @@ function _renderRateCardRow(menuItem) {
   }
 
   // Priced OR pending: full editable row.
-  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
+  // Price column bumped from 1fr → 1.3fr so the new –/+ stepper (34px per
+  // button + $ prefix + input) doesn't crowd the number display below the
+  // wrap width of a phone.
+  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1.5fr) minmax(140px,1.3fr) minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;';
 
   const labelEl = document.createElement('div');
   labelEl.style.cssText = 'font-size:var(--text-sm);color:var(--text-primary);';
   labelEl.textContent = menuItem.label;
   row.appendChild(labelEl);
 
+  // Price stepper: –/+ buttons flanking a number display. Default step is
+  // $5; tapping the number itself still lets a provider type an exact
+  // figure. The input keeps the .rate-price-input class + integer-dollar
+  // value semantics unchanged, so _rateCardMaybeSave doesn't need to know
+  // the control shape changed.
   const priceWrap = document.createElement('div');
-  priceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;';
-  priceWrap.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);">$</span>';
+  priceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;min-width:0;';
+  priceWrap.innerHTML = '<span style="color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;">$</span>';
+
+  const btnStyle =
+    'width:34px;height:34px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;'
+    + 'padding:0;font-size:var(--text-lg);font-weight:600;line-height:1;'
+    + 'background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:6px;'
+    + 'color:var(--text-primary);cursor:pointer;user-select:none;';
+
+  const decBtn = document.createElement('button');
+  decBtn.type = 'button';
+  decBtn.className = 'rate-price-step rate-price-step-dec';
+  decBtn.setAttribute('aria-label', 'Decrease price by $5');
+  decBtn.textContent = '–';
+  decBtn.style.cssText = btnStyle;
+
   const priceInput = document.createElement('input');
   priceInput.type = 'number';
   priceInput.className = 'form-input rate-price-input';
   priceInput.min = '1';
   priceInput.step = '1';
   priceInput.placeholder = '0';
-  priceInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);';
+  priceInput.setAttribute('inputmode', 'numeric');
+  priceInput.setAttribute('aria-label', 'Price in dollars');
+  // Larger, centered numeric readout that still doubles as a direct-edit
+  // input on tap/focus. Flex-grows to eat the middle of the stepper.
+  priceInput.style.cssText =
+    'padding:6px 4px;font-size:var(--text-base);font-weight:600;text-align:center;'
+    + 'min-width:0;flex:1 1 auto;';
   priceInput.value = saved ? String(Math.round(saved.price_cents / 100)) : '';
   priceInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   priceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') priceInput.blur(); });
+
+  const incBtn = document.createElement('button');
+  incBtn.type = 'button';
+  incBtn.className = 'rate-price-step rate-price-step-inc';
+  incBtn.setAttribute('aria-label', 'Increase price by $5');
+  incBtn.textContent = '+';
+  incBtn.style.cssText = btnStyle;
+
+  // Step logic. Default step is $5 per tap. Clamp to the same $1–$100,000
+  // range _rateCardMaybeSave enforces on save so the stepper can't push
+  // the input into a state that would reject on blur. Each step fires a
+  // blur immediately so the change round-trips to the server the same
+  // way as a manual keyboard edit — no separate save path.
+  const STEP_DOLLARS = 5;
+  const MIN_DOLLARS = 1;
+  const MAX_DOLLARS = 100000;
+  function stepPrice(delta) {
+    const raw = priceInput.value.trim();
+    let cur = raw === '' ? 0 : Number.parseFloat(raw);
+    if (!Number.isFinite(cur)) cur = 0;
+    // If the current value is a non-multiple of STEP_DOLLARS, snap toward
+    // the next multiple in the direction of the tap so a provider whose
+    // rate was $87 doesn't end up at $92/$82 on the first tap. Same idea
+    // as most native steppers.
+    let next;
+    if (cur === 0) {
+      next = delta > 0 ? STEP_DOLLARS : MIN_DOLLARS;
+    } else if (cur % STEP_DOLLARS !== 0) {
+      next = delta > 0
+        ? Math.ceil(cur / STEP_DOLLARS) * STEP_DOLLARS
+        : Math.floor(cur / STEP_DOLLARS) * STEP_DOLLARS;
+    } else {
+      next = cur + delta * STEP_DOLLARS;
+    }
+    if (next < MIN_DOLLARS) next = MIN_DOLLARS;
+    if (next > MAX_DOLLARS) next = MAX_DOLLARS;
+    priceInput.value = String(next);
+    // Trigger the same save path as a manual edit. Using blur() (rather
+    // than dispatchEvent 'blur') so the browser's focus state also
+    // updates if the input happened to be focused when the button was
+    // tapped — no ghost focus rings.
+    priceInput.blur();
+  }
+  decBtn.addEventListener('click', () => stepPrice(-1));
+  incBtn.addEventListener('click', () => stepPrice(+1));
+
+  priceWrap.appendChild(decBtn);
   priceWrap.appendChild(priceInput);
+  priceWrap.appendChild(incBtn);
   row.appendChild(priceWrap);
 
   const typeSelect = document.createElement('select');
