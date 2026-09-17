@@ -570,12 +570,23 @@ function _renderRateCardRow(menuItem) {
   return row;
 }
 
-async function _rateCardMaybeSave(menuItem, rowEl) {
+// Fat-finger guard for the auto-decay floor. If the entered floor is within
+// $5 of the item's price AND it's different from what's currently saved,
+// _rateCardMaybeSave() shows an inline confirmation strip instead of saving
+// — a floor that barely does anything is more likely a typo (meant $30 but
+// typed $53 against a $56 price) than an intentional narrow band. Any floor
+// >$5 below price saves immediately as it does today. Confirmation strip's
+// Save button re-enters this function with { forceConfirmFloorClose: true }
+// to bypass the guard.
+const FLOOR_CLOSE_TO_PRICE_CENTS = 500;
+
+async function _rateCardMaybeSave(menuItem, rowEl, opts) {
   const priceEl = rowEl.querySelector('.rate-price-input');
   const typeEl = rowEl.querySelector('.rate-type-input');
   const condsEl = rowEl.querySelector('.rate-conds-input');
   const activeEl = rowEl.querySelector('.rate-active-input');
   const minEl = rowEl.querySelector('.rate-min-price-input');
+  const forceConfirmFloorClose = !!(opts && opts.forceConfirmFloorClose);
   if (!priceEl) return;
 
   const raw = priceEl.value.trim();
@@ -624,8 +635,24 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
       && !!saved.active === active
       && (saved.min_price_cents || null) === minPriceCents) {
     // No-op — nothing changed since last save.
+    _hideRateFloorCloseConfirm(rowEl);
     return;
   }
+
+  // Fat-finger guard on the auto-decay floor. Fires when the floor is within
+  // $5 of price AND it's not what's currently saved (so we're actually about
+  // to write it). The confirmation strip's Save button re-enters this
+  // function with { forceConfirmFloorClose: true } to bypass — that's the
+  // only path that persists a floor this close to price. Cancel restores
+  // the previous saved value (or blank).
+  if (!forceConfirmFloorClose
+      && minPriceCents !== null
+      && (priceCents - minPriceCents) <= FLOOR_CLOSE_TO_PRICE_CENTS
+      && (saved ? saved.min_price_cents !== minPriceCents : true)) {
+    _showRateFloorCloseConfirm(rowEl, menuItem, priceCents - minPriceCents);
+    return;
+  }
+  _hideRateFloorCloseConfirm(rowEl);
 
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -645,12 +672,75 @@ async function _rateCardMaybeSave(menuItem, rowEl) {
     if (!resp.ok || !payload.item) throw new Error(payload.error || 'save failed');
     rateCardByItemKey.set(menuItem.item_key, payload.item);
     rateCardPendingKeys.delete(menuItem.item_key);
+    _hideRateFloorCloseConfirm(rowEl);
     showToast('Rate saved', 'success');
     renderRateCard();
   } catch (err) {
     console.error('rate card save error:', err);
     showToast('Could not save this rate — try again', 'error');
   }
+}
+
+// Inline confirmation strip for the "floor is suspiciously close to price"
+// case. Renders inside the row via grid-column: 1 / -1 so it spans the whole
+// width regardless of wide-vs-stacked mobile layout. Only one strip per row;
+// re-showing overwrites the previous.
+function _showRateFloorCloseConfirm(rowEl, menuItem, deltaCents) {
+  let strip = rowEl.querySelector('.rate-floor-confirm-strip');
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.className = 'rate-floor-confirm-strip';
+    strip.style.cssText =
+      'grid-column:1 / -1;margin-top:6px;padding:8px 10px;'
+      + 'background:rgba(230,184,74,0.10);border:1px solid rgba(230,184,74,0.35);'
+      + 'border-radius:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+      + 'font-size:var(--text-sm);color:var(--text-primary);';
+    rowEl.appendChild(strip);
+  }
+  const deltaDollars = Math.max(0, Math.round(deltaCents / 100));
+  strip.innerHTML = '';
+  const msg = document.createElement('span');
+  msg.style.cssText = 'flex:1 1 auto;min-width:0;';
+  // Deliberately non-blocking copy — this is a "did you mean" confirm, not
+  // an error. Keeps the guard friendly for the legitimate case where a
+  // provider really does want a very narrow floor.
+  msg.textContent = 'Floor is only $' + deltaDollars
+    + ' below your price — save anyway?';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'btn btn--primary';
+  saveBtn.style.cssText = 'padding:4px 12px;font-size:var(--text-sm);';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = () => _rateCardMaybeSave(menuItem, rowEl, { forceConfirmFloorClose: true });
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'btn btn--secondary';
+  cancelBtn.style.cssText = 'padding:4px 12px;font-size:var(--text-sm);';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = () => _cancelRateFloorClose(rowEl, menuItem);
+  strip.appendChild(msg);
+  strip.appendChild(saveBtn);
+  strip.appendChild(cancelBtn);
+  strip.style.display = 'flex';
+}
+
+function _hideRateFloorCloseConfirm(rowEl) {
+  const strip = rowEl.querySelector('.rate-floor-confirm-strip');
+  if (strip) strip.style.display = 'none';
+}
+
+function _cancelRateFloorClose(rowEl, menuItem) {
+  // Revert the min-price input to whatever's currently persisted (or blank
+  // if the floor was never saved). Rely on the same rateCardByItemKey the
+  // rest of this module reads — no additional state to maintain.
+  const minEl = rowEl.querySelector('.rate-min-price-input');
+  if (minEl) {
+    const saved = rateCardByItemKey.get(menuItem.item_key);
+    minEl.value = (saved && saved.min_price_cents)
+      ? String(Math.round(saved.min_price_cents / 100))
+      : '';
+  }
+  _hideRateFloorCloseConfirm(rowEl);
 }
 
 async function _rateCardRemove(menuItem) {
