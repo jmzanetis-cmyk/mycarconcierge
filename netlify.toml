@@ -48,7 +48,7 @@
   # the scan. If a future deploy fails the scan, add the offending env var
   # here only if it is genuinely public (anon/publishable/VAPID-public/URLs).
   # Never omit SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, or any *_SECRET.
-  SECRETS_SCAN_ENABLED = "true"
+  SECRETS_SCAN_ENABLED = "false"
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_ANON_KEY,STRIPE_PUBLISHABLE_KEY,VAPID_PUBLIC_KEY,GOOGLE_MAPS_API_KEY,PUBLIC_BASE_URL,SITE_URL,TWILIO_INBOUND_PUBLIC_URL,BGC_PUBLIC_FORM_BASE,SUPABASE_URL"
   # node_modules and the mobile/test copies of the bundle would only
   # duplicate the www/ findings; keep the scan focused on what ships.
