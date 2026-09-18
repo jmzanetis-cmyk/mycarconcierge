@@ -100,6 +100,18 @@ BEGIN
   -- 20260428e OPERATOR NOTE limitation where auth.role() returned NULL
   -- for non-JWT sessions and (unintentionally) hit the guarded checks.
   -- Callers we want the rules to APPLY to are exactly anon/authenticated.
+  --
+  -- CRITICAL: this function is SECURITY INVOKER (see the LANGUAGE clause
+  -- at the bottom), NOT SECURITY DEFINER. Under SECURITY DEFINER,
+  -- current_user returns the function OWNER (postgres) regardless of who
+  -- called the trigger, which would bypass every caller unconditionally —
+  -- this was a real bug in the first cut of this migration, verified live
+  -- by a member successfully UPDATING their own profiles.role to 'admin'.
+  -- SECURITY INVOKER makes current_user return the caller's SET ROLE
+  -- value (anon/authenticated/service_role), so the bypass check is
+  -- correct. is_admin() below is itself SECURITY DEFINER and still
+  -- resolves correctly when called from an INVOKER context — the DEFINER
+  -- attribute applies to that function's own body, not to callers.
   IF current_user NOT IN ('anon', 'authenticated') THEN
     RETURN NEW;
   END IF;
@@ -248,7 +260,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp;
 
 -- Trigger definition unchanged from 20260428e — we're just extending the
 -- function body. Keep DROP IF EXISTS + CREATE for idempotency.
@@ -322,6 +334,9 @@ BEGIN
   -- Bypass 1: caller is anything other than PostgREST-managed anon or
   -- authenticated. Same reasoning as the UPDATE trigger: bypasses
   -- service_role, postgres, pg_cron, SQL editor, and CLI uniformly.
+  -- Function is SECURITY INVOKER (see LANGUAGE clause at the bottom) —
+  -- DEFINER would break current_user; see the equivalent bypass block in
+  -- restrict_profile_suspension_writes above for the full reasoning.
   IF current_user NOT IN ('anon', 'authenticated') THEN
     RETURN NEW;
   END IF;
@@ -445,7 +460,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp;
 
 DROP TRIGGER IF EXISTS trg_restrict_profile_insert_privileged_writes ON public.profiles;
 CREATE TRIGGER trg_restrict_profile_insert_privileged_writes

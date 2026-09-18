@@ -96,9 +96,22 @@ check(
   'UPDATE trigger bypasses admin callers via public.is_admin()',
   /IF\s+public\.is_admin\(\)\s+THEN\s+RETURN\s+NEW/.test(updateBody),
 );
+// Under SECURITY DEFINER, current_user returns the function OWNER (postgres)
+// regardless of the caller — which would make the Bypass 1 check
+// (`current_user NOT IN ('anon', 'authenticated')`) ALWAYS TRUE and bypass
+// every caller unconditionally. This was a real bug in the first cut of
+// this migration; fixed by switching both trigger functions to
+// SECURITY INVOKER. is_admin() itself is DEFINER and still works when
+// called from an INVOKER context. Asserting the shape prevents anyone
+// "hardening" the trigger by flipping it back to DEFINER.
 check(
-  'UPDATE trigger function sets search_path = public, pg_temp (SECURITY DEFINER hardening)',
-  /LANGUAGE\s+plpgsql\s+SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*public\s*,\s*pg_temp/.test(updateBody + src.slice(updateBodyMatch ? updateBodyMatch.index + updateBodyMatch[0].length : 0, updateBodyMatch ? updateBodyMatch.index + updateBodyMatch[0].length + 200 : 0)),
+  'UPDATE trigger function is SECURITY INVOKER (NOT DEFINER — current_user under DEFINER returns the owner, which would bypass every caller)',
+  /restrict_profile_suspension_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+INVOKER/.test(src)
+    && !/restrict_profile_suspension_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+DEFINER/.test(src),
+);
+check(
+  'UPDATE trigger function sets search_path = public, pg_temp',
+  /restrict_profile_suspension_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+INVOKER\s+SET\s+search_path\s*=\s*public\s*,\s*pg_temp/.test(src),
 );
 
 // -----------------------------------------------------------------------------
@@ -254,8 +267,13 @@ check(
   /IF\s+public\.is_admin\(\)\s+THEN\s+RETURN\s+NEW/.test(insertBody),
 );
 check(
-  'INSERT trigger function sets search_path = public, pg_temp (SECURITY DEFINER hardening)',
-  /restrict_profile_insert_privileged_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+DEFINER\s+SET\s+search_path\s*=\s*public\s*,\s*pg_temp/.test(src),
+  'INSERT trigger function is SECURITY INVOKER (NOT DEFINER — same reason as UPDATE trigger)',
+  /restrict_profile_insert_privileged_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+INVOKER/.test(src)
+    && !/restrict_profile_insert_privileged_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+DEFINER/.test(src),
+);
+check(
+  'INSERT trigger function sets search_path = public, pg_temp',
+  /restrict_profile_insert_privileged_writes[\s\S]*?LANGUAGE\s+plpgsql\s+SECURITY\s+INVOKER\s+SET\s+search_path\s*=\s*public\s*,\s*pg_temp/.test(src),
 );
 
 // Rule 1 — role allowlist.
