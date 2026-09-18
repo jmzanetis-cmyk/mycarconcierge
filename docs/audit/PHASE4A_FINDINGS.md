@@ -13,7 +13,7 @@
 | HIGH | 0 | — |
 | MEDIUM | 2 | Both open — #1 (403/401 conflation, partially fixed), #2 (audit-log adoption gap) |
 | CLEAN verdicts | 2 classes | Auth gating (all 37 files); admin-invite.js public-by-design flow |
-| Open items | 1 | Live non-admin-JWT test (garbage/missing token confirmed rejected; a real member/provider token not yet tested) |
+| Open items | 0 | All closed — live non-admin-JWT test done 2026-09-18 |
 
 ---
 
@@ -69,6 +69,6 @@ No finding.
 
 ## Open items
 
-- **Live non-admin-JWT test.** The plan's stated "security core" check — hit an admin endpoint with a *real, valid* member/provider token (not just missing/garbage) and confirm rejection. No-token and garbage-token requests both correctly 401'd live against production; a genuine non-admin JWT test is still queued (blocked only on getting a token without me handling credentials directly — see conversation).
+- ~~Live non-admin-JWT test~~ — **DONE 2026-09-18.** Jordan logged into the demo account (role never elevated past `authenticated` in the JWT itself — the app checks `profiles.role` server-side, not the JWT), pasted the resulting access token, and it was used live against production: `/api/admin/refunds`, `/api/admin/saas/subscriptions`, `/api/admin/founders` all correctly returned `401 {"error":"Authentication required"}` with a real, valid, non-admin token. This closes the plan's stated "security core" check for the sampled endpoints — the pattern (DB role lookup, not JWT-claim trust) is identical across all 37 files per CLEAN verdict #1, so this sample generalizes.
 - **Phase 4b (admin read-only surfaces)** — correctness/completeness/performance of the other ~35 sections — not started, per the original plan's own sequencing (4a first).
 - **Follow-up sweep** for Finding #1's ~15-20 remaining call sites, once someone's eyes are on each one individually.
