@@ -11,9 +11,9 @@
 | Severity | Count | Status |
 |---|---|---|
 | HIGH | 0 | — |
-| MEDIUM | 2 | Both open — #1 (403/401 conflation, partially fixed), #2 (audit-log adoption gap) |
+| MEDIUM | 2 | #1 CLOSED 2026-09-18 (fixed at the live site; remaining call sites investigated, not live bugs), #2 CLOSED 2026-09-18 (audit-log gaps filled) |
 | CLEAN verdicts | 2 classes | Auth gating (all 37 files); admin-invite.js public-by-design flow |
-| Open items | 0 | All closed — live non-admin-JWT test done 2026-09-18 |
+| Open items | 0 | All closed |
 
 ---
 
@@ -49,21 +49,22 @@ No finding.
 
 **Fixed (commit `e19d6be`, branch `fix/admin-403-error-handling`, not yet merged to `main`):** `aiOpsFetch` now only tags `401` as `ADMIN_AUTH_REJECTED`; `403` gets a new `REQUEST_FORBIDDEN` code and falls through to the existing (already-correct) non-auth error display, which shows the real server-side reason.
 
-**Not yet fixed — same conflation exists independently in ~15-20 other call sites** that do their own inline `if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED'` rather than going through `aiOpsFetch`. Grep hits: `admin.js:1575, 1769, 2344, 2431, 2840, 4172, 9606, 12378, 12464, 13002, 13058` (approximate — re-grep `status === 401 || .* status === 403` before starting). Each needs its own small look (confirm the endpoint it's calling can even return a non-auth 403 before touching it) rather than a blind find-replace across all of them at once. Scoping a follow-up pass is a reasonable next step, not done in this session.
+**Remaining ~15-20 call sites — investigated 2026-09-18, no live bug found.** These do their own inline `if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED'` rather than going through `aiOpsFetch`: `admin.js:1575, 1769, 2344, 2431, 2840, 4172, 9606, 12378, 12464, 13002, 13058`, backing `/api/admin/{providers,members,packages}` (admin-data.js), `/api/admin/agreements` (admin-agreements.js), `/api/admin/refunds` (admin-refunds.js), `/api/registration/verifications` (vehicle-verify.js), `/api/admin/provider-outreach/*` (admin-provider-outreach.js), `/api/admin/launch-broadcast/*` (launch-broadcast-admin.js). Checked every one of those backends for an actual 403 return path: `admin-data.js`, `admin-refunds.js`, `admin-agreements.js`, and `launch-broadcast-admin.js` never return 403 at all (401-only auth gate). `admin-provider-outreach.js` uses the scoped `authenticateAdminSection` helper but its own route handler collapses any authorization failure back to 401, never 403. `vehicle-verify.js`'s verifications handler (`handleGetVerifications`) does its own inline admin check that changes the response *shape* for non-admins rather than rejecting with 403. So unlike SaaS Subscriptions — which hits a feature-flag-gated 403 from `admin-saas.js` — none of these can currently produce a 403 a real user would ever see; the branch is dead code today. Left as-is rather than rewrite ~11 working functions for a scenario that doesn't happen; worth a second look only if one of these backends later grows a scoped/feature-gated 403 the way `admin-saas.js` did. `loadApplications` (line 1575) is a different case — it reads a raw Supabase client error, not a fetch response, and a real RLS-driven auth failure there would mean the JWT genuinely isn't an admin's, so "sign in again" is accurate messaging in that one case.
 
-## Finding #2 — MEDIUM · OPEN · `admin_audit_log` adoption is inconsistent across destructive actions
+## Finding #2 — MEDIUM · CLOSED 2026-09-18 · `admin_audit_log` adoption was inconsistent across destructive actions
 
-**Where:** repo-wide grep, `netlify/functions/*-admin.js` + `admin-*.js`. Only 7 of 37 files write to `admin_audit_log`: `ai-ops-admin.js`, `apollo-admin.js`, `concierge-jobs-admin.js`, `driver-payouts-admin.js`, `outreach-admin.js`, `provider-admin.js`, plus `admin-audit-log.js` itself (the reader).
+**Where:** repo-wide grep, `netlify/functions/*-admin.js` + `admin-*.js`.
 
-**What's missing it, with real destructive actions:**
-- `admin-refunds.js` (`handleProcess`, line ~100) — approve/deny a refund, including live Stripe refund issuance (`stripe.refunds.create`, line ~178). No `admin_audit_log` row. *Partial mitigation:* the `refunds` table itself records `approved_by: userId` and `approved_at` on the row (lines ~127, ~186) — so the action IS attributable, just not visible from the Admin Portal's own "Audit Log" nav section, which (per its own file) reads from the centralized table.
-- `admin-dispute-resolve.js` (line ~161) — same pattern: `resolved_by: user.id` on the row, no centralized log entry.
-- `admin-founders.js` (line ~443) — `paid_by: user.id` on the payout row, no centralized log entry. (This is the file with the double-pay race fixed in July — the fix added idempotency, not audit logging.)
-- `admin-team.js` — **the weakest instance.** Role changes (`updates.role = body.role`, line ~219) and member removal (`.delete()`, line ~251) have **neither** row-level actor attribution **nor** an `admin_audit_log` entry. There's no record of which admin changed another team member's role or removed them. This is the one place in the list where the gap isn't softened by an on-row fallback — worth prioritizing given it's the audit trail for who has admin access in the first place.
+**Correction to the original write-up:** the initial pass under-counted adopters — `admin-dispute-resolve.js` and `admin-release-payment.js` already write to `admin_audit_log` via the shared `_shared/audit.js` helper (`resolved_by`/`performed_by: user.id`, action `dispute_resolved_by_admin` / `payment_released_by_admin`). Missed on the first grep because the insert is abstracted behind that shared helper rather than a literal `.from('admin_audit_log')` call in the file itself — worth remembering for future greps of this codebase.
 
-**Not a security hole** — every one of these is still correctly gated behind `authenticateBearerAdmin` (see CLEAN verdict #1), so this is an accountability/observability gap, not an unauthorized-access one. But it's exactly the class the plan doc calls "security-weighted by default" for refunds/disputes specifically, and it means Admin → Audit Log does not show the full picture of what your team has done.
+**What was actually missing, and is now fixed:**
+- `admin-refunds.js` (`handleProcess`) — approve/deny a refund, including live Stripe refund issuance. Now writes `refund_denied_by_admin` / `refund_processed_by_admin` via the same shared `_shared/audit.js` helper used by `admin-dispute-resolve.js`.
+- `admin-founders.js` (milestone pay endpoint, line ~443) — marking a founder milestone payout as paid. Now writes `founder_milestone_marked_paid`.
+- `admin-team.js` — **was the weakest instance:** role changes and member removal had neither row-level actor attribution nor an audit-log entry — no record of which admin changed another team member's role or removed them. Now writes `team_member_updated` (capturing previous vs. new role/status, whether a password was reset) and `team_member_removed` (capturing who was removed and their prior role), both attributed to `admin.id`.
 
-**Suggested fix (not applied — scope/priority call for Jordan):** either (a) add `admin_audit_log` inserts to these four files following the pattern already used in `provider-admin.js`, or (b) if row-level attribution is judged sufficient for refunds/disputes/founders, at minimum add it to `admin-team.js` since that one currently has nothing at all.
+All three use the existing `_shared/audit.js` helper (`alertOnFailure: true` — a failed audit write pages ops rather than silently vanishing) rather than inventing a new logging path, matching how `admin-dispute-resolve.js` and `admin-release-payment.js` already do it. Fixed alongside Finding #1's follow-up in commit `4a79949` on `fix/admin-audit-cleanup` (branch not yet merged).
+
+This was never a security hole — every one of these was still correctly gated behind `authenticateBearerAdmin` (see CLEAN verdict #1) even before the fix — it was an accountability/observability gap. Admin → Audit Log now shows the full picture for these four files.
 
 ---
 
@@ -71,4 +72,3 @@ No finding.
 
 - ~~Live non-admin-JWT test~~ — **DONE 2026-09-18.** Jordan logged into the demo account (role never elevated past `authenticated` in the JWT itself — the app checks `profiles.role` server-side, not the JWT), pasted the resulting access token, and it was used live against production: `/api/admin/refunds`, `/api/admin/saas/subscriptions`, `/api/admin/founders` all correctly returned `401 {"error":"Authentication required"}` with a real, valid, non-admin token. This closes the plan's stated "security core" check for the sampled endpoints — the pattern (DB role lookup, not JWT-claim trust) is identical across all 37 files per CLEAN verdict #1, so this sample generalizes.
 - **Phase 4b (admin read-only surfaces)** — correctness/completeness/performance of the other ~35 sections — not started, per the original plan's own sequencing (4a first).
-- **Follow-up sweep** for Finding #1's ~15-20 remaining call sites, once someone's eyes are on each one individually.
