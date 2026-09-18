@@ -130,6 +130,10 @@ MOBILE_CRUFT_GLOBS=(
   "*.backup"
   "*.sql"
   "*.pptx"
+  # admin.js was split into domain files (admin-core.js, admin-analytics.js,
+  # etc.) on 2026-09-18 — glob catches all of them plus any added later,
+  # instead of hardcoding each one into MOBILE_CRUFT_FILES below.
+  "admin-*.js"
   # Marketing PDFs (brand assets, brochures, investor deck, founder program,
   # bid packs). These are linked from the public website and downloaded
   # on-demand from the live origin; they do not need to ship in the

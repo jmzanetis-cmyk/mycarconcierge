@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v149';
+const CACHE_NAME = 'mcc-cache-v150';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -37,7 +37,21 @@ const STATIC_ASSETS = [
   '/providers-jobs.js',
   '/providers-analytics.js',
   '/providers-settings.js',
-  '/admin.js',
+  '/admin-core.js',
+  '/admin-analytics.js',
+  '/admin-payouts-agreements.js',
+  '/admin-dashboard-tables.js',
+  '/admin-review-payments.js',
+  '/admin-crm-2fa.js',
+  '/admin-applications-transport.js',
+  '/admin-founders-violations.js',
+  '/admin-users-verification.js',
+  '/admin-merch-design.js',
+  '/admin-team.js',
+  '/admin-marketing-outreach.js',
+  '/admin-ai-ops.js',
+  '/admin-sms-saas-whitelabel.js',
+  '/admin-usage-survey.js',
   '/login.js',
   '/fleet.js',
   '/founder-dashboard.js',
