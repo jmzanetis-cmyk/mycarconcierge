@@ -66,8 +66,17 @@
 -- ENABLE naturally if/when the tables are ever created (via the shape
 -- guard in rls-policy-shape.test.js Rule 2, which fires on any post-
 -- 20260918 CREATE TABLE lacking a matching ENABLE ROW LEVEL SECURITY).
--- Result rows (from RAISE NOTICE — paste verbatim after next apply):
---   (paste here)
+-- Result rows (from existence probe on the twelve #471 tables):
+--   founder_campaign_clicks      → absent (20260319 crowd-fund migration never applied to prod)
+--   founder_campaign_investments → absent (same origin)
+--   community_posts              → present
+--   admin_audit_log              → present
+--   commission_rate_history      → present
+-- The other seven tables from the twelve-table list (car_clubs,
+-- club_memberships, club_activity_log, club_reward_rules,
+-- car_club_benefits, car_club_redemptions, car_club_return_bonuses) are
+-- present per Task #469 supplementary capture; their policies are
+-- codified in supabase/migrations/20260918b.
 
 
 -- ============================================================================
