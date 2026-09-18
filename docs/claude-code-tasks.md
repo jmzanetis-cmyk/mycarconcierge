@@ -454,72 +454,54 @@ Per the conventions at the top of this file, CC **writes** migrations and the hu
 
 **Verify:** `docs/audit/2026-09-18-profiles-vehicles-policies.sql` exists and the human has confirmed A and B.
 
-### Task #470 — Outreach tables: restrict `service_role_*` policies to service_role
+### Task #470 — Outreach tables: version-control catch-up (drop dead `service_role_*` policies)
 
-**Why:** Closes the anon-key read/write on prospect PII. Zero client impact: nothing under `www/` queries these tables with the anon client (`www/admin-analytics.js` ~L564 already routes through `provider-application-review`), and all functions/server.js use the service-role client.
+**Why:** Task #469 live pg_policies capture (docs/audit/2026-09-18-live-rls-state.sql, section 2) confirmed the seven outreach tables (engine_state, opportunity_pipeline, outreach_leads, outreach_messages, outreach_campaigns, campaign_leads, outreach_activity_log) have RLS enabled with zero policies in prod — they're already service-role only. The `service_role_*` CREATE POLICY statements from 20260420_outreach_engine_initial.sql (FOR ALL USING (true) with no TO clause, which would have applied to anon+authenticated) were never applied to prod (or were dropped out-of-band). The audit's original "anon-key read/write on prospect PII" concern is therefore not currently exposed; this task is version-control catch-up + guard-rail against the pattern recurring.
 
-**Steps:**
-1. Delete `supabase/migrations/20260918a_rls_audit_lockdown.sql` (superseded).
-2. Create `supabase/migrations/20260918a_outreach_policies_service_role.sql`:
-   ```sql
-   -- Task #470: outreach policies were FOR ALL USING (true) with no TO clause
-   -- (20260420_outreach_engine_initial.sql), i.e. open to anon/authenticated.
-   DO $$
-   DECLARE r RECORD;
-   BEGIN
-     FOR r IN
-       SELECT tablename, policyname FROM pg_policies
-       WHERE schemaname = 'public'
-         AND tablename IN ('engine_state','opportunity_pipeline','outreach_leads',
-                           'outreach_messages','outreach_campaigns','campaign_leads',
-                           'outreach_activity_log')
-         AND policyname LIKE 'service_role_%'
-     LOOP
-       EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
-       EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)',
-                      r.policyname, r.tablename);
-     END LOOP;
-   END $$;
-   ```
-3. Grep to prove the no-client-impact claim and paste the (empty) result in the PR description: `grep -rn "from('outreach_\|from('engine_state\|from('opportunity_pipeline\|from('campaign_leads" www/*.js www/*.html | grep -v stress-test`.
-4. Also fix the source of the bug so it can't recur: in `20260420_outreach_engine_initial.sql` leave history alone, but add a lockdown test `netlify/functions-tests/rls-policy-shape.test.js` that scans `supabase/migrations/*.sql` and fails on any `CREATE POLICY ... USING (true)` / `WITH CHECK (true)` whose policy name starts with `service_role` and lacks `TO service_role`. Wire it into `scripts/run-function-tests.sh`.
-5. Hand the migration to the human to apply. After apply: they re-run query A from #469 (expect `{service_role}`), watch one `outreach-cycle` scheduled run succeed in Netlify function logs, and load the admin Outreach tab.
-6. One-time hygiene: ask the human to run `select count(*), min(created_at), max(created_at) from outreach_leads where source not in (<known sources from www/admin-core.js ~L287>)` and eyeball for rows nobody recognises, since the table has been world-writable since April.
+**Steps (done in commit-flow, PR-ready):**
+1. Delete the superseded `supabase/migrations/20260918a_rls_audit_lockdown.sql` draft.
+2. Create `supabase/migrations/20260918a_outreach_policies_drop_dead.sql` — plain `DROP POLICY IF EXISTS` for all seven policy names. Idempotent: no-op on prod today, catches any accidental re-creation on a rebuilt/restored environment.
+3. Remove the dead `DO $$ ... CREATE POLICY ... $$` block from `20260420_outreach_engine_initial.sql` and add a SECURITY NOTE header pointing to 20260918a. The migrations folder now matches prod (RLS on, no outreach policies).
+4. Add `netlify/functions-tests/rls-policy-shape.test.js` (auto-discovered by `scripts/run-function-tests.sh`) with two shape guards:
+   - Rule 1: any `CREATE POLICY service_role_*` in migrations must have `TO service_role` if it uses `USING (true)` / `WITH CHECK (true)`. Catches the 20260420 pattern from re-entering the folder.
+   - Rule 2: any `CREATE TABLE public.<t>` in migrations dated ≥ 20260918 must have a matching `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in the same file. Enforces "new public tables ship RLS-enabled" (which Task #469 confirmed is the current prod-wide state, minus schema_migrations).
+5. Grep to prove no browser code hits the outreach tables (belt-and-braces): `grep -rn "from('outreach_\|from('engine_state\|from('opportunity_pipeline\|from('campaign_leads" www/*.js www/*.html | grep -v stress-test` returns empty.
+6. Hand the migration to the human to apply. Post-apply, re-run Query A from #469 (still expected: 0 rows). Confirm one `outreach-cycle` scheduled run succeeds in Netlify function logs, and the admin Outreach tab loads without errors.
+7. One-time hygiene: `select count(*), min(created_at), max(created_at) from outreach_leads where source not in (<known sources from www/admin-core.js ~L287>)` and eyeball for rows nobody recognises. Even though the tables weren't world-writable in prod, worth a quick review.
 
-**Verify:** `npm test` passes including the new rls-policy-shape test; query A shows `{service_role}`; outreach-cycle log shows a normal run post-apply.
+**Verify:** `npm test` green including `rls-policy-shape.test.js`; Query A still returns 0 rows post-apply; outreach-cycle log shows a normal run.
 
-### Task #471 — Enable RLS on the twelve open tables (service-role only)
+### Task #471 — Codify live RLS state for the twelve audit tables
 
-**Why:** A public-schema table without RLS is fully readable/writable with the anon key. Member-facing Car Club traffic already goes through `netlify/functions/car-clubs.js` (service role) via `/api/car-clubs/*` in `www/_redirects`, and the RPCs in 20260703h use `auth.uid()` on tables that already have RLS, so enabling RLS-with-no-policy on these tables affects **only** the admin page handled in #472. Do #472's code change in the same PR so they ship together.
+**Why:** Task #469 live capture (docs/audit/2026-09-18-live-rls-state.sql, section 1) showed the audit's original premise ("twelve tables with no RLS") is stale: every public table has RLS enabled in prod except `schema_migrations`. Someone applied a direct-to-prod RLS enable between the audit draft and Task #469's capture; the specific migration is not in this repo. Additionally, three of the twelve tables have SELECT/INSERT policies that were also created directly on prod outside the migrations folder. This task pulls the live state into version control so a rebuild or restore reproduces prod behavior.
+
+Nine tables have RLS on with zero policies (service-role only, matching the audit's design): `club_activity_log`, `club_reward_rules`, `car_club_benefits`, `car_club_redemptions`, `car_club_return_bonuses`, `community_posts`, `founder_campaign_clicks`, `founder_campaign_investments`, `admin_audit_log`.
+
+Three tables have policies (all `roles = {public}`, saved verbatim in the audit doc): `car_clubs` (3 SELECT policies — discovery-read, member-read via `is_club_member()`, provider-read), `club_memberships` (2 SELECT policies — provider-read via `is_club_provider()`, self-read), `commission_rate_history` (admin-only SELECT + INSERT).
+
+The `is_club_member(uuid,uuid)` and `is_club_provider(uuid,uuid)` helpers used by those policies also live in prod only; their bodies (SECURITY DEFINER + STABLE + `SET search_path = 'public'`) are recorded in the audit doc, section 7. The codify migration calls them as-is — do NOT re-create.
+
+Do #472's code change in the same PR since they ship together (see #472).
 
 **Steps:**
-1. Create `supabase/migrations/20260918b_enable_rls_open_tables.sql`:
-   ```sql
-   -- Task #471: tables captured from prod (20260703a–g) with no RLS, plus four
-   -- older ones. No policies = service_role only; browser access removed in #472.
-   ALTER TABLE public.car_clubs                   ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.club_memberships            ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.club_activity_log           ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.club_reward_rules           ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.car_club_benefits           ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.car_club_redemptions        ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.car_club_return_bonuses     ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.community_posts             ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.commission_rate_history     ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.founder_campaign_clicks     ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.founder_campaign_investments ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.admin_audit_log             ENABLE ROW LEVEL SECURITY;
-   ```
-   Add any extra tables that #469 query B surfaced (excluding Supabase-internal ones and anything intentionally public like `zip_centroids`/`service_categories`, which already have explicit read policies).
-2. Audit the `redeem_reward_for_member` RPC and the other 20260703h functions: if any is `SECURITY INVOKER` and touches `club_memberships` or `car_club_redemptions` under the caller's role, it will now return empty/42501. Grep `supabase/migrations/2026070*` for `SECURITY DEFINER` vs invoker and list findings in the PR; if an RPC needs the tables, either mark it `SECURITY DEFINER` with `SET search_path = public, pg_temp` or add a narrow `FOR SELECT TO authenticated USING (member_id = auth.uid())` policy on `club_memberships` — prefer the policy.
-3. Extend the lockdown test from #470 to also fail if any `CREATE TABLE` in migrations dated after 2026-09-18 lacks a matching `ENABLE ROW LEVEL SECURITY` in the same file.
-4. Hand the migration to the human to apply **together with** the #472 deploy.
+1. Create `supabase/migrations/20260918b_car_club_commission_policies_codify.sql`:
+   - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` for all twelve tables (all no-ops on prod today).
+   - `DROP POLICY IF EXISTS` + `CREATE POLICY` for exactly the seven live policies, matching the audit doc verbatim. Idempotent.
+2. Audit `redeem_reward_for_member` and other 20260703h RPCs: if any is `SECURITY INVOKER` and touches `club_memberships` / `car_club_redemptions` under the caller's role, they may return empty/42501. Grep `supabase/migrations/2026070*` for `SECURITY DEFINER` vs invoker and note findings in the PR body.
+3. Also see `20260918a` (Task #470) for the rls-policy-shape lockdown test that guards against RLS regressions in future migrations.
+4. Hand `20260918b` to the human to apply. Since prod already matches this file, apply is a no-op — the value is version-control alignment for rebuild/restore.
 
-**Verify:** query B from #469 no longer lists these tables; `node www/stress-test-car-clubs.js` and `node www/stress-test-car-club-punch.js` (service-role scripts) still pass; member flow smoke below in #472.
+**Verify:** post-apply, live `pg_policies` on the three tables still returns exactly the seven policies with unchanged qual/with_check. `node www/stress-test-car-clubs.js` and `node www/stress-test-car-club-punch.js` still pass. Member flow smoke below in #472.
 
-### Task #472 — Move admin car-club reads/writes off the anon client
+### Task #472 — Move admin car-club reads/writes off the anon client (fix a broken admin panel)
 
-**Why:** `www/admin-ai-ops.js` (~L327 select, ~L409 insert, ~L419 select, ~L437 update `is_active`) is the only browser code that hits `car_clubs` directly. Once #471 lands those calls return empty/403. Move them behind an admin-authenticated function like every other admin write. Side note: the insert at ~L409 sets no `provider_id`, which is `NOT NULL` in `20260703a_car_clubs_base.sql` — it is probably failing today; fix the form to require a provider (or default to the admin's own id) while you're there.
+**Why:** `www/admin-ai-ops.js` is the only browser code that hits `car_clubs` directly, and Task #469's live-state capture (docs/audit/2026-09-18-live-rls-state.sql, sections 1 + 6) confirms the tables have RLS enabled today with only three SELECT-only policies on `car_clubs` (discovery/member/provider read) and no INSERT/UPDATE policies. **That means the admin Car Clubs panel is broken in prod right now, not "about to break after #471":**
+- `createCarClub()` at L409 — INSERT into `car_clubs` fails RLS (no INSERT policy for anon/authenticated) and also fails the `provider_id NOT NULL` constraint from `20260703a_car_clubs_base.sql` (the payload sets no `provider_id`).
+- `toggleCarClub()` at L437 — UPDATE `is_active` fails RLS (no UPDATE policy).
+- `loadCarClubs()` at L327 — SELECT returns only clubs matching the discovery-read policy (`is_active IS NOT FALSE AND provider_suspended IS NOT TRUE`) OR clubs where the admin themselves is `provider_id`. Inactive/suspended clubs the admin doesn't own are invisible.
+- `viewCarClub()` at L419 — same filter; returns null for others' inactive clubs.
+
+Errors surface to the admin UI via `alert('Error: ' + error.message)` (verified 2026-09-18) — not silently swallowed, so this task is a bug fix an admin can already see. #471 doesn't change the failure mode; it codifies the state that's already blocking these calls. Move them behind an admin-authenticated function like every other admin write. Fix the missing `provider_id` in the INSERT payload while you're there (require a provider select in the form, or default to the admin's own user id if that's the intended shape).
 
 **Steps:**
 1. In `netlify/functions/car-clubs.js` (or `ai-ops-admin.js` if car-clubs.js is member-only — pick whichever already has the admin auth helper wired), add routes guarded by `authenticateBearerAdmin`: `GET /api/admin/car-clubs` (list with provider `full_name,email` join), `POST /api/admin/car-clubs` (create; require `provider_id`), `PATCH /api/admin/car-clubs/:id` (`is_active` toggle). Add the three lines to `www/_redirects` next to the existing `/api/car-clubs` block.

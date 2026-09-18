@@ -1,15 +1,29 @@
 -- ============================================================================
--- docs/audit/2026-09-18-profiles-vehicles-policies.sql
+-- docs/audit/2026-09-18-live-rls-state.sql
 --
--- Verbatim state of public.profiles and public.vehicles RLS policies + the
--- public.is_admin() helper function, pulled from live prod on 2026-09-18
--- as part of Task #469's query C. These objects predate the
--- supabase/migrations/ folder (which starts spring 2025) and therefore
--- live only in the DB — this file exists so the repo has an
--- authoritative record.
+-- One dated snapshot of live RLS state pulled from prod on 2026-09-18 as
+-- part of the Tier-0.5 RLS lockdown sweep (Tasks #469-#474). The public
+-- schema's RLS state predates the supabase/migrations/ folder in many
+-- places, so this file is the repo's authoritative record.
 --
 -- Documentation only. DO NOT APPLY. Re-running would try to CREATE
 -- policies that already exist and would fail.
+--
+-- Capture queries live in scripts/dump-rls-state.sql — re-run to
+-- refresh, then paste the results here (or into a new
+-- YYYY-MM-DD-live-rls-state.sql file for the next capture day).
+--
+-- Sections (in order):
+--   1. Query B — public tables with RLS disabled
+--   2. Query A — pg_policies on the seven outreach tables
+--   3. public.is_admin() helper
+--   4. profiles policies (Task #469 query C)
+--   5. vehicles policies (Task #469 query C)
+--   6. car_clubs / club_memberships / commission_rate_history policies
+--      (Task #469 supplementary capture, codified by
+--      supabase/migrations/20260918b_car_club_commission_policies_codify.sql)
+--   7. is_club_member + is_club_provider helpers (called by section 6
+--      policies; called as-is by 20260918b)
 --
 -- Referenced by:
 --   supabase/migrations/20260918c_profiles_privileged_columns_guard.sql
@@ -22,7 +36,41 @@
 --       user because their profiles row doesn't exist yet. Do NOT
 --       "optimize" this into a JWT-claim check — that would break the
 --       recursion argument.
+--   supabase/migrations/20260918a_outreach_policies_drop_dead.sql
+--     — DROP POLICY IF EXISTS on the seven service_role_* policy names
+--       from 20260420_outreach_engine_initial.sql. Section 2 below
+--       confirms those policies are not present in prod today.
+--   supabase/migrations/20260918b_car_club_commission_policies_codify.sql
+--     — CREATE POLICY statements matching section 6 verbatim, plus
+--       idempotent ALTER TABLE ENABLE ROW LEVEL SECURITY.
 -- ============================================================================
+
+
+-- ============================================================================
+-- 1. Query B — public tables with RLS disabled (relrowsecurity = false)
+--    Result: one row, schema_migrations. Every other public table has
+--    RLS enabled. Notably, this contradicts the original audit note
+--    ("twelve tables with no RLS"). RLS was enabled directly on prod
+--    between the audit draft and the Task #469 live capture; see the
+--    ordering discussion in Task #471.
+-- ============================================================================
+-- Result rows:
+--   schema_migrations
+
+
+-- ============================================================================
+-- 2. Query A — pg_policies on the seven outreach engine tables
+--    (engine_state, opportunity_pipeline, outreach_leads, outreach_messages,
+--     outreach_campaigns, campaign_leads, outreach_activity_log)
+--    Result: 0 rows. The tables have RLS on (per Query B) with zero
+--    policies — meaning they are already service-role only. The
+--    20260420_outreach_engine_initial.sql `service_role_*` policies
+--    (FOR ALL USING (true) with no TO clause, which would have opened
+--    them to anon+authenticated) were never applied to prod (or were
+--    dropped later out-of-band). Task #470 codifies this via
+--    20260918a_outreach_policies_drop_dead.sql (DROP POLICY IF EXISTS).
+-- ============================================================================
+-- Result rows: (none)
 
 
 -- ----------------------------------------------------------------------------
@@ -144,3 +192,95 @@ CREATE POLICY vehicles_all_admin ON public.vehicles
   FOR ALL
   USING (is_admin())
   WITH CHECK (is_admin());
+
+
+-- ============================================================================
+-- 6. public.car_clubs / club_memberships / commission_rate_history policies
+--    (Task #469 supplementary capture, all roles = {public}).
+--    RLS is enabled on all three tables. Nine other Task #471 tables
+--    (club_activity_log, club_reward_rules, car_club_benefits,
+--    car_club_redemptions, car_club_return_bonuses, community_posts,
+--    founder_campaign_clicks, founder_campaign_investments,
+--    admin_audit_log) have RLS on with no policies — service-role only.
+--    Codified verbatim by
+--    supabase/migrations/20260918b_car_club_commission_policies_codify.sql.
+-- ============================================================================
+
+-- ---- car_clubs — three SELECT policies ----
+
+-- Discovery read: any authenticated caller sees active, non-suspended clubs.
+CREATE POLICY car_clubs_discovery_read ON public.car_clubs
+  FOR SELECT
+  USING ((is_active IS NOT FALSE) AND (provider_suspended IS NOT TRUE));
+
+-- Member read: caller is a member of this club.
+CREATE POLICY car_clubs_member_read ON public.car_clubs
+  FOR SELECT
+  USING (is_club_member(id, auth.uid()));
+
+-- Provider read: caller owns this club.
+CREATE POLICY car_clubs_provider_read ON public.car_clubs
+  FOR SELECT
+  USING (provider_id = auth.uid());
+
+-- ---- club_memberships — two SELECT policies ----
+
+-- Provider read: caller is the provider of the club this membership belongs to.
+CREATE POLICY club_memberships_provider_read ON public.club_memberships
+  FOR SELECT
+  USING (is_club_provider(club_id, auth.uid()));
+
+-- Self read.
+CREATE POLICY club_memberships_self_read ON public.club_memberships
+  FOR SELECT
+  USING (member_id = auth.uid());
+
+-- ---- commission_rate_history — admin-only SELECT + INSERT ----
+
+CREATE POLICY "Admins can view commission rate history" ON public.commission_rate_history
+  FOR SELECT
+  USING (
+    EXISTS (SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid()
+              AND profiles.role = 'admin')
+  );
+
+CREATE POLICY "Admins can insert commission rate history" ON public.commission_rate_history
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM profiles
+            WHERE profiles.id = auth.uid()
+              AND profiles.role = 'admin')
+  );
+
+
+-- ============================================================================
+-- 7. Helper functions called by section 6's policies
+--    (pg_get_functiondef, 2026-09-18). Both SECURITY DEFINER + STABLE with
+--    SET search_path = 'public'. Called from car_clubs and club_memberships
+--    policies. Called as-is by 20260918b — DO NOT CREATE OR REPLACE from a
+--    migration.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.is_club_member(p_club_id uuid, p_user uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.club_memberships m
+    WHERE m.club_id   = p_club_id
+      AND m.member_id = p_user
+      AND m.is_active = true
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.is_club_provider(p_club_id uuid, p_user uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (select 1 from car_clubs c where c.id = p_club_id and c.provider_id = p_user);
+$function$;

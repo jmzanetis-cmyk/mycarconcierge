@@ -15,6 +15,28 @@
 --   - All bridge fixes layered on top live in 20260424_outreach_email_events.sql,
 --     20260425_outreach_crm_bridge.sql, and any later 20260*_outreach_*.sql
 --     migrations. Apply those after this one.
+--
+-- SECURITY NOTE (Task #470, 2026-09-18):
+--   The seven `service_role_*` CREATE POLICY statements below (engine_state,
+--   opportunity_pipeline, outreach_leads, outreach_messages, outreach_campaigns,
+--   campaign_leads, outreach_activity_log) are `FOR ALL USING (true) WITH
+--   CHECK (true)` with NO `TO` clause. If they had ever been applied, they
+--   would have been permissive to anon+authenticated, exposing prospect
+--   PII to any signed-in user. Live pg_policies capture on 2026-09-18
+--   (docs/audit/2026-09-18-live-rls-state.sql, section 2) shows these
+--   policies are not present in prod — RLS is enabled on all seven tables
+--   with zero policies, making them service-role only. The statements
+--   below were either never applied to prod or dropped out-of-band.
+--
+--   20260918a_outreach_policies_drop_dead.sql codifies the empty prod state
+--   via DROP POLICY IF EXISTS on all seven names (idempotent, no-op today,
+--   catches any accidental re-creation on a rebuilt environment).
+--   The rls-policy-shape.test.js lockdown test blocks the pattern
+--   (`service_role_*` name + `USING (true)`/`WITH CHECK (true)` and no
+--   `TO service_role`) from re-entering the migrations folder.
+--
+--   Do NOT re-apply this file wholesale on a fresh environment without
+--   also applying 20260918a — that would leave the outreach tables open.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS engine_state (
