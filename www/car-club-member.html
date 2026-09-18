@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>Car Club – My Car Concierge</title>
-  <script src="mcc-theme.js?v=20260918"></script>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -494,7 +499,7 @@
     </div>
     -->
     <div class="sidebar-footer">
-      <button class="theme-toggle-btn" onclick="MCC_THEME.cycle()">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
         <span class="theme-icon-dark">🔆</span>
         <span class="theme-icon-light">🌙</span>
         <span class="theme-label">Toggle Theme</span>

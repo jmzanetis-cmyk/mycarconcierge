@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>Provider Job Board – My Car Concierge</title>
-  <script src="mcc-theme.js?v=20260918"></script>
+  <script>
+    (function() {
+      const t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
   <link rel="manifest" href="manifest.json" />
@@ -297,7 +302,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       <span class="back-btn-label">Provider Portal</span>
     </a>
-    <button class="theme-btn" onclick="MCC_THEME.cycle()">
+    <button class="theme-btn" onclick="toggleTheme()">
       <span id="theme-icon">🌙</span>
     </button>
   </div>
