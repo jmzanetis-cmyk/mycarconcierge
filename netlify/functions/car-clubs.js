@@ -1629,7 +1629,10 @@ async function useGrant(sb, user, clubId, grantId) {
 // members/providers/discovery; no INSERT/UPDATE policy exists for
 // anon/authenticated, which is why www/admin-ai-ops.js's browser writes
 // were failing today. See docs/audit/2026-09-18-live-rls-state.sql and
-// docs/claude-code-tasks.md Task #472.
+// the CC task briefs doc under docs/ (Task #472). NB: never spell out that
+// doc's filename in netlify/functions/ — anthropic-health.test.js scans this
+// tree for claude-* model literals, treats the filename as one, and fails
+// npm test (which fails the Netlify deploy).
 
 async function handleAdminList(sb) {
   const { data, error } = await sb.from('car_clubs')
