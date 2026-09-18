@@ -317,32 +317,62 @@
     globalThis.loadPromoterDrafts = loadPromoterDrafts;
 
     // ========== CAR CLUBS ==========
+    // Task #472: browser writes on car_clubs (list/view/create/toggle)
+    // moved off the anon client and behind admin-authenticated Netlify
+    // routes. RLS on car_clubs in prod has three SELECT policies and no
+    // INSERT/UPDATE — the old anon-client writes have been failing since
+    // #471's live-state capture. Routes handled in
+    // netlify/functions/car-clubs.js (admin branch), wired via
+    // /api/admin/car-clubs[/*] entries in www/_redirects.
+
+    // Cache of admin-list clubs for viewCarClub to read from without a
+    // second network hit. Populated by loadCarClubs, cleared on toggle/
+    // create success.
+    let _carClubsCache = [];
+
+    async function _adminApiFetch(pathname, options = {}) {
+      const session = await supabaseClient.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) throw new Error('Not signed in');
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const opts = {
+        method: options.method || 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(options.headers || {}),
+        },
+      };
+      if (options.body) opts.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+      const resp = await fetch(apiBase + pathname, opts);
+      const text = await resp.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { /* non-JSON is OK for shape errors */ }
+      if (!resp.ok) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+      return data || {};
+    }
 
     async function loadCarClubs() {
       const tbody = document.querySelector('#car-clubs-table tbody');
       if (!tbody) return;
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading…</td></tr>';
       try {
-        const { data, error } = await supabaseClient
-          .from('car_clubs')
-          .select('id, name, description, is_active, provider_suspended, member_count, vehicle_make, vehicle_model, region, created_at, provider_id, provider:provider_id(full_name, email)')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        const clubs = data || [];
+        const { clubs } = await _adminApiFetch('/api/admin/car-clubs');
+        _carClubsCache = clubs || [];
 
         const dEl = id => document.getElementById(id);
-        if (dEl('car-club-total'))       dEl('car-club-total').textContent  = clubs.length;
-        if (dEl('car-club-active'))      dEl('car-club-active').textContent = clubs.filter(c => c.is_active && !c.provider_suspended).length;
-        if (dEl('car-club-members'))     dEl('car-club-members').textContent = clubs.reduce((s, c) => s + (c.member_count || 0), 0);
+        if (dEl('car-club-total'))       dEl('car-club-total').textContent  = _carClubsCache.length;
+        if (dEl('car-club-active'))      dEl('car-club-active').textContent = _carClubsCache.filter(c => c.is_active && !c.provider_suspended).length;
+        if (dEl('car-club-members'))     dEl('car-club-members').textContent = _carClubsCache.reduce((s, c) => s + (c.member_count || 0), 0);
         if (dEl('car-club-redemptions')) dEl('car-club-redemptions').textContent = '—';
 
-        if (!clubs.length) {
+        if (!_carClubsCache.length) {
           tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No car clubs yet — create one below</td></tr>';
           renderCarClubCreateForm();
           return;
         }
 
-        tbody.innerHTML = clubs.map(c => {
+        tbody.innerHTML = _carClubsCache.map(c => {
           const providerName = c.provider?.full_name || c.provider?.email || 'Platform';
           const active = c.is_active && !c.provider_suspended;
           const vehicleTag = [c.vehicle_make, c.vehicle_model].filter(Boolean).join(' ') || '—';
@@ -390,6 +420,9 @@
         <div class="card-header"><h3>Create Platform Club</h3></div>
         <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;">
           <input id="new-club-name" class="form-control" placeholder="Club name" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <select id="new-club-provider" class="form-control" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+            <option value="">Provider (loading…)</option>
+          </select>
           <input id="new-club-make" class="form-control" placeholder="Vehicle make (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
           <input id="new-club-model" class="form-control" placeholder="Vehicle model (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
           <input id="new-club-region" class="form-control" placeholder="Region (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
@@ -397,26 +430,73 @@
           <button class="btn btn-primary" onclick="createCarClub()" style="grid-column:1/-1;">Create Club</button>
         </div>`;
       section.appendChild(div);
+      // Populate the provider dropdown asynchronously — verified providers only.
+      _populateEligibleProvidersDropdown();
+    }
+
+    async function _populateEligibleProvidersDropdown() {
+      const sel = document.getElementById('new-club-provider');
+      if (!sel) return;
+      try {
+        const { providers } = await _adminApiFetch('/api/admin/car-clubs/eligible-providers');
+        const options = [
+          '<option value="">— Select a verified provider —</option>',
+          ...(providers || []).map(p => {
+            const label = p.business_name || p.full_name || p.email || p.id;
+            return `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
+          })
+        ];
+        sel.innerHTML = options.join('');
+      } catch (err) {
+        sel.innerHTML = `<option value="">Failed to load providers: ${escapeHtml(err.message)}</option>`;
+      }
     }
 
     async function createCarClub() {
-      const name    = document.getElementById('new-club-name')?.value.trim();
-      const make    = document.getElementById('new-club-make')?.value.trim();
-      const model   = document.getElementById('new-club-model')?.value.trim();
-      const region  = document.getElementById('new-club-region')?.value.trim();
-      const desc    = document.getElementById('new-club-desc')?.value.trim();
+      const name       = document.getElementById('new-club-name')?.value.trim();
+      const providerId = document.getElementById('new-club-provider')?.value.trim();
+      const make       = document.getElementById('new-club-make')?.value.trim();
+      const model      = document.getElementById('new-club-model')?.value.trim();
+      const region     = document.getElementById('new-club-region')?.value.trim();
+      const desc       = document.getElementById('new-club-desc')?.value.trim();
       if (!name) return alert('Club name is required');
-      const { error } = await supabaseClient.from('car_clubs').insert({
-        name, description: desc || null, vehicle_make: make || null, vehicle_model: model || null,
-        region: region || null, is_active: true, member_count: 0
-      });
-      if (error) return alert('Error: ' + error.message);
-      ['new-club-name','new-club-make','new-club-model','new-club-region','new-club-desc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      if (!providerId) return alert('Please select a verified provider');
+      try {
+        await _adminApiFetch('/api/admin/car-clubs', {
+          method: 'POST',
+          body: {
+            name,
+            provider_id:    providerId,
+            description:    desc   || null,
+            vehicle_make:   make   || null,
+            vehicle_model:  model  || null,
+            region:         region || null,
+          },
+        });
+      } catch (err) {
+        return alert('Error: ' + err.message);
+      }
+      ['new-club-name','new-club-make','new-club-model','new-club-region','new-club-desc']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      const sel = document.getElementById('new-club-provider');
+      if (sel) sel.value = '';
       loadCarClubs();
     }
 
+    // Reads from the admin-list cache. loadCarClubs() populates it; viewing
+    // a club that isn't in the cache (e.g. after a race) falls back to a
+    // list refresh.
     async function viewCarClub(clubId) {
-      const { data: c } = await supabaseClient.from('car_clubs').select('*, provider:provider_id(full_name,email)').eq('id', clubId).maybeSingle();
+      let c = _carClubsCache.find(x => x.id === clubId);
+      if (!c) {
+        try {
+          const { clubs } = await _adminApiFetch('/api/admin/car-clubs');
+          _carClubsCache = clubs || [];
+          c = _carClubsCache.find(x => x.id === clubId);
+        } catch (err) {
+          return alert('Error loading club: ' + err.message);
+        }
+      }
       if (!c) return alert('Club not found');
       const html = `<div class="form-section"><div class="form-section-title">${escapeHtml(c.name)}</div><div class="detail-grid">
         <span class="detail-label">Provider:</span><span class="detail-value">${escapeHtml(c.provider?.full_name || c.provider?.email || 'Platform')}</span>
@@ -434,8 +514,14 @@
     async function toggleCarClub(clubId, currentlyActive) {
       const msg = currentlyActive ? 'Deactivate this car club?' : 'Reactivate this car club?';
       if (!confirm(msg)) return;
-      const { error } = await supabaseClient.from('car_clubs').update({ is_active: !currentlyActive }).eq('id', clubId);
-      if (error) return alert('Error: ' + error.message);
+      try {
+        await _adminApiFetch('/api/admin/car-clubs/' + encodeURIComponent(clubId), {
+          method: 'PATCH',
+          body: { is_active: !currentlyActive },
+        });
+      } catch (err) {
+        return alert('Error: ' + err.message);
+      }
       loadCarClubs();
     }
 

@@ -31,6 +31,8 @@
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
+const utils = require('./utils');
+const { audit } = require('./_shared/audit');
 
 function supabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -1614,12 +1616,165 @@ async function useGrant(sb, user, clubId, grantId) {
   return json(200, { success: true });
 }
 
+// ─── Admin routes (Task #472) ────────────────────────────────────────────────
+// These are dispatched from the top of exports.handler BEFORE the member
+// getUser call, since:
+//   - authentication is admin bearer (utils.authenticateBearerAdmin), not
+//     the generic getUser used by member/provider routes below;
+//   - the existing dispatcher's path strip regex (.*\/api\/car-clubs?\/?)
+//     greedily consumes /api/admin/ before the admin prefix can be detected,
+//     so we must branch on event.path first.
+// All writes use the service-role client (`sb`) which bypasses RLS. RLS is
+// enabled on car_clubs in prod with three read-only SELECT policies for
+// members/providers/discovery; no INSERT/UPDATE policy exists for
+// anon/authenticated, which is why www/admin-ai-ops.js's browser writes
+// were failing today. See docs/audit/2026-09-18-live-rls-state.sql and
+// docs/claude-code-tasks.md Task #472.
+
+async function handleAdminList(sb) {
+  const { data, error } = await sb.from('car_clubs')
+    .select(
+      'id, name, description, is_active, provider_suspended, member_count, ' +
+      'vehicle_make, vehicle_model, region, rules_text, created_at, ' +
+      'provider_id, provider:provider_id(full_name, email)'
+    )
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('[car-clubs][admin] list error:', error.message);
+    return json(500, { error: 'Failed to list car clubs' });
+  }
+  return json(200, { clubs: data || [] });
+}
+
+// Populates the create-club form's provider dropdown. Filtered to
+// verified providers only so admins can't create a club owned by an
+// unverified account.
+async function handleAdminEligibleProviders(sb) {
+  const { data, error } = await sb.from('profiles')
+    .select('id, full_name, business_name, email')
+    .eq('role', 'provider')
+    .eq('verification_status', 'verified')
+    .order('business_name', { ascending: true, nullsFirst: false });
+  if (error) {
+    console.error('[car-clubs][admin] eligible-providers error:', error.message);
+    return json(500, { error: 'Failed to load eligible providers' });
+  }
+  return json(200, { providers: data || [] });
+}
+
+async function handleAdminCreate(event, sb, adminUser) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); }
+  catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const name = (body.name || '').toString().trim();
+  const providerId = (body.provider_id || '').toString().trim();
+  if (!name) return json(400, { error: 'name is required' });
+  if (!providerId || !utils.isValidUUID(providerId)) {
+    return json(400, { error: 'provider_id is required (must be a valid uuid)' });
+  }
+
+  // Sanity: the provider row must be a verified provider — matches the
+  // eligible-providers filter so the API can't be tricked into creating a
+  // club owned by a member/pending_provider/unverified account.
+  const { data: prov, error: provErr } = await sb.from('profiles')
+    .select('id, role, verification_status')
+    .eq('id', providerId)
+    .maybeSingle();
+  if (provErr) {
+    console.error('[car-clubs][admin] create provider-check error:', provErr.message);
+    return json(500, { error: 'Failed to verify provider' });
+  }
+  if (!prov || prov.role !== 'provider' || prov.verification_status !== 'verified') {
+    return json(400, { error: 'provider_id must reference a verified provider' });
+  }
+
+  const payload = {
+    name,
+    description:    (body.description   || '').toString().trim() || null,
+    vehicle_make:   (body.vehicle_make  || '').toString().trim() || null,
+    vehicle_model:  (body.vehicle_model || '').toString().trim() || null,
+    region:         (body.region        || '').toString().trim() || null,
+    provider_id:    providerId,
+    is_active:      true,
+    member_count:   0,
+  };
+  const { data, error } = await sb.from('car_clubs').insert(payload).select().single();
+  if (error) {
+    console.error('[car-clubs][admin] create error:', error.message);
+    return json(500, { error: 'Failed to create car club' });
+  }
+
+  await audit(sb, {
+    action:        'admin_create_car_club',
+    target_id:     data.id,
+    target_type:   'car_club',
+    metadata:      { name: data.name, provider_id: providerId },
+    performed_by:  adminUser.id,
+  }, { alertOnFailure: false, logOnFailure: true, logPrefix: '[car-clubs][admin]' });
+
+  return json(201, { club: data });
+}
+
+async function handleAdminToggle(event, sb, adminUser, clubId) {
+  if (!utils.isValidUUID(clubId)) return json(400, { error: 'Invalid club id' });
+  let body;
+  try { body = JSON.parse(event.body || '{}'); }
+  catch { return json(400, { error: 'Invalid JSON' }); }
+  if (typeof body.is_active !== 'boolean') {
+    return json(400, { error: 'is_active (boolean) is required' });
+  }
+
+  const { data: prev, error: preErr } = await sb.from('car_clubs')
+    .select('is_active').eq('id', clubId).maybeSingle();
+  if (preErr) {
+    console.error('[car-clubs][admin] toggle pre-read error:', preErr.message);
+    return json(500, { error: 'Failed to read car club' });
+  }
+  if (!prev) return json(404, { error: 'Car club not found' });
+
+  const { error } = await sb.from('car_clubs')
+    .update({ is_active: body.is_active }).eq('id', clubId);
+  if (error) {
+    console.error('[car-clubs][admin] toggle update error:', error.message);
+    return json(500, { error: 'Failed to update car club' });
+  }
+
+  await audit(sb, {
+    action:        body.is_active ? 'admin_activate_car_club' : 'admin_deactivate_car_club',
+    target_id:     clubId,
+    target_type:   'car_club',
+    metadata:      { previous_is_active: prev.is_active, new_is_active: body.is_active },
+    performed_by:  adminUser.id,
+  }, { alertOnFailure: false, logOnFailure: true, logPrefix: '[car-clubs][admin]' });
+
+  return json(200, { ok: true, is_active: body.is_active });
+}
+
 // ─── Main dispatcher ──────────────────────────────────────────────────────────
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return json(200, {});
 
   const sb = supabase();
+
+  // Admin routes — /api/admin/car-clubs[/:id | /eligible-providers].
+  // Handled BEFORE the member getUser call because the auth model differs
+  // and the member-path regex would otherwise strip the /admin/ prefix.
+  const rawPath = event.path || '';
+  if (/\/api\/admin\/car-clubs(\/|$)/.test(rawPath)) {
+    const adminUser = await utils.authenticateBearerAdmin(event, sb);
+    if (!adminUser) return json(401, { error: 'Unauthorized' });
+    const method = event.httpMethod;
+    const adminPath = rawPath.replace(/.*\/api\/admin\/car-clubs\/?/, '').replace(/\/$/, '');
+
+    if (method === 'GET'   && adminPath === '')                     return handleAdminList(sb);
+    if (method === 'GET'   && adminPath === 'eligible-providers')   return handleAdminEligibleProviders(sb);
+    if (method === 'POST'  && adminPath === '')                     return handleAdminCreate(event, sb, adminUser);
+    if (method === 'PATCH' && adminPath && !adminPath.includes('/')) return handleAdminToggle(event, sb, adminUser, adminPath);
+    return json(404, { error: 'Unknown admin car-clubs route' });
+  }
+
   const auth = await getUser(event, sb);
   if (auth.error) return auth.error;
 

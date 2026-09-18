@@ -277,6 +277,11 @@
 /api/car-clubs/* /.netlify/functions/car-clubs 200
 /api/car-club/* /.netlify/functions/car-clubs 200
 /api/car-club/free-bids /.netlify/functions/car-clubs 200
+# Task #472 — admin routes on the same car-clubs.js function; the handler
+# detects the /api/admin/car-clubs prefix and authenticates via
+# authenticateBearerAdmin instead of the member getUser.
+/api/admin/car-clubs /.netlify/functions/car-clubs 200
+/api/admin/car-clubs/* /.netlify/functions/car-clubs 200
 
 # 2026-09-09: car-club-provider.html is a fully-built self-serve provider
 # portal (club create/update, reward templates, leaderboard, promotions,
