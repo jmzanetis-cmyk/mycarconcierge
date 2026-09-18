@@ -14225,9 +14225,33 @@
           serverMsg = (body && (body.error || body.message)) || '';
         } catch { /* non-JSON body, leave blank */ }
         const tail = serverMsg ? ` — ${serverMsg}` : '';
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
           const e = new Error(`Not signed in as admin (HTTP ${res.status}) on ${displayPath}${tail}. Sign in again from the admin login page.`);
           e.code = 'ADMIN_AUTH_REJECTED';
+          e.status = res.status;
+          e.path = fullPath;
+          throw e;
+        }
+        if (res.status === 403) {
+          // Fixed 2026-09-18: 403 from an admin-*.js function is essentially
+          // never "you're not signed in as admin" — every admin function in
+          // this codebase signals that with 401 (`authenticateBearerAdmin` /
+          // "Authentication required" / "Unauthorized"; grep-verified across
+          // all netlify/functions/admin-*.js). 403 means the caller IS an
+          // authenticated admin but this specific action is blocked for
+          // another reason: a feature flag is off (admin-saas.js's
+          // `feature_disabled`), a business rule (admin-founders.js's
+          // contractually-locked commission rate), or a team-login-specific
+          // state. Lumping this in with ADMIN_AUTH_REJECTED sent admins into
+          // a "Sign in again" loop on pages that will never load no matter
+          // how many times they re-authenticate (caught live on SaaS
+          // Subscriptions: shop_saas_enabled is off, so /api/admin/saas/
+          // subscriptions correctly 403s with 'feature_disabled', but the UI
+          // claimed the session had expired). Surface the real reason
+          // instead — renderAiOpsAuthError's non-auth branch already does
+          // this correctly, it just never used to be reached for a 403.
+          const e = new Error(`Request blocked (HTTP 403) on ${displayPath}${tail}.`);
+          e.code = 'REQUEST_FORBIDDEN';
           e.status = res.status;
           e.path = fullPath;
           throw e;
