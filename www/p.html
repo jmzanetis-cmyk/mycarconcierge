@@ -11,12 +11,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" id="og-url" content="" />
   <meta property="og:site_name" content="My Car Concierge" />
-  <script>
-    (function() {
-      const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
+  <script src="mcc-theme.js?v=20260918"></script>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
@@ -214,7 +209,7 @@
       <nav>
         <a href="/providers">Directory</a>
         <a href="/how-it-works.html">How It Works</a>
-        <span class="theme-toggle-pill" onclick="toggleTheme()">
+        <span class="theme-toggle-pill" onclick="MCC_THEME.cycle()">
           <span id="theme-icon">&#9790;</span>
           <span id="theme-label">Night</span>
         </span>
