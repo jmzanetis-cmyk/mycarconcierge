@@ -30,7 +30,7 @@ const path = require('node:path');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SHARED_PATH = path.join(REPO_ROOT, 'www', 'shared', 'survey-questions.js');
 const ADMIN_HTML_PATH = path.join(REPO_ROOT, 'www', 'admin.html');
-const ADMIN_JS_PATH = path.join(REPO_ROOT, 'www', 'admin.js');
+const WWW_DIR = path.join(REPO_ROOT, 'www');
 
 // Bumping this requires intentionally updating the test alongside the
 // shared file — exactly the "did you mean to change the survey?" prompt
@@ -218,14 +218,21 @@ check(
 }
 
 // Belt-and-suspenders: make sure nobody re-introduces a hand-maintained
-// parallel key list inside admin.js. Task #397 deleted `CHART_KEYS`; the
-// chart loop now iterates MCCSurvey.KEYS directly.
-const adminSrc = fs.readFileSync(ADMIN_JS_PATH, 'utf8');
+// parallel key list anywhere in the admin dashboard bundle. Task #397
+// deleted `CHART_KEYS`; the chart loop iterates MCCSurvey.KEYS directly.
+// The single admin.js has since been split into per-domain admin-*.js
+// files that share one global scope, so a stray declaration in any of
+// them would still take effect — check them all.
+const adminScripts = fs.readdirSync(WWW_DIR)
+  .filter(name => /^admin.*\.js$/.test(name))
+  .map(name => path.join(WWW_DIR, name));
+const adminSrcMatches = adminScripts.filter(p => /const\s+CHART_KEYS\s*=\s*\[/.test(fs.readFileSync(p, 'utf8')));
 check(
-  'admin.js no longer declares a parallel CHART_KEYS array (Task #397)',
-  !/const\s+CHART_KEYS\s*=\s*\[/.test(adminSrc),
-  'Found a `const CHART_KEYS = [ … ]` literal in www/admin.js. The dashboard '
-    + 'should iterate MCCSurvey.KEYS directly instead of maintaining a parallel list.',
+  'no admin script declares a parallel CHART_KEYS array (Task #397)',
+  adminSrcMatches.length === 0,
+  'Found a `const CHART_KEYS = [ … ]` literal in: '
+    + adminSrcMatches.map(p => path.relative(REPO_ROOT, p)).join(', ')
+    + '. The dashboard should iterate MCCSurvey.KEYS directly instead of maintaining a parallel list.',
 );
 
 console.log(`\n${passed} passed, ${failed} failed`);
