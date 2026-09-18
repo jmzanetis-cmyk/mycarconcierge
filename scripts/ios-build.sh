@@ -67,37 +67,43 @@ rm -f "$IOS_PUBLIC/emailservice.js"
 rm -f "$IOS_PUBLIC/emailService.js"
 rm -f "$IOS_PUBLIC/email-template.html"
 
+# BSD sed on macOS needs `-i ''` (empty extension arg is required for
+# in-place edit). Without it, sed interprets the pattern as the extension
+# and the filename as the pattern — hence the "invalid command code" errors
+# that were breaking every build. This script only runs on macOS (Xcode is
+# required upstream), so `-i ''` is the right form; GNU sed would need a
+# different syntax if this script ever ran on Linux CI.
 echo "Patching members.html (removing Admin Portal nav item)..."
 if [ -f "$IOS_PUBLIC/members.html" ]; then
-  sed -i '/<div class="nav-item".*admin\.html/d' "$IOS_PUBLIC/members.html"
+  sed -i '' '/<div class="nav-item".*admin\.html/d' "$IOS_PUBLIC/members.html"
 fi
 
 echo "Patching login.js (redirect admins to members dashboard)..."
 if [ -f "$IOS_PUBLIC/login.js" ]; then
-  sed -i "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$IOS_PUBLIC/login.js"
+  sed -i '' "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$IOS_PUBLIC/login.js"
 fi
 
 echo "Patching sw.js (removing admin files from precache)..."
 if [ -f "$IOS_PUBLIC/sw.js" ]; then
-  sed -i "/['\"]\/admin\.html['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/admin\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/admin-outreach\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/admin-team\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/admin-invite\.html['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/analytics-tracker\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/hubspot-client\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/outreach-engine-api\.js['\"],/d" "$IOS_PUBLIC/sw.js"
-  sed -i "/['\"]\/stress-test.*\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/admin\.html['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/admin\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/admin-outreach\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/admin-team\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/admin-invite\.html['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/analytics-tracker\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/hubspot-client\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/outreach-engine-api\.js['\"],/d" "$IOS_PUBLIC/sw.js"
+  sed -i '' "/['\"]\/stress-test.*\.js['\"],/d" "$IOS_PUBLIC/sw.js"
 fi
 
 echo "Patching index.html (removing admin redirect)..."
 if [ -f "$IOS_PUBLIC/index.html" ]; then
-  sed -i "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$IOS_PUBLIC/index.html"
+  sed -i '' "s|window\.location\.href = 'admin\.html'|window.location.href = 'members.html'|g" "$IOS_PUBLIC/index.html"
 fi
 
 echo "Patching mcc-config.js (removing Replit API URL for iOS)..."
 if [ -f "$IOS_PUBLIC/mcc-config.js" ]; then
-  sed -i "s|const REPLIT_API_URL = '.*'|const REPLIT_API_URL = ''|g" "$IOS_PUBLIC/mcc-config.js"
+  sed -i '' "s|const REPLIT_API_URL = '.*'|const REPLIT_API_URL = ''|g" "$IOS_PUBLIC/mcc-config.js"
 fi
 
 echo "Removing additional internal files..."
