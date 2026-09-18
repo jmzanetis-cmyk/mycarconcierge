@@ -271,3 +271,27 @@
   padding-top: 8px;
 }
 .post-card .post-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); }
+
+/* ----- Soro live feed (auto-published posts) ----- */
+.soro-feed-heading {
+  padding: 8px 0 4px; text-align: center;
+}
+.soro-feed-heading h2 {
+  font-family: 'Fraunces', serif;
+  font-size: var(--text-xl); font-weight: 500;
+  color: var(--text-primary); margin-bottom: 6px;
+}
+.soro-feed-heading p { color: var(--text-secondary); font-size: var(--text-sm); }
+.soro-feed-section { padding: 12px 0 40px; min-height: 80px; }
+
+.blog-archive-heading {
+  padding: 40px 0 8px; text-align: center;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 12px;
+}
+.blog-archive-heading h2 {
+  font-family: 'Fraunces', serif;
+  font-size: var(--text-lg); font-weight: 500;
+  color: var(--text-primary);
+}
+.blog-archive-heading p { color: var(--text-secondary); font-size: var(--text-sm); margin-top: 6px; }
