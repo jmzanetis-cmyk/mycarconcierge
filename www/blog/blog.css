@@ -295,3 +295,22 @@
   color: var(--text-primary);
 }
 .blog-archive-heading p { color: var(--text-secondary); font-size: var(--text-sm); margin-top: 6px; }
+
+/* Soro widget bug, confirmed live 2026-09-18: its own "Dark" mode toggle
+   doesn't actually apply to rendered text — card/article titles, the
+   back link, and article body copy all render near-black (#1a1a1a) on
+   any background, which is invisible against this page's dark theme.
+   Only excerpt/date text has a theme-agnostic gray that's readable
+   either way. Force everything else to our own themed tokens rather
+   than depend on Soro's dashboard setting; #soro-blog's ID gives this
+   higher specificity than Soro's own class-based color rules, so no
+   !important needed. */
+#soro-blog,
+#soro-blog * {
+  color: var(--text-primary);
+}
+#soro-blog .soro-blog-card-excerpt,
+#soro-blog .soro-blog-card-date,
+#soro-blog .soro-blog-article-date {
+  color: var(--text-secondary);
+}
