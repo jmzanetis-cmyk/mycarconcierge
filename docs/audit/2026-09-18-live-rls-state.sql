@@ -56,6 +56,18 @@
 -- ============================================================================
 -- Result rows:
 --   schema_migrations
+--
+-- Tables from the #471 twelve-table list that DO NOT EXIST in prod
+-- (surfaced when 20260918b was first applied — the DO block that codifies
+-- ENABLE ROW LEVEL SECURITY loops with to_regclass('public.'||t) checks
+-- and emits RAISE NOTICE for each missing table). The 20260319_crowd_fund_
+-- complete.sql tables were never applied to prod, or were dropped later
+-- out-of-band. RLS enable is skipped for these; they'll pick up the
+-- ENABLE naturally if/when the tables are ever created (via the shape
+-- guard in rls-policy-shape.test.js Rule 2, which fires on any post-
+-- 20260918 CREATE TABLE lacking a matching ENABLE ROW LEVEL SECURITY).
+-- Result rows (from RAISE NOTICE — paste verbatim after next apply):
+--   (paste here)
 
 
 -- ============================================================================

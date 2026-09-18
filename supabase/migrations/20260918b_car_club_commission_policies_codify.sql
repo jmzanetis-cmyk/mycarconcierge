@@ -44,19 +44,41 @@
 -- ============================================================================
 
 
--- ---- 1. ENABLE RLS on the twelve audit tables (all no-ops today) ----------
-ALTER TABLE public.car_clubs                    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.club_memberships             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.club_activity_log            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.club_reward_rules            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.car_club_benefits            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.car_club_redemptions         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.car_club_return_bonuses      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.community_posts              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.commission_rate_history      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.founder_campaign_clicks      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.founder_campaign_investments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.admin_audit_log              ENABLE ROW LEVEL SECURITY;
+-- ---- 1. ENABLE RLS on the twelve audit tables (idempotent, tolerates
+--         tables that are absent from prod) ------------------------------
+--
+-- First applied 2026-09-18: relation public.founder_campaign_clicks does
+-- not exist in prod — the 20260319_crowd_fund_complete.sql tables were
+-- never applied, or were dropped out-of-band. Straight ALTER TABLE fails
+-- the whole migration on the first missing table. Loop over the list,
+-- skip missing tables with a NOTICE. Live absences are recorded in
+-- docs/audit/2026-09-18-live-rls-state.sql, section 1.
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'car_clubs',
+    'club_memberships',
+    'club_activity_log',
+    'club_reward_rules',
+    'car_club_benefits',
+    'car_club_redemptions',
+    'car_club_return_bonuses',
+    'community_posts',
+    'commission_rate_history',
+    'founder_campaign_clicks',
+    'founder_campaign_investments',
+    'admin_audit_log'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    IF to_regclass('public.'||t) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    ELSE
+      RAISE NOTICE 'skipping RLS enable: table public.% is absent from this environment', t;
+    END IF;
+  END LOOP;
+END $$;
 
 
 -- ---- 2. car_clubs — three SELECT policies --------------------------------
