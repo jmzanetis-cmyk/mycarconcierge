@@ -18,6 +18,15 @@
 'use strict';
 
 var utils = require('./utils');
+var { audit: sharedAudit } = require('./_shared/audit');
+
+function audit(supabase, row) {
+  return sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[admin-refunds]',
+  });
+}
 
 function getStripe() {
   var key = process.env.STRIPE_SECRET_KEY;
@@ -128,6 +137,18 @@ async function handleProcess(supabase, refundId, userId, body) {
       .update({ status: 'cancelled', approved_by: userId, approved_at: new Date().toISOString() })
       .eq('id', refundId);
 
+    await audit(supabase, {
+      action: 'refund_denied_by_admin',
+      target_id: refundId,
+      target_type: 'refund',
+      performed_by: userId,
+      metadata: {
+        package_id: refund.package_id || null,
+        amount_cents: refund.amount_cents || null,
+        requested_by: refund.requested_by || null,
+      },
+    });
+
     if (refund.requested_by) {
       await supabase.from('notifications').insert({
         user_id:     refund.requested_by,
@@ -189,6 +210,20 @@ async function handleProcess(supabase, refundId, userId, body) {
       processed_at:   new Date().toISOString()
     })
     .eq('id', refundId);
+
+  await audit(supabase, {
+    action: 'refund_processed_by_admin',
+    target_id: refundId,
+    target_type: 'refund',
+    performed_by: userId,
+    metadata: {
+      package_id: refund.package_id || null,
+      amount_cents: refundAmountCents,
+      is_partial: !!isPartial,
+      stripe_refund_id: stripeRefund.id,
+      requested_by: refund.requested_by || null,
+    },
+  });
 
   if (refund.package_id) {
     await supabase

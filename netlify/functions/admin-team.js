@@ -15,6 +15,15 @@
 
 const utils = require('./utils');
 const crypto = require('node:crypto');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+function audit(supabase, row) {
+  return sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[admin-team]',
+  });
+}
 
 function jsonResponse(statusCode, data) {
   return {
@@ -222,19 +231,50 @@ exports.handler = async function(event) {
       if (body.status && ['active', 'disabled', 'inactive'].includes(body.status)) updates.status = body.status;
       updates.updated_at = new Date().toISOString();
 
+      // Fetch prior state before mutating — both for the password-change
+      // user_id lookup below and so the audit row can record what actually
+      // changed (role/status flips are the security-sensitive part here).
+      const { data: priorMember } = await supabase
+        .from('admin_team_members')
+        .select('user_id, email, role, status, display_name')
+        .eq('id', memberId)
+        .single();
+
       // Password changes go through Supabase Auth, not a column on this
       // table — need the member's user_id first.
       if (body.password) {
         if (body.password.length < 8) return jsonResponse(400, { error: 'Password must be at least 8 characters' });
-        const { data: member } = await supabase.from('admin_team_members').select('user_id').eq('id', memberId).single();
-        if (member?.user_id) {
-          const { error: pwErr } = await supabase.auth.admin.updateUserById(member.user_id, { password: body.password });
+        if (priorMember?.user_id) {
+          const { error: pwErr } = await supabase.auth.admin.updateUserById(priorMember.user_id, { password: body.password });
           if (pwErr) return jsonResponse(500, { error: pwErr.message || 'Failed to update password' });
         }
       }
 
       const { error } = await supabase.from('admin_team_members').update(updates).eq('id', memberId);
       if (error) return jsonResponse(500, { error: error.message });
+
+      // Audit log — Phase 4a finding: role/status changes on this table had
+      // zero actor attribution. Only log the fields that were actually part
+      // of this update, and call out role changes specifically since those
+      // are the privilege-escalation-relevant ones.
+      await audit(supabase, {
+        action: 'team_member_updated',
+        target_id: memberId,
+        target_type: 'admin_team_member',
+        performed_by: admin.id,
+        metadata: {
+          target_email: priorMember?.email || null,
+          role_changed: !!body.role && priorMember?.role !== body.role,
+          previous_role: body.role ? (priorMember?.role || null) : undefined,
+          new_role: body.role || undefined,
+          status_changed: !!updates.status && priorMember?.status !== updates.status,
+          previous_status: updates.status ? (priorMember?.status || null) : undefined,
+          new_status: updates.status || undefined,
+          display_name_changed: !!body.display_name,
+          password_reset: !!body.password,
+        },
+      });
+
       return jsonResponse(200, { success: true });
     }
 
@@ -244,12 +284,28 @@ exports.handler = async function(event) {
       // "disabled" status this table already models, and avoids silently
       // destroying an account that might need to be restored. The row
       // itself is removed so it drops off the roster immediately.
-      const { data: member } = await supabase.from('admin_team_members').select('user_id').eq('id', memberId).single();
+      const { data: member } = await supabase.from('admin_team_members').select('user_id, email, role, display_name').eq('id', memberId).single();
       if (member?.user_id) {
         try { await supabase.auth.admin.updateUserById(member.user_id, { ban_duration: '876000h' }); } catch (_e) { /* best-effort */ }
       }
       const { error } = await supabase.from('admin_team_members').delete().eq('id', memberId);
       if (error) return jsonResponse(500, { error: error.message });
+
+      // Audit log — Phase 4a finding: member removal had zero actor
+      // attribution. Capture who was removed (from the pre-delete select
+      // above) and who removed them.
+      await audit(supabase, {
+        action: 'team_member_removed',
+        target_id: memberId,
+        target_type: 'admin_team_member',
+        performed_by: admin.id,
+        metadata: {
+          removed_email: member?.email || null,
+          removed_role: member?.role || null,
+          removed_display_name: member?.display_name || null,
+        },
+      });
+
       return jsonResponse(200, { success: true });
     }
 

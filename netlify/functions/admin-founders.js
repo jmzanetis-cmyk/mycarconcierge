@@ -24,6 +24,15 @@
 'use strict';
 
 var utils = require('./utils');
+var { audit: sharedAudit } = require('./_shared/audit');
+
+function audit(supabase, row) {
+  return sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[admin-founders]',
+  });
+}
 
 // B3 milestone bonuses are scoped exclusively to Chris's founder profile.
 var CHRIS_FOUNDER_ID = '21837a02-6df4-4cb8-b0f4-c5082e83acbd';
@@ -445,6 +454,19 @@ exports.handler = async function(event) {
         notes:              body.notes || null,
       }).eq('id', ach.id).select().single();
       if (updateResult.error) throw updateResult.error;
+
+      await audit(supabase, {
+        action: 'founder_milestone_marked_paid',
+        target_id: ach.id,
+        target_type: 'milestone_achievement',
+        performed_by: user.id,
+        metadata: {
+          founder_id: CHRIS_FOUNDER_ID,
+          threshold_id: thresholdId,
+          bonus_amount: ach.bonus_amount,
+          stripe_transfer_id: body.stripe_transfer_id || null,
+        },
+      });
 
       return utils.successResponse({
         success:     true,
