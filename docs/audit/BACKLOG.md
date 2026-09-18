@@ -22,3 +22,15 @@
   Desired: accept -> payment modal -> on authorize success mark accepted;
   on abandon, auto-revert bid to pending after timeout (avoid stuck
   "Awaiting Payment" plans with committed providers). Jordan 2026-07-16.
+
+## Queued 2026-09-18 (Tier-0.5 RLS sweep)
+- anthropic-health.test.js has two bugs (surfaced during Task #472 npm test):
+  (1) completeness check depends on the `rg` (ripgrep) CLI being installed and
+  falls back to a broken grep path when it isn't, and (2) the test exits with
+  code 0 even when its assertions throw (async-error propagation missing —
+  probably needs the top-level to be wrapped in try/catch + process.exit(1)).
+  As a result the test can silently pass CI on any machine without rg. Also
+  the current assertion flags the filename `docs/claude-code-tasks.md` as a
+  "missing claude-* model literal" — the grep pattern needs to scope out
+  non-JS/HTML paths (or the filename regex needs to require a word boundary
+  after `claude-`). Fix both while you're in there.
