@@ -41,7 +41,18 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  SECRETS_SCAN_ENABLED = "false"
+  # Task #473 (2026-09-18 RLS/key audit): secrets scanning re-enabled. It had
+  # been off since 2026-03 (commit 05807fc) with no recorded reason; the only
+  # env values that legitimately appear in the published bundle are
+  # public-by-design keys, so those are omitted by NAME rather than disabling
+  # the scan. If a future deploy fails the scan, add the offending env var
+  # here only if it is genuinely public (anon/publishable/VAPID-public/URLs).
+  # Never omit SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, or any *_SECRET.
+  SECRETS_SCAN_ENABLED = "true"
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_ANON_KEY,STRIPE_PUBLISHABLE_KEY,VAPID_PUBLIC_KEY,GOOGLE_MAPS_API_KEY,PUBLIC_BASE_URL,SITE_URL,TWILIO_INBOUND_PUBLIC_URL,BGC_PUBLIC_FORM_BASE,SUPABASE_URL"
+  # node_modules and the mobile/test copies of the bundle would only
+  # duplicate the www/ findings; keep the scan focused on what ships.
+  SECRETS_SCAN_OMIT_PATHS = "node_modules/**,netlify/functions/node_modules/**,www-ios/**,ios/**,android/**,build/**,test-results/**,_to_delete/**,docs/**,.env.example"
 
 [functions]
   node_bundler = "esbuild"

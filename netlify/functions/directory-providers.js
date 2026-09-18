@@ -114,6 +114,11 @@ async function handleListing(event) {
     )
     .eq('directory_opt_in', true)
     .eq('role', 'provider')
+    // Task #475: role='provider' alone is not a trust signal — the provider
+    // portal auto-creates role='provider' rows for any signed-in user, and
+    // directory_opt_in / directory_slug are self-editable. Only admin-verified
+    // providers belong in the public directory.
+    .eq('verification_status', 'verified')
     .not('directory_slug', 'is', null)
     .eq('suspended', false)
     .order('business_name', { ascending: true })
@@ -208,6 +213,7 @@ async function handleProfile(slug) {
     .eq('directory_slug', slug)
     .eq('directory_opt_in', true)
     .eq('role', 'provider')
+    .eq('verification_status', 'verified') // Task #475 — see handleListing
     .eq('suspended', false)
     .maybeSingle();
 
