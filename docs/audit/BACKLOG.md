@@ -24,13 +24,15 @@
   "Awaiting Payment" plans with committed providers). Jordan 2026-07-16.
 
 ## Queued 2026-09-18 (Tier-0.5 RLS sweep)
-- anthropic-health.test.js has two bugs (surfaced during Task #472 npm test):
-  (1) completeness check depends on the `rg` (ripgrep) CLI being installed and
-  falls back to a broken grep path when it isn't, and (2) the test exits with
-  code 0 even when its assertions throw (async-error propagation missing —
-  probably needs the top-level to be wrapped in try/catch + process.exit(1)).
-  As a result the test can silently pass CI on any machine without rg. Also
-  the current assertion flags the filename `docs/claude-code-tasks.md` as a
-  "missing claude-* model literal" — the grep pattern needs to scope out
-  non-JS/HTML paths (or the filename regex needs to require a word boundary
-  after `claude-`). Fix both while you're in there.
+- anthropic-health.test.js needs two changes (surfaced when commit 6fa9513
+  landed a comment in netlify/functions/car-clubs.js that referenced the
+  filename of the CC task-briefs doc; the test's claude-* scan of
+  netlify/functions/ picked up "claude-code-tasks" as a would-be model
+  literal, npm test exited 1, and Netlify's build command failed the deploy):
+  (1) scope the scan to string literals in code, not comments — the correct
+  contract is "flag any `claude-*` model id passed to the Anthropic SDK",
+  not "flag any occurrence of the substring in the source tree"; and
+  (2) make the test exit non-zero on assertion failure (currently the
+  assertion throws inside an async top-level and the process still exits 0,
+  which would let a real regression slip past `npm test` on any machine
+  where the scan still finds legit literals). Fix both together.
