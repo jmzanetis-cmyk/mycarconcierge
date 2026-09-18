@@ -101,7 +101,12 @@ if [ -f "$IOS_PUBLIC/mcc-config.js" ]; then
 fi
 
 echo "Removing additional internal files..."
-rm -f "$IOS_PUBLIC/stripeutils.js"
+# NB (2026-09-18): stripeutils.js used to be deleted here — that was a bug.
+# members.html, providers.html, and split-pay.html all load it via
+# <script src="stripeutils.js">, and docs/ios-build.md explicitly lists it
+# under "Retained in the consumer build" (required for member features).
+# Stripping it turned every Stripe-dependent page into a ReferenceError on
+# first Stripe call. Kept in the bundle now.
 rm -f "$IOS_PUBLIC/car-club-api.js"
 rm -f "$IOS_PUBLIC/stress-test-analytics.js"
 rm -f "$IOS_PUBLIC/stress-test-outreach.js"
