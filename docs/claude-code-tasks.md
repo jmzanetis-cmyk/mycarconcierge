@@ -413,3 +413,193 @@ If you're handing CC one session at a time, this order minimises context jugglin
 14. **#458** → **#459** → **#460** (API-key health stack, in that order).
 
 After each task: `node --check` any touched JS, `npm run lint`, run the relevant test suite, then if `www/*` was touched: `npm run cap:sync`.
+
+---
+
+## Tier 0.5 — RLS audit lockdown (added 2026-09-18)
+
+Background: a repo audit on 2026-09-18 found two Supabase RLS gaps. (1) The seven outreach-engine tables have policies named `service_role_*` that are actually `FOR ALL USING (true)` with no `TO` clause, so the public anon key can read/write `outreach_leads` (prospect name/email/phone), `outreach_messages`, `outreach_campaigns`, `campaign_leads`, `outreach_activity_log`, `opportunity_pipeline`, `engine_state`. (2) Twelve tables have no RLS at all — the seven car-club tables (`car_clubs`, `club_memberships`, `club_activity_log`, `club_reward_rules`, `car_club_benefits`, `car_club_redemptions`, `car_club_return_bonuses`; the 20260703a–g prod captures say "no RLS" explicitly), plus `community_posts`, `commission_rate_history`, `founder_campaign_clicks`, `founder_campaign_investments`, `admin_audit_log`. Everything else checked out: only the anon JWT ships in www/ios/android, service-role key is server-side only, both Stripe webhook handlers call `constructEvent`, admin-* functions all use `authenticateBearerAdmin`, driver API routes verify bearer tokens with `getUser`.
+
+Per the conventions at the top of this file, CC **writes** migrations and the human **applies** them in the Supabase SQL editor. Do the tasks in order; #469 gates the rest. A draft at `supabase/migrations/20260918a_rls_audit_lockdown.sql` is superseded by #470/#471 — delete it in #470.
+
+### Task #469 — Confirm live RLS state matches the repo (no code change)
+
+**Why:** The migrations folder only starts spring 2025 and `profiles`/`vehicles` policies predate it. Don't apply a lockdown blind.
+
+**Steps:**
+1. Print the following for the human to run in Supabase → SQL editor, and ask them to paste the results back (results contain no secrets):
+   ```sql
+   -- A. outreach policies: expect roles = {public} on all seven tables
+   select tablename, policyname, roles, cmd, qual, with_check
+   from pg_policies where schemaname='public'
+     and tablename in ('engine_state','opportunity_pipeline','outreach_leads','outreach_messages','outreach_campaigns','campaign_leads','outreach_activity_log')
+   order by tablename;
+   -- B. tables with RLS off: expect the 12 listed above (plus possibly others)
+   select relname from pg_class
+   where relnamespace='public'::regnamespace and relkind='r' and not relrowsecurity
+   order by relname;
+   -- C. policies not in version control
+   select tablename, policyname, roles, cmd, qual, with_check
+   from pg_policies where schemaname='public' and tablename in ('profiles','vehicles')
+   order by tablename, policyname;
+   -- D. anon/authenticated grants sanity
+   select table_name, grantee, string_agg(privilege_type, ',')
+   from information_schema.role_table_grants
+   where table_schema='public' and grantee in ('anon','authenticated')
+     and table_name in ('outreach_leads','car_clubs','club_memberships','admin_audit_log')
+   group by 1,2 order by 1,2;
+   ```
+2. Compare. If A shows `{service_role}` already, skip #470. If B lists tables not in the twelve above, add them to #471's list. Save C's output verbatim to `docs/audit/2026-09-18-profiles-vehicles-policies.sql` so those policies are finally in the repo (as documentation, not a migration).
+3. **Stop and report** if A or B disagree materially with the audit; otherwise proceed to #470.
+
+**Verify:** `docs/audit/2026-09-18-profiles-vehicles-policies.sql` exists and the human has confirmed A and B.
+
+### Task #470 — Outreach tables: restrict `service_role_*` policies to service_role
+
+**Why:** Closes the anon-key read/write on prospect PII. Zero client impact: nothing under `www/` queries these tables with the anon client (`www/admin-analytics.js` ~L564 already routes through `provider-application-review`), and all functions/server.js use the service-role client.
+
+**Steps:**
+1. Delete `supabase/migrations/20260918a_rls_audit_lockdown.sql` (superseded).
+2. Create `supabase/migrations/20260918a_outreach_policies_service_role.sql`:
+   ```sql
+   -- Task #470: outreach policies were FOR ALL USING (true) with no TO clause
+   -- (20260420_outreach_engine_initial.sql), i.e. open to anon/authenticated.
+   DO $$
+   DECLARE r RECORD;
+   BEGIN
+     FOR r IN
+       SELECT tablename, policyname FROM pg_policies
+       WHERE schemaname = 'public'
+         AND tablename IN ('engine_state','opportunity_pipeline','outreach_leads',
+                           'outreach_messages','outreach_campaigns','campaign_leads',
+                           'outreach_activity_log')
+         AND policyname LIKE 'service_role_%'
+     LOOP
+       EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
+       EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)',
+                      r.policyname, r.tablename);
+     END LOOP;
+   END $$;
+   ```
+3. Grep to prove the no-client-impact claim and paste the (empty) result in the PR description: `grep -rn "from('outreach_\|from('engine_state\|from('opportunity_pipeline\|from('campaign_leads" www/*.js www/*.html | grep -v stress-test`.
+4. Also fix the source of the bug so it can't recur: in `20260420_outreach_engine_initial.sql` leave history alone, but add a lockdown test `netlify/functions-tests/rls-policy-shape.test.js` that scans `supabase/migrations/*.sql` and fails on any `CREATE POLICY ... USING (true)` / `WITH CHECK (true)` whose policy name starts with `service_role` and lacks `TO service_role`. Wire it into `scripts/run-function-tests.sh`.
+5. Hand the migration to the human to apply. After apply: they re-run query A from #469 (expect `{service_role}`), watch one `outreach-cycle` scheduled run succeed in Netlify function logs, and load the admin Outreach tab.
+6. One-time hygiene: ask the human to run `select count(*), min(created_at), max(created_at) from outreach_leads where source not in (<known sources from www/admin-core.js ~L287>)` and eyeball for rows nobody recognises, since the table has been world-writable since April.
+
+**Verify:** `npm test` passes including the new rls-policy-shape test; query A shows `{service_role}`; outreach-cycle log shows a normal run post-apply.
+
+### Task #471 — Enable RLS on the twelve open tables (service-role only)
+
+**Why:** A public-schema table without RLS is fully readable/writable with the anon key. Member-facing Car Club traffic already goes through `netlify/functions/car-clubs.js` (service role) via `/api/car-clubs/*` in `www/_redirects`, and the RPCs in 20260703h use `auth.uid()` on tables that already have RLS, so enabling RLS-with-no-policy on these tables affects **only** the admin page handled in #472. Do #472's code change in the same PR so they ship together.
+
+**Steps:**
+1. Create `supabase/migrations/20260918b_enable_rls_open_tables.sql`:
+   ```sql
+   -- Task #471: tables captured from prod (20260703a–g) with no RLS, plus four
+   -- older ones. No policies = service_role only; browser access removed in #472.
+   ALTER TABLE public.car_clubs                   ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.club_memberships            ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.club_activity_log           ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.club_reward_rules           ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.car_club_benefits           ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.car_club_redemptions        ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.car_club_return_bonuses     ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.community_posts             ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.commission_rate_history     ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.founder_campaign_clicks     ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.founder_campaign_investments ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE public.admin_audit_log             ENABLE ROW LEVEL SECURITY;
+   ```
+   Add any extra tables that #469 query B surfaced (excluding Supabase-internal ones and anything intentionally public like `zip_centroids`/`service_categories`, which already have explicit read policies).
+2. Audit the `redeem_reward_for_member` RPC and the other 20260703h functions: if any is `SECURITY INVOKER` and touches `club_memberships` or `car_club_redemptions` under the caller's role, it will now return empty/42501. Grep `supabase/migrations/2026070*` for `SECURITY DEFINER` vs invoker and list findings in the PR; if an RPC needs the tables, either mark it `SECURITY DEFINER` with `SET search_path = public, pg_temp` or add a narrow `FOR SELECT TO authenticated USING (member_id = auth.uid())` policy on `club_memberships` — prefer the policy.
+3. Extend the lockdown test from #470 to also fail if any `CREATE TABLE` in migrations dated after 2026-09-18 lacks a matching `ENABLE ROW LEVEL SECURITY` in the same file.
+4. Hand the migration to the human to apply **together with** the #472 deploy.
+
+**Verify:** query B from #469 no longer lists these tables; `node www/stress-test-car-clubs.js` and `node www/stress-test-car-club-punch.js` (service-role scripts) still pass; member flow smoke below in #472.
+
+### Task #472 — Move admin car-club reads/writes off the anon client
+
+**Why:** `www/admin-ai-ops.js` (~L327 select, ~L409 insert, ~L419 select, ~L437 update `is_active`) is the only browser code that hits `car_clubs` directly. Once #471 lands those calls return empty/403. Move them behind an admin-authenticated function like every other admin write. Side note: the insert at ~L409 sets no `provider_id`, which is `NOT NULL` in `20260703a_car_clubs_base.sql` — it is probably failing today; fix the form to require a provider (or default to the admin's own id) while you're there.
+
+**Steps:**
+1. In `netlify/functions/car-clubs.js` (or `ai-ops-admin.js` if car-clubs.js is member-only — pick whichever already has the admin auth helper wired), add routes guarded by `authenticateBearerAdmin`: `GET /api/admin/car-clubs` (list with provider `full_name,email` join), `POST /api/admin/car-clubs` (create; require `provider_id`), `PATCH /api/admin/car-clubs/:id` (`is_active` toggle). Add the three lines to `www/_redirects` next to the existing `/api/car-clubs` block.
+2. Rewrite the four call sites in `www/admin-ai-ops.js` to `fetch()` those endpoints with the session bearer token, matching how `admin-core.js` calls other admin endpoints. Keep the DOM/UX unchanged.
+3. Add the new routes to `netlify/functions-tests/admin-routes-auth.test.js` so the lockdown test counts them (unauthenticated → 401).
+4. `npm run cap:sync` (admin page ships in the mobile bundle).
+5. Manual smoke after deploy + #471 apply, with the human: admin → AI Ops → Car Clubs tab lists clubs, creates one, toggles active; member account → view a club, join, redeem a reward via the existing `/api/car-clubs/*` path; provider account → view own club. Any 42501 or silently empty list = missing policy; add the narrow policy, do not disable RLS.
+
+**Verify:** `npm test` green (admin-routes-auth counts the new routes); manual smoke checklist above passes; `grep -n "from('car_clubs')\|from('club_memberships')" www/*.js | grep -v stress-test` returns nothing.
+
+### Task #473 — Loose ends (human dashboard items + one config change)
+
+**Steps (human, not CC):** delete the stale Replit endpoint under Stripe → Developers → Webhooks; Supabase → Settings → Database → Network Restrictions: allow-list Railway's egress IPs and your own, since nothing else connects to Postgres directly (PostgREST/edge traffic is unaffected).
+
+**Steps (CC):** in `netlify.toml` change `SECRETS_SCAN_ENABLED = "false"` to `"true"` and add `SECRETS_SCAN_OMIT_PATHS` / `SECRETS_SCAN_OMIT_KEYS` for whatever false positive caused it to be turned off (check git blame on that line for the reason; the public anon JWT in `www/supabaseclient.js` is the likely culprit — omit `SUPABASE_ANON_KEY` by key, not by path). Trigger a deploy preview and confirm the build passes.
+
+**Verify:** Netlify deploy log shows the secrets scan ran and passed; Stripe webhook list has only the Netlify/Railway endpoints.
+
+### Rollback
+
+- #470: recreate the seven policies without the `TO service_role` clause (exactly the 20260420 shape).
+- #471: `ALTER TABLE public.<t> DISABLE ROW LEVEL SECURITY;` per table.
+- #472: revert the PR; the old anon-client calls only work while #471 is rolled back too, so roll both or neither.
+
+### Task #474 — profiles: block self-service edits to privileged columns (DO THIS BEFORE #470)
+
+**Why:** Live `pg_policies` (2026-09-18) shows `profiles_update_self` = `USING (auth.uid() = id) WITH CHECK (auth.uid() = id)` with no column restriction, and the only BEFORE UPDATE guard (`20260428e_provider_writes_rls_lockdown.sql`) protects just `suspension_reason` / `suspended_at`. So any signed-in user can `PATCH /rest/v1/profiles?id=eq.<self>` with `{"role":"admin"}` (or `bid_credits`, `verification_status`, `saas_plans_cache`, `marketplace_visible`, `founding_member_joined_at`, `bgc_compliance_pct`…) using the public anon key plus their own JWT. Every admin-* Netlify function trusts `profiles.role === 'admin'` (31 references), so this is a full privilege escalation. Highest priority of the sweep.
+
+**Steps:**
+1. Enumerate the live column list: ask the human to run `select column_name from information_schema.columns where table_schema='public' and table_name='profiles' order by ordinal_position;` and paste it. Classify each column as **user-editable** (display name, phone, avatar, address, preferred_language, business_hours, sms_opt_out, auto_bid_*, shop_onboarding_*, etc.) or **privileged** (role, bid_credits, verification_status, suspension_*, saas_plans_*, stripe_*, founder_*/commission_*, bgc_*, outreach_*, acquisition_*, marketplace_visible, is_* flags, anything set by a server flow). When in doubt, privileged.
+2. Create `supabase/migrations/20260918c_profiles_privileged_columns_guard.sql` that extends the existing trigger function from 20260428e (keep its name and the `auth.role() = 'service_role'` bypass, preserve the suspension checks) to `RAISE EXCEPTION` when any privileged column `IS DISTINCT FROM` its OLD value. Do it as a trigger (denylist), not column-level `REVOKE UPDATE`, because legacy `admin.js` browser writes for `bid_credits` and approval role flips still go through the authenticated role (see the note in 20260424_admin_audit_log.sql) — allow those by also bypassing when `is_admin()` is true, and grep `www/*.js` for `.from('profiles').update(` to list exactly which columns the browser still writes so nothing legitimate breaks.
+3. Lockdown test: add to `netlify/functions-tests/` a test that reads the new migration and asserts the denylist contains at least `role`, `bid_credits`, `verification_status`, `suspension_reason`, `suspended_at`.
+4. Hand to human to apply. Verify with a throwaway member account via the REST API: `PATCH profiles` setting `role` → expect 4xx with the trigger's message; setting `full_name` → 204.
+
+**Also from the live policy dump (fold into the same PR or a follow-up):**
+- `vehicles`: `Members can manage own vehicles` (ALL, `auth.uid() = owner_id`) ORs with `Verified members can insert own vehicles`, so the `is_identity_verified()` gate on INSERT is dead — permissive policies are OR'd. If the verification gate is meant to hold, drop INSERT from the ALL policy (split into SELECT/UPDATE/DELETE) so the verified-insert policy is the only INSERT path.
+- `profiles_select_providers`: any authenticated user can SELECT every column of every provider profile (email, phone, street_address, stripe_customer_id, saas cache, bgc stats…). The public directory already goes through `directory-providers.js` with a curated column list. Either replace this policy with a `providers_public` view exposing only directory columns, or use column-level grants (`REVOKE SELECT ON profiles FROM authenticated; GRANT SELECT (id, full_name, …) …`) — the view is simpler and matches existing code.
+
+**Verify:** REST PATCH of `role` by a non-admin fails; `npm test` green; admin portal approval flow and bid-credit grant still work (`www/admin*.js` smoke).
+
+### Task #475 — Gate public directory surfaces on `verification_status = 'verified'` (do right after #474)
+
+**Why:** Surfaced during the #474 investigation. `providers-core.js:217` and `providers.js:138` both auto-create a profile with `role='provider'` when an authenticated user lands on the provider portal without an existing row (verified intentional in #474 — verification_status is the real bidding gate). But `netlify/functions/directory-providers.js:115-118` (list) filters on `role='provider' AND directory_opt_in=true AND directory_slug IS NOT NULL AND suspended=false` — **no `verification_status` check**, and the single-provider lookup around L202 has the same shape. `directory_opt_in` and `directory_slug` are both user-editable per the #474 ALLOW list, so a self-promoted `role='provider'` user who flips their opt-in and sets a slug appears in the public directory as a service provider without ever being verified. Not a privilege escalation on top of #474's trigger, but a real listing-integrity gap: consumers browsing the directory would see them as legitimate providers.
+
+**Steps:**
+1. In `netlify/functions/directory-providers.js`, add `.eq('verification_status', 'verified')` to both the list query at L115-118 and the single-provider lookup around L202. Verify the column name against the live schema (task #474 confirmed `verification_status` with values `'verified' | 'pending' | ...`; do not use the legacy mock column `is_verified`).
+2. Grep `www/` and `netlify/functions/` for any other public-facing surface that lists providers by `role` alone. Known candidates to inspect: `www/providers-directory.html`, `www/p.html`, `netlify/functions/provider-profile-publish.js` (L52), and any `tenant-portal.js` or `white-label-join.js` paths that filter on `role='provider'`. Apply the same `verification_status = 'verified'` gate to any surface that renders provider data to non-admin, non-self viewers. Where the caller is the provider themselves editing their own profile (e.g. `provider-profile-publish.js` gating the caller's own publish action), leave role/pending_provider access alone — those flows correctly allow pending providers.
+3. Add `netlify/functions-tests/directory-providers-verification-gate.test.js`: read `netlify/functions/directory-providers.js` and assert the string `verification_status` appears within both the list-query chain and the single-lookup chain (or write a small AST/regex parser if the file evolves). Wire into `scripts/run-function-tests.sh` (auto-discovered by the existing glob).
+4. Hand to human for a manual smoke: create a fresh account, navigate to `providers.html` to trigger the auto-create fallback, flip `directory_opt_in=true` and set `directory_slug='test'` via the profile editor. Confirm they do NOT appear at `/providers` (the public directory page) until an admin runs the Verify Provider action.
+
+**Also worth confirming while you're in the code:**
+- Whether the auto-create fallback in `providers-core.js:217` / `providers.js:138` should exist at all. Normal signup paths (signup-provider.js, onboarding-provider.html, login.js OAuth) always create the profile first, so this fallback only fires in edge cases (auth-account-but-no-profile-row). If those edge cases can be reduced to zero, the fallback is dead code and can be replaced with a "contact support" redirect — closes the self-promotion path entirely.
+
+**Verify:** `npm test` green (including the new directory-providers-verification-gate test); manual smoke: a `role='provider'` account with `verification_status IS NULL` and `directory_opt_in=true` + `directory_slug` set does NOT appear in the `/providers` directory listing or single-profile lookup.
+
+### Task #476 — Migrate onboarding-member founding-path server-side with a real eligibility check
+
+**Why:** Surfaced during Task #474's browser-INSERT audit. `www/onboarding-member.html:1060` sets `isFoundingPath = URLSearchParams(...).get('founding') === '1'` and, when the flag is truthy, INSERTs the fresh profile with `is_founding_member: true` + `founding_member_joined_at: new Date().toISOString()` (see L1289 and L1296). **There is NO server-side eligibility check** — anyone with the URL query param `?founding=1` grants themselves founding-member status. Also no server-side setter of `is_founding_member` anywhere in `netlify/functions/`. Grep as of 2026-09-18 confirms this.
+
+Task #474's BEFORE INSERT trigger allows the paired-column shape (`is_founding_member=true` iff `founding_member_joined_at IS NOT NULL`) so the current flow keeps working, but the shape check doesn't add a real eligibility gate. This task adds the gate.
+
+**Steps:**
+1. Define the actual founding-member business rule with the product owner: is there a signup window (e.g. "first 500 members"), a cap, an invitation-only mode, or specific referral tie-in? The audit didn't find one in code, and the WhereFrom flag `?founding=1` looks like a link-out from marketing collateral rather than a controlled gate. Cite the decision in the migration comment.
+2. Add a Netlify function `netlify/functions/founding-member-signup.js` that: (a) authenticates the bearer JWT, (b) verifies the caller is eligible per the rule from step 1 (window/cap/invite lookup), (c) INSERTs the profile via the service-role client with `is_founding_member`, `founding_member_joined_at`, and any other founding-specific columns set atomically, (d) returns 403 with a clear reason if ineligible. Log the eligibility decision to admin_audit_log.
+3. Rewrite `www/onboarding-member.html` L1247 (UPDATE path) and L1289 (INSERT path) to call the new endpoint instead of writing `is_founding_member` / `founding_member_joined_at` from the browser. Preserve the UI behavior (founding pill at L1078-1080, etc.).
+4. Once #476 lands, tighten Task #474's BEFORE INSERT trigger to REJECT any non-service-role INSERT of `is_founding_member=true` or `founding_member_joined_at NOT NULL`, closing the browser-set path entirely. This is a follow-up trigger edit, not part of this PR.
+5. Ships to mobile → `npm run cap:sync` after the HTML edit.
+
+**Verify:** Manual smoke — visit `/onboarding-member.html?founding=1` in a fresh session, complete signup, confirm the profile row has `is_founding_member=true` only if the server-side eligibility check passed; if the rule is "invite-only" and the caller lacks an invite, expect signup to complete with `is_founding_member=false`.
+
+### Task #477 — Migrate signup-loyal-customer server-side, validate refCode + apply privileged flags via Netlify function
+
+**Why:** Surfaced during Task #474's browser-INSERT audit. `www/signup-loyal-customer.html:806` INSERTs the fresh profile with `is_verified: true`, `platform_fee_exempt: true`, and `referred_by_provider_id: providerId` — all set from browser code. The `providerId` is server-derived (from `lookupProvider(refCode)` earlier in `init()`), but the two boolean flags are hardcoded on the browser side. Any user who signs up via a valid `?ref=<refCode>` link gets verification + fee exemption granted from the browser.
+
+Task #474's BEFORE INSERT trigger allows this today via a shape check (Rule 5: `is_verified=true` / `platform_fee_exempt=true` only when `referred_by_provider_id IS NOT NULL`), so the loyal-customer flow keeps working. That shape limits the escalation surface to callers who present a valid refCode, but the flags themselves are still browser-set. This task migrates the whole grant server-side.
+
+**Steps:**
+1. Add `netlify/functions/loyal-customer-signup.js` that: (a) accepts `{ refCode, name, email, phone, password, sms_consent, preferred_language }`, (b) validates `refCode` against `provider_referral_codes` (or wherever `lookupProvider` resolves it) and returns 400 if unknown, (c) creates the auth user via `supabase.auth.admin.createUser` OR calls existing `auth.signUp` server-side, (d) INSERTs the profile via the service-role client with `is_verified: true`, `platform_fee_exempt: true`, `referred_by_provider_id: <resolved providerId>` set atomically, (e) triggers the existing `referral-process` and `member/referral/apply` side effects.
+2. Rewrite `www/signup-loyal-customer.html` L800-830 to call the new endpoint instead of doing browser `auth.signUp` + browser `profiles.insert`. Keep the UI unchanged.
+3. Once #477 lands, tighten Task #474's BEFORE INSERT trigger Rule 5: **reject** any non-service-role INSERT of `is_verified=true` or `platform_fee_exempt=true`, closing the browser-set path entirely. Follow-up trigger edit, not part of this PR.
+4. Ships to mobile → `npm run cap:sync` after the HTML edit.
+
+**Verify:** Manual smoke — visit `/signup-loyal-customer.html?ref=<valid_code>` in a fresh session, complete signup, confirm profile row has `is_verified=true` + `platform_fee_exempt=true` + `referred_by_provider_id=<expected provider>`. Try with `?ref=<invalid_code>` — expect signup to fail with a 400 from the new endpoint before any DB write.

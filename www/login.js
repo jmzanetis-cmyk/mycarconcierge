@@ -307,8 +307,7 @@
             full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
             role: isProviderIntent ? 'pending_provider' : 'member',
             is_also_member: isProviderIntent ? true : undefined,
-            preferred_language: preferredLanguage,
-            created_at: new Date().toISOString()
+            preferred_language: preferredLanguage
           })
           .select('role, is_also_member, is_also_provider')
           .single();

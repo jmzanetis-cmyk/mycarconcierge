@@ -1873,8 +1873,7 @@
           email: user.email,
           role: 'member',
           full_name: fbName,
-          preferred_language: preferredLanguage,
-          created_at: new Date().toISOString()
+          preferred_language: preferredLanguage
         });
         if (insErr) console.error('Failed to create profile for OAuth user:', insErr);
       } else if (existing && existing.phone) {

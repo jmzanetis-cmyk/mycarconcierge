@@ -1702,8 +1702,7 @@
             business_name: formData.businessName,
             city: formData.city,
             state: formData.state,
-            services_offered: formData.services,
-            free_trial_bids: 1
+            services_offered: formData.services
           };
 
           // Task #341: capture the active UI language on insert so
@@ -2343,8 +2342,7 @@
           role: 'pending_provider',
           is_also_member: true,
           full_name: fbName,
-          preferred_language: preferredLanguage,
-          created_at: new Date().toISOString()
+          preferred_language: preferredLanguage
         });
         if (insErr) console.error('Failed to create provider profile for OAuth user:', insErr);
       } else if (existing && existing.role === 'provider' && existing.phone) {
