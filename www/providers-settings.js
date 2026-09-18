@@ -512,37 +512,61 @@ function _renderRateCardRow(menuItem) {
   condsInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   row.appendChild(condsInput);
 
-  // Auto-Bid decay floor — only shown when Auto-Bid is active. Sits inside
-  // the conditions column (row's 4th grid track) as a small addendum so
-  // it doesn't push the grid width — the row layout is already tight on
-  // mobile. Hidden when the provider has Auto-Bid off; visibility gets
-  // re-synced by _syncAutoBidDecayFloorVisibility() whenever the toggle
-  // changes state. Class name lets the CSS match all such fields at once.
+  // Auto-Bid decay floor — only shown when Auto-Bid is active. Sits below
+  // the primary row inputs (spanning full width via grid-column:1/-1).
+  // Hidden when the provider has Auto-Bid off; visibility gets re-synced
+  // whenever the toggle changes state. Class name lets that helper match
+  // all such fields at once.
+  //
+  // Label + hint follow the same form-label + form-hint convention the
+  // max-price-cap and daily-cap fields already use on this same panel
+  // (providers.html — see .form-label + .form-hint). Explains what
+  // "leave blank" actually means: NOT a neutral default but an opt-out
+  // of decay entirely (verified in auto-bid-price-decay-scheduled.js —
+  // null min_price_cents → skipped_no_min_configured). Wording never
+  // references a competitor's amount, only the existence-of-contest
+  // signal decay actually reads. That constraint is the same guardrail
+  // the decay engine itself commits to; keep it if the copy gets edited.
+  const minInputId = 'rate-min-price-' + menuItem.item_key;
   const minWrap = document.createElement('div');
   minWrap.className = 'rate-min-price-wrap';
-  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;';
-  minWrap.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;flex-shrink:0;">Auto-decay to</span>';
+  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:8px;display:none;';
+
+  const minLabel = document.createElement('label');
+  minLabel.className = 'form-label';
+  minLabel.setAttribute('for', minInputId);
+  minLabel.style.cssText = 'display:block;margin-bottom:4px;font-size:var(--text-sm);';
+  minLabel.textContent = 'Auto-decay floor (optional)';
+
+  const minInputRow = document.createElement('div');
+  minInputRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
   const minPrefix = document.createElement('span');
-  minPrefix.style.cssText = 'color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;margin:0 4px 0 6px;';
+  minPrefix.style.cssText = 'color:var(--text-muted);font-size:var(--text-sm);flex-shrink:0;';
   minPrefix.textContent = '$';
   const minInput = document.createElement('input');
   minInput.type = 'number';
+  minInput.id = minInputId;
   minInput.className = 'form-input rate-min-price-input';
   minInput.min = '1';
   minInput.step = '1';
   minInput.placeholder = 'No floor';
   minInput.setAttribute('inputmode', 'numeric');
-  minInput.setAttribute('aria-label', 'Auto-decay floor price');
-  minInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);width:90px;';
+  minInput.style.cssText = 'padding:4px 8px;font-size:var(--text-sm);width:110px;max-width:160px;';
   minInput.value = (saved && saved.min_price_cents) ? String(Math.round(saved.min_price_cents / 100)) : '';
   minInput.addEventListener('blur', () => _rateCardMaybeSave(menuItem, row));
   minInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') minInput.blur(); });
-  const minHint = document.createElement('span');
-  minHint.style.cssText = 'color:var(--text-muted);font-size:0.75rem;margin-left:8px;';
-  minHint.textContent = '(if contested)';
-  minWrap.style.cssText = 'grid-column:1 / -1;margin-top:2px;display:none;align-items:center;flex-wrap:wrap;';
-  minWrap.appendChild(minPrefix);
-  minWrap.appendChild(minInput);
+  minInputRow.appendChild(minPrefix);
+  minInputRow.appendChild(minInput);
+
+  const minHint = document.createElement('div');
+  minHint.className = 'form-hint';
+  minHint.style.cssText = 'margin-top:4px;font-size:0.8rem;color:var(--text-muted);line-height:1.4;';
+  minHint.textContent = "If this job gets contested by another bid, your price will "
+    + "automatically step down $5 at a time until you win it or it reaches this floor. "
+    + "Leave blank and this bid won't automatically adjust if contested.";
+
+  minWrap.appendChild(minLabel);
+  minWrap.appendChild(minInputRow);
   minWrap.appendChild(minHint);
   row.appendChild(minWrap);
 
@@ -862,7 +886,10 @@ function _updateAutoBidCopyOnOff(paused) {
   // them when paused so the row doesn't grow a control the provider
   // can't act on right now.
   const wraps = document.querySelectorAll('.rate-min-price-wrap');
-  wraps.forEach((el) => { el.style.display = paused ? 'none' : 'flex'; });
+  // Empty string reverts to the CSS default (block for div), so the
+  // label/input/hint children stack naturally rather than laying out in
+  // a horizontal flex row — which they would if we forced display:flex.
+  wraps.forEach((el) => { el.style.display = paused ? 'none' : ''; });
 }
 
 // Toggle handler. Switch state is presented as on/off (checked = on),
