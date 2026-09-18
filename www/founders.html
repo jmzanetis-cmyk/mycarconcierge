@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Founder Programs - My Car Concierge</title>
   <meta name="description" content="Join the My Car Concierge founding community. Exclusive founding-era programs for car owners and service providers. MCC is a competitive-bidding marketplace for auto services — members get multiple bids, providers win more business. Vehicle transportation services coming soon.">
+  <script src="mcc-theme.js?v=20260918"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -932,7 +933,7 @@
 <body>
 
   <nav role="navigation" aria-label="Main navigation">
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
+    <button class="theme-toggle" onclick="MCC_THEME.cycle()" title="Toggle theme" aria-label="Toggle light/dark theme">
       <span class="theme-icon-sun">&#9788; Day</span>
       <span class="theme-icon-moon">&#9790; Night</span>
     </button>
@@ -1244,20 +1245,6 @@
   </footer>
 
   <script>
-    function toggleTheme() {
-      const html = document.documentElement;
-      html.classList.add('theme-transition');
-      const current = html.getAttribute('data-theme');
-      const newTheme = current === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      setTimeout(() => html.classList.remove('theme-transition'), 300);
-    }
-    (function() {
-      const saved = localStorage.getItem('theme');
-      if (saved) document.documentElement.setAttribute('data-theme', saved);
-    })();
-
     document.querySelectorAll('.faq-question').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var item = this.closest('.faq-item');
