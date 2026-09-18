@@ -800,6 +800,24 @@
         border-color: transparent;
         box-shadow: none;
       }
+      /* Light theme correction: the tablet+ rule above strips the box so
+         the lockup sits directly on the dark page bg. That assumption
+         breaks in light mode — the wordmark's white + gold on a light
+         cream background has almost no contrast. Restore the navy box
+         (--logo-box flips light-side per logo-lockup.css) + gold border,
+         and bring back a subtle gold glow on hover. Scoped to this
+         breakpoint only (below 768px, the phone-width rule at :128
+         doesn't strip the box, so nothing to correct there). */
+      [data-theme="light"] .login-container > .mcc-logo {
+        background: var(--logo-box);
+        border: 1px solid rgba(199, 164, 102, 0.35);
+        border-radius: 12px;
+        padding: 8px 14px;
+      }
+      [data-theme="light"] .login-container > .mcc-logo:hover {
+        border-color: #c7a466;
+        box-shadow: 0 0 0 1px rgba(199, 164, 102, 0.5), 0 0 14px 2px rgba(199, 164, 102, 0.45);
+      }
       .login-container > .mcc-logo .mcc-logo-word {
         /* Portrait 11" iPad (820pt wide, brand grid column = 280px) can't
            fit the 2.4rem wordmark + 85px mark + 18px gap = ~410px lockup —
