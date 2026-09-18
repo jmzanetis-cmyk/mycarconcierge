@@ -1001,6 +1001,22 @@
 <!-- SEO-INJECT:END -->
 </head>
 <body>
+  <!-- Detect native (iOS/Android via Capacitor) as early as possible so
+       the IAP-compliance CSS below can hide/show the right blocks before
+       first paint. Matches the same pattern already in about.html /
+       data-deletion.html / etc. -->
+  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
+  <style>
+    /* Apple Guideline 3.1.1 / Google Play Billing compliance: in-app
+       purchase UI for bid credits must not be reachable from the native
+       app binary. On native, hide the Quick Checkout Banner + "Buy
+       Service Credits" card (the transaction surface) and show the
+       "Buy on our website" card instead. Web/browser flow is unchanged
+       — Apple/Google's policies apply to the app binary only, not the
+       hosted website. See docs/apple-guideline-2.1-response.md. */
+    body.native-app .web-purchase-only { display: none !important; }
+    body:not(.native-app) .native-purchase-only { display: none !important; }
+  </style>
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;"></div>
   <aside class="sidebar" id="sidebar">
     <div class="mobile-close" onclick="toggleSidebar()" style="display:none;position:absolute;top:16px;inset-inline-end:16px;width:36px;height:36px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:50%;cursor:pointer;font-size:var(--text-xl);align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></div>
@@ -2167,8 +2183,8 @@
         </div>
       </div>
 
-      <!-- Quick Checkout Banner -->
-      <div id="quick-checkout-banner" style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <!-- Quick Checkout Banner (WEB ONLY — hidden on native per IAP compliance) -->
+      <div id="quick-checkout-banner" class="web-purchase-only" style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
         <div style="display:flex;align-items:center;gap:16px;">
           <span style="font-size:2.5rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span></span>
           <div>
@@ -2210,16 +2226,23 @@
         </div>
         <div id="low-credits-warning" style="display:none;margin-top:16px;padding:14px;background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <span style="color:var(--accent-orange);"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> <strong>Low on credits!</strong> Purchase more to keep bidding on packages.</span>
-          <button class="btn btn--small" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-orange);color:#0a0a0f;font-weight:600;">Buy Now →</button>
+          <!-- handleBuyCreditsClick() dispatches: native → open web browser
+               to the site; web → scroll to bid-packs-grid. Route decision
+               is in providers-bids.js, not in the button attribute. -->
+          <button class="btn btn--small" onclick="handleBuyCreditsClick()" style="background:var(--accent-orange);color:#0a0a0f;font-weight:600;">Buy Now →</button>
         </div>
         <div id="no-credits-warning" style="display:none;margin-top:16px;padding:14px;background:var(--accent-red-soft);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <span style="color:var(--accent-red);"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> <strong>No credits remaining.</strong> Purchase a service credit pack to continue submitting bids.</span>
-          <button class="btn btn--small" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-red);color:#fff;font-weight:600;">Buy Credits →</button>
+          <button class="btn btn--small" onclick="handleBuyCreditsClick()" style="background:var(--accent-red);color:#fff;font-weight:600;">Buy Credits →</button>
         </div>
       </div>
 
-      <!-- Service Credits -->
-      <div class="card">
+      <!-- Service Credits (WEB ONLY — hidden on native per IAP compliance).
+           renderServiceCredits() in providers-bids.js also carries its own
+           native guard (defense in depth) but this class-based hide is
+           the primary gate so nothing about the purchase surface even
+           renders when the App Review reviewer opens this screen. -->
+      <div class="card web-purchase-only">
         <div class="card-header">
           <h2 class="card-title">Buy Service Credits</h2>
           <span style="color:var(--text-muted);font-size:var(--text-base);">Volume discounts available!</span>
@@ -2229,6 +2252,26 @@
           <!-- Packs loaded dynamically -->
           <div class="empty-state"><p>Loading service credits...</p></div>
         </div>
+      </div>
+
+      <!-- Native-only "buy on our website" card. Shown ONLY when body has
+           .native-app (see the class-setter script + CSS at top of body).
+           No in-app purchase UI, no price list, no CTA that could look
+           like a transaction — just a redirect to the web where the
+           purchase legitimately happens outside the App Store / Play
+           Store rules. -->
+      <div class="card native-purchase-only" style="text-align:center;">
+        <div style="font-size:2rem;margin-bottom:8px;">🛒</div>
+        <h2 class="card-title" style="margin-bottom:8px;">Buy credits on our website</h2>
+        <p style="color:var(--text-secondary);font-size:var(--text-base);line-height:1.5;max-width:520px;margin:0 auto 20px;">
+          Bid credits are purchased outside the app on
+          <strong>mycarconcierge.com</strong>. Tap the button below to open
+          it in your browser — you'll be signed in already, then go to
+          <strong>Bid Credits</strong> to complete your purchase.
+        </p>
+        <button class="btn btn--primary" onclick="openWebPurchase()" style="padding:14px 32px;font-size:var(--text-md);font-weight:600;">
+          Open mycarconcierge.com →
+        </button>
       </div>
 
       <!-- How It Works -->

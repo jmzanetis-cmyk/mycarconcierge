@@ -7,8 +7,6 @@
     "androidScheme": "https",
     "iosScheme": "https",
     "allowNavigation": [
-      "www.mycarconcierge.com",
-      "*.mycarconcierge.com",
       "*.supabase.co",
       "*.stripe.com"
     ]

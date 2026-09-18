@@ -1182,6 +1182,47 @@ function updateCreditsBadge() {
 const STRIPE_CHECKOUT_URL = '/.netlify/functions/create-bid-checkout';
 const USE_STRIPE = true;
 
+// Apple Guideline 3.1.1 / Google Play Billing compliance (2026-09-18):
+// bid-credit purchases must not be reachable from the native app binary.
+// The three touchpoints below cover the surface:
+//   - openWebPurchase() opens the site in the system browser (Safari on
+//     iOS / system browser on Android) so the purchase happens legitimately
+//     outside the app. capacitor.config.json no longer whitelists
+//     mycarconcierge.com in allowNavigation, so window.open('_blank')
+//     falls through to the OS's external browser rather than the WebView.
+//   - handleBuyCreditsClick() is the dispatcher wired to the low/no-credits
+//     warning buttons in providers.html. Native → openWebPurchase(); web
+//     → scroll to bid-packs-grid (existing behavior).
+//   - purchaseBidPack()'s existing native guard (below) stays as
+//     defense-in-depth; it can't actually be reached from the native UI
+//     anymore (the pack cards are hidden), but the guard survives any
+//     accidental console call or future UI regression.
+function _isNativeApp() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
+function openWebPurchase() {
+  // Explicit https://www URL (not a relative path) so on native the OS
+  // routes it externally instead of resolving against the WebView's
+  // synthetic origin. window.open('_blank') is what triggers the system
+  // browser now that mycarconcierge.com isn't in allowNavigation.
+  const url = 'https://www.mycarconcierge.com/providers.html';
+  try { window.open(url, '_blank'); }
+  catch (e) { console.error('[openWebPurchase] window.open failed:', e); }
+}
+
+function handleBuyCreditsClick() {
+  if (_isNativeApp()) { openWebPurchase(); return; }
+  // Web: scroll to the pack grid (previous inline behavior of the warning buttons).
+  const grid = document.getElementById('bid-packs-grid');
+  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Exposed globally so the inline onclick attributes on the low/no-credits
+// warning buttons in providers.html can find them.
+window.openWebPurchase = openWebPurchase;
+window.handleBuyCreditsClick = handleBuyCreditsClick;
+
 async function purchaseBidPack(packId) {
   const pack = bidPacks.find(p => p.id === packId);
   if (!pack) return;
