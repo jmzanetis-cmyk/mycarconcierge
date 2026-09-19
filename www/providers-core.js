@@ -306,6 +306,7 @@ async function initializeProviderDashboard(user) {
   });
   
   checkPurchaseStatus();
+  checkDeepLinkSection();
   loadCarClubCard();
   
   if (typeof applyFilters === 'function') applyFilters();
@@ -1027,6 +1028,25 @@ function checkPurchaseStatus() {
     showToast('Purchase canceled', 'warning');
     window.history.replaceState({}, '', window.location.pathname);
   }
+}
+
+// ========== DEEP-LINK SECTION HANDLER ==========
+// Handles ?section=<id> from external links (specifically the native-app
+// "Buy Bid Credits" flow, which opens providers.html?section=subscription
+// in SFSafariViewController / Chrome Custom Tabs via @capacitor/browser).
+// Silently ignored if the section id isn't in the DOM. Cleared from the
+// URL after dispatch so refresh doesn't re-trigger.
+function checkDeepLinkSection() {
+  const params = new URLSearchParams(window.location.search);
+  const section = params.get('section');
+  if (!section) return;
+  const target = document.getElementById(section);
+  if (target && typeof showSection === 'function') {
+    showSection(section);
+  }
+  params.delete('section');
+  const qs = params.toString();
+  window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
 }
 
 // ========== REALTIME SUBSCRIPTIONS ==========
