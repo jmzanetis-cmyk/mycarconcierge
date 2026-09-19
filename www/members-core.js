@@ -3053,7 +3053,6 @@ function loadModuleForSection(section) {
     case 'fuel-tracker':
     case 'insurance':
     case 'fleet':
-    case 'household':
     case 'spending-analytics':
     case 'shop':
     case 'order-history':
@@ -3096,6 +3095,13 @@ function _dismiss2FAGate() {
 }
 
 async function showSection(sectionId) {
+  // Household feature was removed 2026-09-19 (zero rows in prod across
+  // households / household_members / household_vehicle_access). Any stale
+  // link, bookmark, or cached HTML that still calls showSection('household')
+  // falls through to the overview section (the DOM id members.html uses
+  // for the landing/dashboard view; there is no section id "dashboard").
+  if (sectionId === 'household') sectionId = 'overview';
+
   // Block navigation away from settings while mandatory 2FA enrollment is pending
   if (window._2faGateActive && sectionId !== 'settings') {
     showToast('Please complete your 2FA setup before accessing other sections.', 'warning');
@@ -3122,9 +3128,6 @@ async function showSection(sectionId) {
   // Section-specific initializations (functions defined in respective modules)
   if (sectionId === 'emergency' && typeof loadEmergencySection === 'function') {
     loadEmergencySection();
-  }
-  if (sectionId === 'household' && typeof loadHouseholdSection === 'function') {
-    loadHouseholdSection();
   }
   if (sectionId === 'fleet' && typeof loadFleetSection === 'function') {
     loadFleetSection();

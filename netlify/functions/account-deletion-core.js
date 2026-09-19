@@ -166,7 +166,6 @@ async function _deleteMemberTables(supabase, userId) {
   await supabase.from('member_notification_preferences').delete().eq('member_id', userId);
   await supabase.from('member_founder_profiles').delete().eq('user_id', userId);
   await supabase.from('member_founder_applications').delete().eq('user_id', userId);
-  await supabase.from('household_members').delete().eq('user_id', userId);
   await supabase.from('support_tickets').delete().eq('user_id', userId);
   await supabase.from('crowd_fund_contributions').delete().eq('contributor_id', userId);
   await supabase.from('destination_services').delete().eq('requested_by', userId);
