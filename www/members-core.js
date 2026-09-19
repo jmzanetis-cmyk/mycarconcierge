@@ -3053,7 +3053,6 @@ function loadModuleForSection(section) {
     case 'fuel-tracker':
     case 'insurance':
     case 'fleet':
-    case 'household':
     case 'spending-analytics':
     case 'shop':
     case 'order-history':
@@ -3129,9 +3128,6 @@ async function showSection(sectionId) {
   // Section-specific initializations (functions defined in respective modules)
   if (sectionId === 'emergency' && typeof loadEmergencySection === 'function') {
     loadEmergencySection();
-  }
-  if (sectionId === 'household' && typeof loadHouseholdSection === 'function') {
-    loadHouseholdSection();
   }
   if (sectionId === 'fleet' && typeof loadFleetSection === 'function') {
     loadFleetSection();

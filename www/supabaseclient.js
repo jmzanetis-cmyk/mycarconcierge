@@ -1813,8 +1813,8 @@ window.getPerformanceTips = getPerformanceTips;
 // =====================================================
 
 // Helper function to check if a user has spending limits or requires approval
-// Checks if user is in a household or fleet with spending limits
-// Returns: { allowed: true/false, limit: number, requiresApproval: boolean, message: string, memberRecord: object, context: 'fleet'|'household' }
+// Checks if user is in a fleet with spending limits.
+// Returns: { allowed: true/false, limit: number, requiresApproval: boolean, message: string, memberRecord: object, context: 'fleet' }
 async function checkSpendingLimit(userId, amount, context = null) {
   const result = {
     allowed: true,
@@ -1862,37 +1862,6 @@ async function checkSpendingLimit(userId, amount, context = null) {
     }
   }
   
-  if (context === 'household' || context === null) {
-    const { data: householdMember } = await supabaseClient
-      .from('household_members')
-      .select('id, household_id, role, spending_limit, requires_approval, status')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    if (householdMember) {
-      result.context = 'household';
-      result.memberRecord = householdMember;
-      
-      if (householdMember.spending_limit !== null && householdMember.spending_limit !== undefined) {
-        result.limit = Number.parseFloat(householdMember.spending_limit);
-        if (amountNum > result.limit) {
-          result.allowed = false;
-          result.message = `Exceeds spending limit of $${result.limit.toFixed(2)}`;
-          return result;
-        }
-      }
-      
-      if (householdMember.requires_approval === true) {
-        result.requiresApproval = true;
-      }
-      
-      return result;
-    }
-  }
-  
   return result;
 }
 
@@ -1908,7 +1877,7 @@ async function createDestinationService(data) {
   const user = await getCurrentUser();
   if (!user) return { data: null, error: 'Not authenticated' };
   
-  // SPENDING LIMIT CHECK: Before creating the service, check if the user is part of a household or fleet.
+  // SPENDING LIMIT CHECK: Before creating the service, check if the user is part of a fleet.
   // If so, verify their spending limit and requires_approval status.
   // If estimated cost exceeds spending_limit, return error.
   // If requires_approval is true, set approval_status to 'pending_approval'.
@@ -1988,23 +1957,6 @@ async function createDestinationService(data) {
             );
           }
         }
-      }
-    } else if (spendingCheck.context === 'household') {
-      const { data: household } = await supabaseClient
-        .from('households')
-        .select('owner_id, name')
-        .eq('id', spendingCheck.memberRecord.household_id)
-        .single();
-      
-      if (household?.owner_id) {
-        await createNotification(
-          household.owner_id,
-          'service_pending_approval',
-          'Service Requires Approval',
-          `A destination service request requires your approval for household "${household.name}".`,
-          'destination_service',
-          service.id
-        );
       }
     }
   }
@@ -2234,256 +2186,6 @@ window.getTransportTasks = getTransportTasks;
 window.updateTransportTask = updateTransportTask;
 window.getDriverTasks = getDriverTasks;
 window.completeTransportTask = completeTransportTask;
-
-// =====================================================
-// HOUSEHOLD SHARING MANAGEMENT
-// =====================================================
-
-// Create a new household with the specified owner
-async function createHousehold(name, ownerId) {
-  const { data, error } = await supabaseClient
-    .from('households')
-    .insert({
-      name: name,
-      owner_id: ownerId,
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-  
-  return { data, error };
-}
-
-// Get all households a user owns or is a member of
-async function getMyHouseholds(userId) {
-  const { data: owned, error: ownedError } = await supabaseClient
-    .from('households')
-    .select(`
-      *,
-      owner:owner_id(full_name, email)
-    `)
-    .eq('owner_id', userId);
-  
-  const { data: memberOf, error: memberError } = await supabaseClient
-    .from('household_members')
-    .select(`
-      *,
-      household:household_id(
-        *,
-        owner:owner_id(full_name, email)
-      )
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active');
-  
-  if (ownedError || memberError) {
-    return { data: { owned: [], memberOf: [] }, error: ownedError || memberError };
-  }
-  
-  return { 
-    data: { 
-      owned: owned || [], 
-      memberOf: (memberOf || []).map(m => ({ ...m.household, membership: m })) 
-    }, 
-    error: null 
-  };
-}
-
-// Get detailed household information including all members
-async function getHouseholdDetails(householdId) {
-  const { data: household, error: householdError } = await supabaseClient
-    .from('households')
-    .select(`
-      *,
-      owner:owner_id(id, full_name, email, phone)
-    `)
-    .eq('id', householdId)
-    .single();
-  
-  if (householdError) return { data: null, error: householdError };
-  
-  const { data: members, error: membersError } = await supabaseClient
-    .from('household_members')
-    .select(`
-      *,
-      user:user_id(id, full_name, email, phone)
-    `)
-    .eq('household_id', householdId)
-    .order('created_at', { ascending: true });
-  
-  return { 
-    data: { 
-      ...household, 
-      members: members || [] 
-    }, 
-    error: membersError 
-  };
-}
-
-// Invite a new member to the household by email
-async function inviteHouseholdMember(householdId, email, role, invitedBy) {
-  const { data: existingUser } = await supabaseClient
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single();
-  
-  const { data, error } = await supabaseClient
-    .from('household_members')
-    .insert({
-      household_id: householdId,
-      user_id: existingUser?.id || null,
-      email: email,
-      role: role || 'member',
-      invited_by: invitedBy,
-      status: 'pending',
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-  
-  if (!error && existingUser?.id) {
-    await createNotification(
-      existingUser.id,
-      'household_invitation',
-      'Household Invitation',
-      `You've been invited to join a household. Check your invitations to accept.`,
-      'household',
-      householdId
-    );
-  }
-  
-  return { data, error };
-}
-
-// Accept a pending household invitation
-async function acceptHouseholdInvitation(membershipId) {
-  const user = await getCurrentUser();
-  if (!user) return { data: null, error: 'Not authenticated' };
-  
-  const { data, error } = await supabaseClient
-    .from('household_members')
-    .update({
-      user_id: user.id,
-      status: 'active',
-      accepted_at: new Date().toISOString()
-    })
-    .eq('id', membershipId)
-    .select(`
-      *,
-      household:household_id(name, owner_id)
-    `)
-    .single();
-  
-  if (!error && data?.household?.owner_id) {
-    await createNotification(
-      data.household.owner_id,
-      'household_member_joined',
-      'New Household Member',
-      `A new member has joined your household "${data.household.name}".`,
-      'household',
-      data.household_id
-    );
-  }
-  
-  return { data, error };
-}
-
-// Update permissions for a household member
-async function updateHouseholdMemberPermissions(membershipId, permissions) {
-  const { data, error } = await supabaseClient
-    .from('household_members')
-    .update({
-      can_request_services: permissions.can_request_services ?? null,
-      can_approve_services: permissions.can_approve_services ?? null,
-      spending_limit: permissions.spending_limit ?? null,
-    })
-    .eq('id', membershipId)
-    .select()
-    .single();
-
-  return { data, error };
-}
-
-// Remove a member from the household
-async function removeHouseholdMember(membershipId) {
-  const { error } = await supabaseClient
-    .from('household_members')
-    .delete()
-    .eq('id', membershipId);
-  
-  return { error };
-}
-
-// Share a vehicle with a household
-async function shareVehicleWithHousehold(householdId, vehicleId, accessLevel, sharedBy) {
-  const { data, error } = await supabaseClient
-    .from('household_vehicle_access')
-    .insert({
-      household_id: householdId,
-      vehicle_id: vehicleId,
-      access_level: accessLevel || 'view',
-      shared_by: sharedBy,
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  return { data, error };
-}
-
-// Get all vehicles shared with a household
-async function getHouseholdVehicles(householdId) {
-  const { data, error } = await supabaseClient
-    .from('household_vehicle_access')
-    .select(`
-      *,
-      vehicle:vehicle_id(
-        id, year, make, model, color, license_plate, vin,
-        owner:owner_id(full_name, email)
-      ),
-      shared_by_user:shared_by(full_name)
-    `)
-    .eq('household_id', householdId)
-    .order('created_at', { ascending: false });
-
-  return { data: data || [], error };
-}
-
-// Update vehicle access level in a household
-async function updateVehicleAccess(accessId, newLevel) {
-  const { data, error } = await supabaseClient
-    .from('household_vehicle_access')
-    .update({ access_level: newLevel })
-    .eq('id', accessId)
-    .select()
-    .single();
-
-  return { data, error };
-}
-
-// Remove a vehicle from household sharing
-async function removeVehicleFromHousehold(accessId) {
-  const { error } = await supabaseClient
-    .from('household_vehicle_access')
-    .delete()
-    .eq('id', accessId);
-
-  return { error };
-}
-
-// Export household management functions
-window.createHousehold = createHousehold;
-window.getMyHouseholds = getMyHouseholds;
-window.getHouseholdDetails = getHouseholdDetails;
-window.inviteHouseholdMember = inviteHouseholdMember;
-window.acceptHouseholdInvitation = acceptHouseholdInvitation;
-window.updateHouseholdMemberPermissions = updateHouseholdMemberPermissions;
-window.removeHouseholdMember = removeHouseholdMember;
-window.shareVehicleWithHousehold = shareVehicleWithHousehold;
-window.getHouseholdVehicles = getHouseholdVehicles;
-window.updateVehicleAccess = updateVehicleAccess;
-window.removeVehicleFromHousehold = removeVehicleFromHousehold;
 
 // =====================================================
 // FLEET MANAGEMENT
