@@ -191,10 +191,19 @@ async function handleProviderPlanSubscriptionCreated(sub, supabase) {
       return { skipped: 'trial_already_granted', ledger_id: prior[0].id };
     }
 
+    // Trial-lot expires_at tied to the subscription's trial_end so
+    // unconverted trial credits don't live forever if the provider never
+    // bids. Belt-and-suspenders with the Phase 3 abandoned-trial sweep.
+    // On dahlia payloads trial_end is still at the root — has NOT been
+    // moved to items.data[0] (only current_period_* moved). Null-safe.
+    const trialExpiresAt = sub.trial_end
+      ? new Date(sub.trial_end * 1000).toISOString()
+      : null;
     const { error: ledErr } = await supabase.from('credit_ledger').insert({
       provider_id: providerId,
       delta: plan.credits_per_month,
       source: 'subscription',
+      expires_at: trialExpiresAt,
       ref_type: TRIAL_REF_TYPE,
       ref_id: sub.id,
     });
