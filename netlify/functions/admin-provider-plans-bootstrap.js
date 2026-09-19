@@ -143,10 +143,38 @@ exports.handler = async function (event) {
     }
   }
 
+  // Also bootstrap the subscriber pack discount coupon per spec §2.4.
+  // 10% off any pack for providers with an active subscription. Fixed
+  // id so the checkout function can reference it by name without a lookup.
+  let couponInfo = null;
+  try {
+    try {
+      const existing = await stripe.coupons.retrieve('mcc-subscriber-10off');
+      couponInfo = { status: 'exists', id: existing.id, percent_off: existing.percent_off };
+    } catch (notFoundErr) {
+      if (notFoundErr.code === 'resource_missing') {
+        const created = await stripe.coupons.create({
+          id: 'mcc-subscriber-10off',
+          percent_off: 10,
+          duration: 'forever',
+          name: 'MCC Subscriber (10% off any pack)',
+          metadata: { product: 'provider_plan_subscriber_pack_discount' },
+        });
+        couponInfo = { status: 'created', id: created.id, percent_off: created.percent_off };
+      } else {
+        throw notFoundErr;
+      }
+    }
+  } catch (e) {
+    console.error('[admin-provider-plans-bootstrap] coupon bootstrap failed:', e.message);
+    couponInfo = { status: 'error', error: e.message };
+  }
+
   return jsonResponse(200, {
     livemode: isLive,
     stripe_key_prefix: keyPrefix,
     processed: results.length,
     results,
+    coupon: couponInfo,
   });
 };
