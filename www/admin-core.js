@@ -322,11 +322,28 @@
     };
     
     // ========== NAV GROUP COLLAPSE STATE ==========
+    // `revenue` defaults to collapsed: SaaS Subscriptions is gated behind
+    // feature_disabled 403 for most accounts and White-label Tenants is
+    // pre-launch — no need to eat sidebar real-estate at page load. Users
+    // click the caret to expand. Reversible in one edit.
     const navGroupCollapsed = {
       overview: false, 'provider-management': false, 'founder-management': false,
       operations: false, support: false, commerce: false, crm: false,
-      resources: false, 'ai-operations': false, revenue: false, system: false,
+      resources: false, 'ai-operations': false, revenue: true, system: false,
     };
+
+    // Apply the initial collapsed state to the DOM on load. `toggleNavGroup`
+    // only handles user-driven state changes — without this, groups that
+    // default to `true` above would still render expanded on first paint.
+    document.addEventListener('DOMContentLoaded', () => {
+      Object.keys(navGroupCollapsed).forEach((group) => {
+        if (!navGroupCollapsed[group]) return;
+        const items = document.querySelector(`.nav-group-items[data-group="${group}"]`);
+        if (items) items.classList.add('collapsed');
+        const caret = document.querySelector(`.nav-label[data-group="${group}"] .nav-group-caret`);
+        if (caret) caret.style.transform = 'rotate(-90deg)';
+      });
+    });
 
     globalThis.toggleNavGroup = function(group) {
       navGroupCollapsed[group] = !navGroupCollapsed[group];
