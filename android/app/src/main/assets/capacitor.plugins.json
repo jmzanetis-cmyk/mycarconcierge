@@ -4,6 +4,10 @@
 		"classpath": "com.aparajita.capacitor.biometricauth.BiometricAuthNative"
 	},
 	{
+		"pkg": "@capacitor/browser",
+		"classpath": "com.capacitorjs.plugins.browser.BrowserPlugin"
+	},
+	{
 		"pkg": "@capacitor/camera",
 		"classpath": "com.capacitorjs.plugins.camera.CameraPlugin"
 	},

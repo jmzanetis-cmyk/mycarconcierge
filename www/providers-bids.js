@@ -1182,31 +1182,41 @@ function updateCreditsBadge() {
 const STRIPE_CHECKOUT_URL = '/.netlify/functions/create-bid-checkout';
 const USE_STRIPE = true;
 
-// Apple Guideline 3.1.1 / Google Play Billing compliance (2026-09-18):
-// bid-credit purchases must not be reachable from the native app binary.
-// The three touchpoints below cover the surface:
-//   - openWebPurchase() opens the site in the system browser (Safari on
-//     iOS / system browser on Android) so the purchase happens legitimately
-//     outside the app. capacitor.config.json no longer whitelists
-//     mycarconcierge.com in allowNavigation, so window.open('_blank')
-//     falls through to the OS's external browser rather than the WebView.
+// Apple Guideline 3.1.1 / Google Play Billing compliance (2026-09-18,
+// revised 2026-09-19): bid-credit purchases must not be reachable from
+// the native app binary. The three touchpoints below cover the surface:
+//   - openWebPurchase() launches the OS's system browser via the
+//     @capacitor/browser plugin (SFSafariViewController on iOS,
+//     Chrome Custom Tabs on Android). Both open OUTSIDE the app's
+//     WebView, unaffected by allowNavigation, and are the pattern
+//     Apple expects for external purchase links. Falls back to
+//     window.open('_blank') on web (where there is no Capacitor).
 //   - handleBuyCreditsClick() is the dispatcher wired to the low/no-credits
 //     warning buttons in providers.html. Native → openWebPurchase(); web
 //     → scroll to bid-packs-grid (existing behavior).
-//   - purchaseBidPack()'s existing native guard (below) stays as
-//     defense-in-depth; it can't actually be reached from the native UI
-//     anymore (the pack cards are hidden), but the guard survives any
-//     accidental console call or future UI regression.
+//   - purchaseBidPack()'s native branch also calls openWebPurchase() so
+//     every path from the native app ends up in the OS browser instead
+//     of showing a dead-end toast.
+//
+// Prior fragile trick (removed): earlier revisions relied on
+// mycarconcierge.com being deliberately absent from
+// capacitor.config.json's allowNavigation so the WebView would refuse to
+// load it internally and punt window.open('_blank') to the OS. That
+// behavior turned out to be version-dependent — some Capacitor/iOS
+// combinations cancelled the navigation and reloaded startPage instead
+// of opening Safari, which manifested as "Buy Bid Credits bounces to
+// the app's home screen". Browser.open is the robust replacement.
 function _isNativeApp() {
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 }
 
-function openWebPurchase() {
-  // Explicit https://www URL (not a relative path) so on native the OS
-  // routes it externally instead of resolving against the WebView's
-  // synthetic origin. window.open('_blank') is what triggers the system
-  // browser now that mycarconcierge.com isn't in allowNavigation.
-  const url = 'https://www.mycarconcierge.com/providers.html';
+async function openWebPurchase() {
+  const url = 'https://www.mycarconcierge.com/providers.html?section=subscription';
+  const Browser = window.Capacitor?.Plugins?.Browser;
+  if (Browser) {
+    try { await Browser.open({ url }); return; }
+    catch (e) { console.error('[openWebPurchase] Browser.open failed:', e); }
+  }
   try { window.open(url, '_blank'); }
   catch (e) { console.error('[openWebPurchase] window.open failed:', e); }
 }
@@ -1228,7 +1238,11 @@ async function purchaseBidPack(packId) {
   if (!pack) return;
 
   if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
-    showToast('Bid credits are purchased on the web — visit mycarconcierge.com to add credits.', 'warning');
+    // Apple 3.1.1: any surviving native call to purchaseBidPack (e.g. a
+    // console invocation, or a UI regression that unhides the pack cards)
+    // hands off to the OS browser instead of showing a dead-end toast.
+    // Matches the low/no-credits warning-button behavior via handleBuyCreditsClick.
+    openWebPurchase();
     return;
   }
 

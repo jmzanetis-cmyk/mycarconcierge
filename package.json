@@ -38,6 +38,7 @@
     "@anthropic-ai/sdk": "^0.24.0",
     "@aparajita/capacitor-biometric-auth": "^9.1.2",
     "@capacitor/android": "^7.4.4",
+    "@capacitor/browser": "^7.0.5",
     "@capacitor/camera": "^7.0.5",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
