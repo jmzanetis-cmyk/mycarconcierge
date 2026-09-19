@@ -8010,7 +8010,7 @@ See you there!`);
 
     // ── Provider & Driver referral QR helpers ──────────────────────────────
     function _providerReferralUrl() {
-      return `https://www.mycarconcierge.com/signup-provider.html?ref=${memberReferralCode}`;
+      return `https://www.mycarconcierge.com/onboarding-provider.html?ref=${memberReferralCode}`;
     }
     function _driverReferralUrl() {
       return `https://www.mycarconcierge.com/signup-driver.html?ref=${memberReferralCode}`;
@@ -9094,7 +9094,7 @@ See you there!`);
       }
       const code = profile.referral_code || '';
       _sf('founder-code-display', code || '—');
-      const provUrl = code ? `https://www.mycarconcierge.com/signup-provider.html?ref=${code}` : '—';
+      const provUrl = code ? `https://www.mycarconcierge.com/onboarding-provider.html?ref=${code}` : '—';
       _sf('founder-provider-link', provUrl);
       const badge = document.getElementById('founder-earn-badge');
       if (badge && code) { badge.textContent = Math.round((profile.commission_rate || 0.5) * 100) + '%'; badge.style.display = 'inline-block'; }
@@ -9200,7 +9200,7 @@ See you there!`);
 
     function copyFounderProviderLink() {
       if (!_founderProfile?.referral_code) { showToast('Code not loaded', 'error'); return; }
-      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      const url = `https://www.mycarconcierge.com/onboarding-provider.html?ref=${_founderProfile.referral_code}`;
       navigator.clipboard.writeText(url).then(
         () => showToast('Link copied!', 'success'),
         () => showToast('Failed to copy', 'error')
@@ -9219,13 +9219,13 @@ See you there!`);
 
     function shareFounderProviderEmail() {
       if (!_founderProfile?.referral_code) return;
-      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      const url = `https://www.mycarconcierge.com/onboarding-provider.html?ref=${_founderProfile.referral_code}`;
       window.open(`mailto:?subject=${encodeURIComponent('Join My Car Concierge as a Provider')}&body=${encodeURIComponent('Hi,\n\nI wanted to invite you to join the My Car Concierge provider network. Sign up here: ' + url)}`);
     }
 
     function shareFounderProviderSMS() {
       if (!_founderProfile?.referral_code) return;
-      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      const url = `https://www.mycarconcierge.com/onboarding-provider.html?ref=${_founderProfile.referral_code}`;
       const msg = encodeURIComponent(`Join My Car Concierge as a provider — grow your auto shop with new clients! ${url}`);
       window.open(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? `sms:&body=${msg}` : `sms:?body=${msg}`);
     }

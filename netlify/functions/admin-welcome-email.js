@@ -35,7 +35,7 @@ async function authenticateBearerAdmin(event, supabase) {
 
 function buildReferralSection(referralCode, baseUrl, founderType) {
   if (!referralCode) return '';
-  var signupUrl  = baseUrl + '/signup-provider.html?ref=' + encodeURIComponent(referralCode);
+  var signupUrl  = baseUrl + '/onboarding-provider.html?ref=' + encodeURIComponent(referralCode);
   var qrCodeUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(signupUrl) + '&bgcolor=fefdfb&color=1e3a5f';
   return '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">' +
     '<tr><td style="padding:24px;background-color:#1e3a5f;border-radius:8px;text-align:center;">' +

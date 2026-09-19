@@ -239,7 +239,7 @@ exports.handler = async function(event) {
       .maybeSingle();
     if (!profile) return json(403, { error: 'Not an approved founding member' });
 
-    const refUrl = `https://www.mycarconcierge.com/signup-provider.html?ref=${profile.referral_code}`;
+    const refUrl = `https://www.mycarconcierge.com/onboarding-provider.html?ref=${profile.referral_code}`;
     const founderName = profile.full_name || 'A My Car Concierge member';
     const commPct = Math.round((profile.commission_rate || 0.5) * 100);
     const personalNote = message ? `\n\n"${message}"` : '';

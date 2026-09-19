@@ -738,7 +738,7 @@
           </tr></thead><tbody>
           ${_refProviderCodes.map(r => {
             const p = r.profiles || {};
-            const qrUrl = `${siteUrl}/signup-provider.html?ref=${encodeURIComponent(r.code||'')}`;
+            const qrUrl = `${siteUrl}/onboarding-provider.html?ref=${encodeURIComponent(r.code||'')}`;
             return `<tr style="border-bottom:1px solid var(--border-subtle);">
               <td style="padding:10px 14px;font-family:monospace;font-weight:600;">${escapeHtml(r.code||'—')}</td>
               <td style="padding:10px 14px;">
@@ -772,7 +772,7 @@
             <th style="padding:10px 14px;"></th>
           </tr></thead><tbody>
           ${_refFounderProfiles.map(f => {
-            const qrUrl = f.referral_code ? `${siteUrl2}/signup-provider.html?ref=${encodeURIComponent(f.referral_code)}` : '';
+            const qrUrl = f.referral_code ? `${siteUrl2}/onboarding-provider.html?ref=${encodeURIComponent(f.referral_code)}` : '';
             return `<tr style="border-bottom:1px solid var(--border-subtle);">
               <td style="padding:10px 14px;font-weight:500;">${escapeHtml(f.full_name||'—')}</td>
               <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(f.email||'—')}</td>

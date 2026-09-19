@@ -254,7 +254,7 @@ function buildEmailHtml(agreementData) {
     '<p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 25px;">If you have not already, please complete your provider account setup to start receiving service requests.</p>' +
 
     '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">' +
-    '<a href="https://mycarconcierge.com/signup-provider.html?founding_provider=true" style="display:inline-block;background:linear-gradient(135deg,#d4a855,#b8942d);color:#12161c;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:15px;">Complete Account Setup</a>' +
+    '<a href="https://mycarconcierge.com/onboarding-provider.html?founding_provider=true" style="display:inline-block;background:linear-gradient(135deg,#d4a855,#b8942d);color:#12161c;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:15px;">Complete Account Setup</a>' +
     '</td></tr></table>' +
     '</td></tr>' +
 

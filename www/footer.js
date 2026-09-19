@@ -19,7 +19,7 @@ function renderMCCFooter() {
         <div class="footer-section">
           <h4>For Service Providers</h4>
           <ul>
-            <li><a href="/signup-provider.html">Join as a Provider</a></li>
+            <li><a href="/onboarding-provider.html">Join as a Provider</a></li>
             <li><a href="/provider-pilot.html">Founding Provider Program</a></li>
             <li><a href="/provider-faq.html">Provider FAQ</a></li>
             <li><a href="/provider-tips.html">How to Win Bids</a></li>
