@@ -22,7 +22,7 @@
 | - [ ] | `ANTHROPIC_API_KEY_MCC_FLEET1` (or `ANTHROPIC_API_KEY`) set | Netlify env |
 | - [ ] | `ADMIN_PASSWORD` set | Netlify env |
 | - [ ] | At least one verified provider account exists (`role='provider'`, `verification_status='verified'`) | `SELECT id, email, bid_credits FROM profiles WHERE role='provider' AND verification_status='verified' LIMIT 5;` |
-| - [ ] | Chris's founder profile exists and `commission_rate = 0.90` | `SELECT id, commission_rate, pending_balance, payout_email FROM member_founder_profiles WHERE id = '21837a02-6df4-4cb8-b0f4-c5082e83acbd';` |
+| - [ ] | Chris's founder profile exists and `commission_rate = 0.90` (today's authority) | `SELECT id, commission_rate, pending_balance, payout_email FROM member_founder_profiles WHERE id = '21837a02-6df4-4cb8-b0f4-c5082e83acbd';` — **Phase 2 note:** `commission_overrides.rate` becomes authoritative once the subscriptions build ships (`accrueCommission` reads that table with fallback to standard 50%/12-mo; `member_founder_profiles.commission_rate` becomes derived/legacy). Re-verify against `commission_overrides` where `referrer_id = 'dbb15523-2441-4ad9-8d2d-c6d8812c7ca2'` after Phase 2 lands. See `docs/specs/provider-subscriptions-build-spec.md` §2.6. |
 
 ---
 
