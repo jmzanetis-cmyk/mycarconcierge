@@ -315,8 +315,8 @@
     },
     {
       "url": "/api/provider-referral/lookup",
-      "caller": "signup-provider.js:119",
-      "reason": "dev-only: /api/provider-referral/lookup/* is in _redirects but exact /lookup (no splat) is not",
+      "caller": "onboarding-provider.html:2367",
+      "reason": "static extractor limitation: /api/provider-referral/lookup/* is in _redirects but the extractor normalizes fetch('/api/provider-referral/lookup/' + code) to the base path without the splat. Same pattern the deleted signup-provider.js:119 used to allowlist here.",
       "ticket": ""
     },
     {
