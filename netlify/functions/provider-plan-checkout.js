@@ -64,6 +64,14 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return json(204, '');
   if (event.httpMethod !== 'POST')    return json(405, { error: 'POST only' });
 
+  // FEATURE_PROVIDER_PLANS gate — see /api/config for the client-side
+  // counterpart. Server-side gate stays regardless of what the client
+  // renders (defense against curl bypass). Webhooks are NOT gated —
+  // once a subscription exists it must be honored even if the flag flips.
+  if (process.env.FEATURE_PROVIDER_PLANS !== 'true') {
+    return json(403, { error: 'plans_disabled' });
+  }
+
   const supabase = getSupabase();
   if (!supabase) return json(500, { error: 'Database not configured' });
   const stripe = getStripe();

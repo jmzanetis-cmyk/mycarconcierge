@@ -26,7 +26,30 @@
     return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
   }
 
+  // FEATURE_PROVIDER_PLANS gate. Read from /api/config once per page load
+  // and cache on window so a Manage-plan click later doesn't re-fetch.
+  // The server-side endpoints also 403 when the flag is off (defense in
+  // depth against a curl bypass); this client check is purely so the UI
+  // doesn't advertise a feature the backend refuses.
+  async function _isProviderPlansEnabled() {
+    if (typeof window.__featureProviderPlans === 'boolean') {
+      return window.__featureProviderPlans;
+    }
+    try {
+      var res = await fetch('/api/config', { credentials: 'omit' });
+      if (!res.ok) { window.__featureProviderPlans = false; return false; }
+      var body = await res.json();
+      var on = !!(body && body.features && body.features.providerPlans === true);
+      window.__featureProviderPlans = on;
+      return on;
+    } catch (_) {
+      window.__featureProviderPlans = false;
+      return false;
+    }
+  }
+
   async function loadProviderPlans() {
+    var card = document.getElementById('provider-plans-card');
     var grid = document.getElementById('provider-plans-grid');
     var status = document.getElementById('provider-plans-status');
     var err = document.getElementById('provider-plans-error');
@@ -42,6 +65,16 @@
       grid.innerHTML = '';
       return;
     }
+
+    // Feature flag: hide the whole card when off. The existing Credits +
+    // Bid Packs section on the page is unaffected — that renders from
+    // providers-bids.js and predates Phase 2.
+    var enabled = await _isProviderPlansEnabled();
+    if (!enabled) {
+      if (card) card.style.display = 'none';
+      return;
+    }
+    if (card) card.style.display = '';
 
     var client = window.supabaseClient;
     if (!client) return;

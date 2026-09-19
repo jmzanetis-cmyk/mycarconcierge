@@ -49,6 +49,12 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return json(204, '');
   if (event.httpMethod !== 'POST')    return json(405, { error: 'POST only' });
 
+  // FEATURE_PROVIDER_PLANS gate — see plan-checkout for rationale. Portal
+  // is gated too because it depends on the plans flow being live.
+  if (process.env.FEATURE_PROVIDER_PLANS !== 'true') {
+    return json(403, { error: 'plans_disabled' });
+  }
+
   const supabase = getSupabase();
   if (!supabase) return json(500, { error: 'Database not configured' });
   const stripe = getStripe();

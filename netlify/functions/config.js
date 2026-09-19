@@ -30,6 +30,18 @@ exports.handler = async function(event) {
   }
 
   return utils.successResponse({
-    googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || null
+    googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || null,
+    // Feature flags. Read server-side so a flip in Netlify's env panel
+    // takes effect without a redeploy of client bundles. The browser
+    // reads these via fetch('/api/config') at page-load.
+    features: {
+      // FEATURE_PROVIDER_PLANS gates the Phase 2 provider-subscription
+      // Plans card on providers.html. When 'true', the card renders and
+      // /api/provider/plan-checkout + /api/provider/plan-portal accept
+      // calls. When unset/false (production default), the card is hidden
+      // and both endpoints return 403 plans_disabled. Webhooks stay live
+      // regardless — if a subscription somehow exists it must be honored.
+      providerPlans: process.env.FEATURE_PROVIDER_PLANS === 'true',
+    },
   });
 };
