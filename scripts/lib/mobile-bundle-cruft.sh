@@ -46,7 +46,6 @@ MOBILE_CRUFT_DIRS=(
 MOBILE_CRUFT_FILES=(
   "server.js"
   "server.js.backup"
-  "members.js.bak"
   "package.json"
   "package-lock.json"
   "replit.md"
