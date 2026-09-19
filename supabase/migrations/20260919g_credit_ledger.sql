@@ -139,33 +139,53 @@ CREATE TRIGGER trg_credit_ledger_refresh_cache
 
 
 -- ---- 5. Backfill --------------------------------------------------------
+--
+-- CRITICAL — CAPTURE PRE-MIGRATION STATE FIRST.
+--
+-- The AFTER INSERT cache trigger installed above fires per row and
+-- recomputes profiles.bid_credits + free_trial_bids from the ledger sum.
+-- If we ran two separate INSERT statements reading directly from
+-- profiles, the second statement's SELECT would see the (zeroed by the
+-- trigger) cache values from the first statement's inserts — losing any
+-- credits that lived in the "other" column for profiles that had both.
+--
+-- (First observed cost of the naïve approach in 20260919k: Chris and
+-- Reviewer Provider each lost their 3/5 trial credits when the first
+-- INSERT's trigger zeroed free_trial_bids before the second SELECT ran.)
+--
+-- Fix: snapshot the values into a temp table first, then use that snapshot
+-- for both inserts.
+CREATE TEMP TABLE _p1_backfill_snapshot ON COMMIT DROP AS
+SELECT id,
+       bid_credits,
+       free_trial_bids,
+       is_founding_provider,
+       created_at
+FROM public.profiles;
 
--- One `opening` row per profile with delta=bid_credits (any non-zero balance,
--- regardless of role — see backfill counts in the migration header).
--- Skip profiles where bid_credits IS NULL OR = 0.
+-- One `opening` row per profile with delta=bid_credits.
 INSERT INTO public.credit_ledger (provider_id, delta, source, created_at)
 SELECT id, bid_credits, 'opening', COALESCE(created_at, now())
-FROM public.profiles
+FROM _p1_backfill_snapshot
 WHERE bid_credits IS NOT NULL AND bid_credits <> 0
 ON CONFLICT DO NOTHING;
 
 -- One `founder` row for is_founding_provider=true and `trial` for the rest,
--- where free_trial_bids > 0. is_founding_provider covers Chris (999999
--- allotment) and anyone future-flagged; trial covers the default-3 grants
--- from provider-onboarding.js finalize + the /free_trial_bids seed values.
+-- where the snapshot's free_trial_bids > 0. Reads from the temp snapshot,
+-- not from live profiles.free_trial_bids (which the first INSERT's trigger
+-- has already recomputed).
 INSERT INTO public.credit_ledger (provider_id, delta, source, created_at)
 SELECT id,
        free_trial_bids,
        CASE WHEN is_founding_provider IS TRUE THEN 'founder' ELSE 'trial' END,
        COALESCE(created_at, now())
-FROM public.profiles
+FROM _p1_backfill_snapshot
 WHERE free_trial_bids IS NOT NULL AND free_trial_bids > 0
 ON CONFLICT DO NOTHING;
 
 -- Note: the AFTER INSERT trigger fires per row above, recomputing the cache
--- for each profile to sum(ledger). Since the ledger rows we just inserted
--- were derived FROM the cache, the recompute is a no-op numerically. But
--- it verifies the trigger path end-to-end and leaves the profiles.updated_at
+-- for each profile to sum(ledger). Numerical no-op vs the snapshot — but
+-- it verifies the trigger path end-to-end and leaves profiles.updated_at
 -- stamped as a Phase-1-migration marker.
 
 

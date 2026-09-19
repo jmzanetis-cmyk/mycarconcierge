@@ -85,3 +85,18 @@ The resolver returns a canonical `referrer_user_id` (`profiles.id`) — matches 
 - `car-clubs.js`, `agent-fleet-admin.js`, `ai-ops-admin.js` — bonus grants
 - `provider-onboarding.js` finalize — trial (3) / founder (999999) initial grant
 - Refund/dispute — add `refund` row that reverses unspent remainder of the refunded lot (never below zero spent)
+
+---
+
+## Phase 1 addendum (2026-09-19 evening) — pack reset, Chris founder state, backfill correction
+
+**Pack catalog reset (20260919i).** All 19 legacy packs deactivated (never deleted — bid_credit_purchases FK preservation). Reactivated Jumper Cables under the name "Single" with sort_order=1; inserted Starter / Standard / Pro / Shop with sort_order 2..5. All five active packs honor the $3.00/bid floor (Single $10, Starter $10, Standard $9, Pro $8, Shop $7 per bid). `price_per_bid` converted from plain column to GENERATED STORED with the corrected formula `price / (bid_count + COALESCE(bonus_bids,0))` — old column stored `price / bid_count` and undersold packs with bonus_bids > 0.
+
+**Chris's founder state (20260919j).** `profiles.is_founding_provider = true` set. His 60,000 opening ledger row reclassified as `source='founder'` so it spends first per §4.3. Balance unchanged (60,000 in the ledger, cache reads 60,003 = 60,000 + 3 trial). Amount kept at 60,000 intentionally — do not "correct" to 999,999.
+
+**Backfill bug + correction (20260919k).** 20260919g's original backfill had a bug: two separate INSERTs in the same transaction, cache trigger fires on first INSERT and zeroes free_trial_bids in the cache (nothing in the ledger yet with source founder/trial), then the second INSERT's `SELECT free_trial_bids FROM profiles WHERE > 0` misses those rows because MVCC per-statement snapshots see the just-zeroed cache. Two profiles lost their trial rows: Chris (3 credits) + Reviewer Provider (5 credits) — matching the 60,893 → 60,885 gap seen post-migration.
+
+- 20260919k inserted the missing trial rows in prod, restoring the state to 60,893 total (Chris 60,003, Reviewer 15).
+- 20260919g fixed in-tree to snapshot cache values into a temp table before the first INSERT, and both INSERTs read from the snapshot. Fresh clones apply cleanly.
+
+**Spend-path verification (2026-09-19).** Called `place_plan_bid` for Elizabeth Kim (sim-provider-05, balance 141, single opening lot id=4) against a "Brakes" care_plan for the MCC Demo member. RPC returned `bid_id=f6bf4dd7…, consumed_source='credits', remaining_free=0, remaining_credits=140`. Ledger row id=67 landed with delta=-1, source='bid', lot_id=4, ref_type='plan_bid', ref_id=bid_id. Cache went 141 → 140. Lot pick correct: only lot available; 'opening' is class-3 in the spend order which maps to consumed_source='credits' for caller compatibility. Reversed with an admin +1 row (ref_type='phase1_verification_reversal'); Elizabeth restored to 141, plan_bids row deleted.

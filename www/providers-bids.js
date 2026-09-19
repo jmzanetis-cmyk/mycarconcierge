@@ -1064,26 +1064,34 @@ function renderServiceCredits() {
     return;
   }
 
-  const sortedPacks = [...bidPacks].sort((a, b) => b.price - a.price);
+  // Sort by sort_order ascending — the pack-reset migration (20260919i)
+  // gave the canonical five packs sort_order 1..5, so Single comes first
+  // and Shop last. Falls back to price ASC if sort_order ties or is null.
+  const sortedPacks = [...bidPacks].sort(
+    (a, b) => ((a.sort_order || 0) - (b.sort_order || 0)) || (a.price - b.price)
+  );
   const basePerCredit = 10.00;
-  
+
   const renderPackCard = (pack) => {
+    // bonus_bids kept in the total-credits math for correctness on any
+    // future bonus-pack promo, but the display path was dropped in Phase
+    // 1 — all five reset packs have bonus_bids=0, and the "+N FREE bonus!"
+    // callout was never seen in practice.
     const totalCredits = pack.bid_count + (pack.bonus_bids || 0);
     const effectivePriceNum = pack.price / totalCredits;
     const effectivePrice = effectivePriceNum.toFixed(2);
     const savingsPercent = Math.max(0, Math.round((1 - (effectivePriceNum / basePerCredit)) * 100));
     const hasBadge = pack.badge_text || pack.is_popular;
     const badgeText = pack.badge_text || (pack.is_popular ? 'POPULAR' : '');
-    
+
     return `
       <div style="background:var(--bg-elevated);border:2px solid ${hasBadge ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
         ${badgeText ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
         <div style="font-size:2.5rem;margin-bottom:8px;">${mccIcon('ticket', 40)}</div>
         <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">${pack.name}</h3>
         <div style="margin:16px 0;">
-          <span style="font-size:2rem;font-weight:700;">${pack.bid_count.toLocaleString()}</span>
+          <span style="font-size:2rem;font-weight:700;">${totalCredits.toLocaleString()}</span>
           <span style="color:var(--text-muted);"> credits</span>
-          ${pack.bonus_bids > 0 ? `<div style="color:var(--accent-green);font-size:0.9rem;font-weight:500;">+${pack.bonus_bids} FREE bonus!</div>` : ''}
         </div>
         <div style="font-size:1.5rem;font-weight:600;color:var(--accent-gold);margin-bottom:4px;">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
         <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">$${effectivePrice} per credit</div>
