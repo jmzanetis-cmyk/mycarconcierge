@@ -9,44 +9,64 @@
 --   * household_vehicle_access: 0
 --   * activity in the last 7 days: 0
 -- No data to preserve. The feature code, nav item, section markup, modals,
--- state, and JS handlers landed in the two prior commits on this branch
--- (chore/remove-household). This migration drops the schema.
+-- state, and JS handlers landed in the two commits on chore/remove-household.
+-- This migration drops the schema.
 --
 -- Apply AFTER the code merge goes live (per remaining-work-plan.md #6, "Jordan
 -- applies 20260919a in the SQL editor after the code merge goes live, not
 -- before"). Applying before deploy would break the still-live www/ callers
 -- that hit .from('household_*') until the new bundle propagates.
 --
--- FK check: `grep -rn "REFERENCES\s+household" supabase/migrations/` returned
--- zero results, so no known cross-table foreign keys reference households /
--- household_members / household_vehicle_access. Jordan is also running a
--- pg_constraint probe against prod (query provided in the PR description) to
--- catch any FKs that predate the migrations folder. If any surface, this
--- migration will grow a matching `ALTER TABLE ... DROP COLUMN` for each.
+-- FK check (2026-09-18): grep of migrations returned zero cross-table FKs to
+-- households / household_members / household_vehicle_access. Jordan also
+-- ran a pg_constraint probe against prod (same day), which returned 0 rows —
+-- no unknown FK references. Safe to drop tables directly.
 --
--- Idempotent: DROP POLICY IF EXISTS + DROP TABLE IF EXISTS. Safe to re-run.
+-- SUPABASE STUDIO POLICY HISTORY (2026-09-19 lesson learned):
+--   Earlier revisions of this migration named the RLS policies to drop
+--   explicitly:
+--       DROP POLICY IF EXISTS "hva_owner_all"    ON public.household_vehicle_access;
+--       DROP POLICY IF EXISTS "hva_member_select" ON public.household_vehicle_access;
+--   Those were the only policies captured in supabase/migrations/ (from
+--   20260603g). When applied against prod, the migration surfaced additional
+--   policies that had been created directly in the Supabase Studio UI and
+--   never landed in a tracked migration — notably `hh_member_select` on
+--   household_members. `DROP TABLE` blocked on those Studio-created policies
+--   even though the file had already run its explicit DROP POLICYs.
+--
+--   Fix: enumerate every policy on the three tables at apply-time via a DO
+--   loop against pg_policies, then drop the tables. This handles both known
+--   (migration-tracked) and unknown (Studio-created, prod-only) policies
+--   uniformly and stays idempotent — the loop is a no-op on any environment
+--   where the tables have already been dropped.
+--
 -- Order matters: household_vehicle_access references household_id, so it
 -- drops first; household_members references household_id, drops next;
--- households last.
---
--- If DROP TABLE fails with a dependency error (unknown cross-table FK), do
--- NOT reach for CASCADE — investigate what's referencing the table, add a
--- matching DROP COLUMN above, and re-run. CASCADE would silently drop
--- referencing columns' constraints and leave orphan columns behind.
+-- households last. DROP TABLE IF EXISTS is idempotent.
 -- ============================================================================
 
 
--- ---- 1. Drop RLS policies (idempotent) ----
--- Only 20260603g created policies on these tables (20260603h just added an
--- `email` column, no policies). Any prod-only policies get dropped by the
--- DROP TABLE below regardless.
-
-DROP POLICY IF EXISTS "hva_owner_all"    ON public.household_vehicle_access;
-DROP POLICY IF EXISTS "hva_member_select" ON public.household_vehicle_access;
+-- ---- 1. Drop every policy on the three tables (idempotent, drift-tolerant) ----
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT policyname, tablename
+      FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename IN (
+         'household_vehicle_access',
+         'household_members',
+         'households'
+       )
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
 
 
 -- ---- 2. Drop tables in dependency order ----
-
 DROP TABLE IF EXISTS public.household_vehicle_access;
 DROP TABLE IF EXISTS public.household_members;
 DROP TABLE IF EXISTS public.households;
