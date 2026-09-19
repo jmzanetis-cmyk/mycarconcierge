@@ -8174,7 +8174,7 @@ See you there!`);
           url += `?vehicle_id=${vehicleFilter}`;
         }
         
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${session?.access_token || ''}`
@@ -8529,7 +8529,7 @@ See you there!`);
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const payload = {
           vehicle_id: vehicleId,
@@ -8582,7 +8582,7 @@ See you there!`);
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/member/${currentUser.id}/fuel-log/${logId}`, {
           method: 'DELETE',
@@ -8620,7 +8620,7 @@ See you there!`);
           url += `?vehicle_id=${vehicleFilter}`;
         }
         
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${session?.access_token || ''}`
@@ -8896,7 +8896,7 @@ See you there!`);
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         let storagePath = null;
         let fileUrl = null;
@@ -8987,7 +8987,7 @@ See you there!`);
 
     async function downloadInsuranceDocument(docId) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/member/${currentUser.id}/insurance-document/${docId}/download`, {
           headers: {
@@ -9014,7 +9014,7 @@ See you there!`);
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/member/${currentUser.id}/insurance-document/${docId}`, {
           method: 'DELETE',
