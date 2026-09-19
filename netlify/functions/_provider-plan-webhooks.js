@@ -24,18 +24,63 @@ const TRIAL_REF_TYPE     = 'trial_grant';
 const INVOICE_REF_TYPE   = 'invoice_paid';
 const UPGRADE_REF_TYPE   = 'upgrade_prorated';
 
+// ---------------------------------------------------------------------------
+// Tolerant accessors for Stripe webhook payload shapes.
+//
+// Stripe's account-level API version at the webhook endpoint (2026-04-22.dahlia
+// as of 2026-09-19) differs from the SDK's pinned version (2024-04-10), so
+// deliveries carry field paths that don't match what the SDK types describe.
+// The endpoint's shape wins for anything delivered — reads must go through
+// these accessors, not raw field paths, or they NPE / land NULLs.
+//
+// Delta between the two shapes for the fields we care about:
+//   • invoice.subscription           — dahlia moved this to
+//     invoice.parent.subscription_details.subscription (also may be
+//     an expanded object rather than an id)
+//   • invoice.subscription_details.metadata — moved to
+//     invoice.parent.subscription_details.metadata
+//   • subscription.current_period_start / _end — moved off the root onto
+//     subscription.items.data[0].current_period_start / _end
+//
+// Older-shape paths are still checked as a fallback so this file remains
+// forward-compatible when Stripe rolls the SDK pin forward or if we ever
+// downgrade the endpoint version.
+// ---------------------------------------------------------------------------
+
+function invoiceSubId(inv) {
+  const raw =
+    (inv && inv.parent && inv.parent.subscription_details && inv.parent.subscription_details.subscription) ||
+    (inv && inv.subscription) || null;
+  if (!raw) return null;
+  return (typeof raw === 'object') ? (raw.id || null) : raw;
+}
+
+function invoiceSubMeta(inv) {
+  return (
+    (inv && inv.parent && inv.parent.subscription_details && inv.parent.subscription_details.metadata) ||
+    (inv && inv.subscription_details && inv.subscription_details.metadata) ||
+    (inv && inv.metadata) ||
+    {}
+  );
+}
+
+function subPeriod(sub) {
+  const it = sub && sub.items && sub.items.data && sub.items.data[0];
+  return {
+    start: (it && it.current_period_start) || (sub && sub.current_period_start) || null,
+    end:   (it && it.current_period_end)   || (sub && sub.current_period_end)   || null,
+  };
+}
+
 function isProviderPlanSub(sub) {
   return sub && sub.metadata && sub.metadata.product === 'provider_plan';
 }
 
 function isProviderPlanInvoice(inv) {
-  // Invoices don't always carry line-item metadata; check the subscription
-  // reference and let the caller lazily load it.
-  return inv && (
-    (inv.subscription_details && inv.subscription_details.metadata &&
-       inv.subscription_details.metadata.product === 'provider_plan') ||
-    (inv.metadata && inv.metadata.product === 'provider_plan')
-  );
+  // Use the tolerant metadata accessor so both dahlia and pre-dahlia
+  // payload shapes flow through the same check.
+  const meta = invoiceSubMeta(inv);
+  return !!(meta && meta.product === 'provider_plan');
 }
 
 async function _findProviderSubRow(supabase, stripeSubId) {
@@ -105,17 +150,21 @@ async function handleProviderPlanSubscriptionCreated(sub, supabase) {
     sub.items.data[0].price && sub.items.data[0].price.recurring &&
     sub.items.data[0].price.recurring.interval === 'year') ? 'year' : 'month';
 
+  // Period comes from items.data[0] on 2026-04-22.dahlia payloads,
+  // root-level on older shapes. subPeriod() handles both.
+  const period = subPeriod(sub);
+
   // Upsert the provider_subscriptions row. The trial_started_at partial
   // unique index enforces one-trial-per-provider at the DB layer.
   const upsertRow = {
     provider_id: providerId,
     plan_key: planKey,
     stripe_subscription_id: sub.id,
-    stripe_customer_id: sub.customer || null,
+    stripe_customer_id: (typeof sub.customer === 'object' && sub.customer ? sub.customer.id : sub.customer) || null,
     status,
     billing_interval: billingInterval,
-    current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
-    current_period_end:   sub.current_period_end   ? new Date(sub.current_period_end   * 1000).toISOString() : null,
+    current_period_start: period.start ? new Date(period.start * 1000).toISOString() : null,
+    current_period_end:   period.end   ? new Date(period.end   * 1000).toISOString() : null,
     cancel_at_period_end: !!sub.cancel_at_period_end,
     trial_started_at: isTrial ? nowIso : null,
   };
@@ -163,18 +212,18 @@ async function handleProviderPlanSubscriptionCreated(sub, supabase) {
 // invoice.paid — monthly grant + rollover cap (§2.3)
 // ----------------------------------------------------------------------------
 async function handleProviderPlanInvoicePaid(invoice, supabase) {
+  // Read subscription id via tolerant accessor — 2026-04-22.dahlia moved
+  // this off invoice.subscription onto invoice.parent.subscription_details.
+  const stripeSubId = invoiceSubId(invoice);
   if (!isProviderPlanInvoice(invoice)) {
-    // Cheap gate: look up the subscription row we own to see if it's ours.
-    const stripeSubId = invoice.subscription;
+    // Metadata may be missing on some replayed shapes; if the invoice
+    // points at a subscription we own, treat it as ours anyway.
     if (!stripeSubId) return { skipped: 'no_subscription_ref' };
     const owned = await _findProviderSubRow(supabase, stripeSubId);
     if (!owned) return { skipped: 'not_provider_plan' };
-    // Fall through — we own this sub even though invoice metadata missed.
-    invoice.metadata = Object.assign({}, invoice.metadata, { product: 'provider_plan' });
   }
   if (!(invoice.amount_paid > 0)) return { skipped: 'amount_paid_zero' };
 
-  const stripeSubId = invoice.subscription;
   const subRow = await _findProviderSubRow(supabase, stripeSubId);
   if (!subRow) return { skipped: 'sub_row_not_found', stripe_sub_id: stripeSubId };
   const providerId = subRow.provider_id;
@@ -291,7 +340,7 @@ async function handleProviderPlanInvoicePaid(invoice, supabase) {
 // invoice.payment_failed — status→past_due (§2.5)
 // ----------------------------------------------------------------------------
 async function handleProviderPlanInvoicePaymentFailed(invoice, supabase) {
-  const stripeSubId = invoice.subscription;
+  const stripeSubId = invoiceSubId(invoice);
   if (!stripeSubId) return { skipped: 'no_subscription_ref' };
   const subRow = await _findProviderSubRow(supabase, stripeSubId);
   if (!subRow) return { skipped: 'not_provider_plan' };
@@ -318,11 +367,12 @@ async function handleProviderPlanSubscriptionUpdated(sub, supabase) {
   const newPlanKey = sub.metadata.plan_key || subRow.plan_key;
   const oldPlanKey = subRow.plan_key;
 
+  const period = subPeriod(sub);
   const patch = {
     status: sub.status,
     plan_key: newPlanKey,
-    current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
-    current_period_end:   sub.current_period_end   ? new Date(sub.current_period_end   * 1000).toISOString() : null,
+    current_period_start: period.start ? new Date(period.start * 1000).toISOString() : null,
+    current_period_end:   period.end   ? new Date(period.end   * 1000).toISOString() : null,
     cancel_at_period_end: !!sub.cancel_at_period_end,
   };
   await supabase
@@ -393,6 +443,9 @@ async function handleProviderPlanSubscriptionDeleted(sub, supabase) {
 module.exports = {
   isProviderPlanSub,
   isProviderPlanInvoice,
+  invoiceSubId,
+  invoiceSubMeta,
+  subPeriod,
   handleProviderPlanSubscriptionCreated,
   handleProviderPlanInvoicePaid,
   handleProviderPlanInvoicePaymentFailed,
