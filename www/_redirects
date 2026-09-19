@@ -380,6 +380,13 @@
 # key is safe to expose (must be referrer-restricted in Google Cloud).
 /api/config /.netlify/functions/config 200
 
+# Provider verification — Phase 3 of signup consolidation. GET returns the
+# state used to render the Verification section (docs/reviews/refs +
+# status); POST transitions the profile to verification_status='pending'.
+# Both handled by netlify/functions/provider-verification.js.
+/api/provider/verification         /.netlify/functions/provider-verification 200
+/api/provider/request-verification /.netlify/functions/provider-verification 200
+
 # Signup consolidation — Flow B (signup-provider.html) redirects to canonical
 # Flow A (onboarding-provider.html). Query string carries over automatically
 # on Netlify 301s, so existing ?ref=CODE / ?founding_provider=true links keep

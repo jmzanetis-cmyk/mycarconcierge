@@ -1060,7 +1060,7 @@
     <div class="nav-item" data-section="my-documents"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> My Documents</div>
     <div class="nav-item" data-section="compliance"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Compliance <span class="nav-badge" id="bgc-badge-pill" style="display:none;background:var(--accent-teal);color:#0c1a1f;font-size:var(--text-xs);">VERIFIED</span></div>
     <div class="nav-item team-management-nav" data-section="team-section" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Team</div>
-    <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Background Checks</div>
+    <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Verification</div>
     <div class="nav-item pos-feature" data-section="pos-integration" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> POS Integration</div>
     
     <div class="nav-label">Earn More</div>
@@ -2482,70 +2482,6 @@
           <div id="stripe-loading" style="display:flex;align-items:center;justify-content:center;padding:40px;">
             <div class="spinner" style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 1s linear infinite;"></div>
             <span style="margin-inline-start:12px;color:var(--text-muted);">Checking Stripe status...</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Verification Documents Upload -->
-      <div class="card" id="verification-docs-card">
-        <div class="card-header">
-          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Verification Documents</h2>
-        </div>
-        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">Upload documents to get verified and earn the Credentials Verified badge. Accepted formats: PDF, JPG, PNG.</p>
-        
-        <div style="display:grid;gap:16px;">
-          <!-- Business License Upload -->
-          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
-                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Business License</div>
-                <div style="font-size:var(--text-sm);color:var(--text-muted);">Your official business or trade license</div>
-                <div id="license-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="file" id="license-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('license')">
-                <button class="btn btn--secondary btn--small" onclick="document.getElementById('license-file-input').click()">
-                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
-                </button>
-                <a id="license-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Insurance Certificate Upload -->
-          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
-                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Insurance Certificate</div>
-                <div style="font-size:var(--text-sm);color:var(--text-muted);">Proof of liability insurance coverage</div>
-                <div id="insurance-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="file" id="insurance-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('insurance')">
-                <button class="btn btn--secondary btn--small" onclick="document.getElementById('insurance-file-input').click()">
-                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
-                </button>
-                <a id="insurance-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Certifications Upload -->
-          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
-                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg></span> Certifications</div>
-                <div style="font-size:var(--text-sm);color:var(--text-muted);">ASE, I-CAR, manufacturer, or other professional certifications</div>
-                <div id="certifications-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="file" id="certifications-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('certifications')">
-                <button class="btn btn--secondary btn--small" onclick="document.getElementById('certifications-file-input').click()">
-                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
-                </button>
-                <a id="certifications-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -4253,8 +4189,8 @@
     <!-- Background Checks Section -->
     <section id="background-checks" class="section">
       <div class="page-header">
-        <h1 class="page-title">Background Verification</h1>
-        <p class="page-subtitle">Verify your credentials and team members to build trust with customers. Background checks help ensure safety and reliability for our service marketplace.</p>
+        <h1 class="page-title">Verification</h1>
+        <p class="page-subtitle">Earn the Credentials Verified badge — upload documents, add reviews or references, then submit for admin review. Verified providers get more accepted bids and rank higher in search.</p>
       </div>
 
       <!-- Verification Badge Status -->
@@ -4262,7 +4198,7 @@
         <!-- Content loaded dynamically by loadVerificationBadgeStatus() -->
       </div>
 
-      <!-- Provider's Own Background Check Card -->
+      <!-- 1. Your Background Check -->
       <div class="card" style="background:rgba(42,46,51,0.8);backdrop-filter:blur(12px);border:1px solid var(--border-subtle);">
         <div class="card-header">
           <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
@@ -4276,6 +4212,145 @@
             <p>Loading background check status...</p>
           </div>
         </div>
+      </div>
+
+      <!-- 2. Verification Documents (moved from Business Profile in Phase 3) -->
+      <div class="card" id="verification-docs-card">
+        <div class="card-header">
+          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Documents</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:var(--text-base);">Upload documents so admins can verify your credentials. Accepted formats: PDF, JPG, PNG.</p>
+
+        <div style="display:grid;gap:16px;">
+          <!-- Business License Upload -->
+          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Business License</div>
+                <div style="font-size:var(--text-sm);color:var(--text-muted);">Your official business or trade license</div>
+                <div id="license-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="file" id="license-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('license')">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('license-file-input').click()">
+                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
+                </button>
+                <a id="license-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Insurance Certificate Upload -->
+          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Insurance Certificate</div>
+                <div style="font-size:var(--text-sm);color:var(--text-muted);">Proof of liability insurance coverage</div>
+                <div id="insurance-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="file" id="insurance-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('insurance')">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('insurance-file-input').click()">
+                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
+                </button>
+                <a id="insurance-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Certifications Upload -->
+          <div class="doc-upload-item" style="padding:20px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <div style="font-weight:600;margin-bottom:4px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg></span> Certifications</div>
+                <div style="font-size:var(--text-sm);color:var(--text-muted);">ASE, I-CAR, manufacturer, or other professional certifications</div>
+                <div id="certifications-upload-status" style="margin-top:8px;font-size:var(--text-sm);"></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="file" id="certifications-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('certifications')">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('certifications-file-input').click()">
+                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
+                </button>
+                <a id="certifications-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. External Reviews -->
+      <div class="card" id="verification-reviews-card">
+        <div class="card-header">
+          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span> External Reviews</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:var(--text-base);">Link to your reviews on Google, Yelp, Facebook, or the BBB. Helps admins verify your reputation.</p>
+        <div id="verification-reviews-list" style="display:grid;gap:8px;margin-bottom:16px;"></div>
+        <div style="display:grid;grid-template-columns:180px 1fr auto;gap:8px;align-items:end;">
+          <div>
+            <label class="form-label" for="review-platform-input">Platform</label>
+            <select class="form-input" id="review-platform-input">
+              <option value="google">Google</option>
+              <option value="yelp">Yelp</option>
+              <option value="facebook">Facebook</option>
+              <option value="bbb">BBB</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="review-url-input">Profile URL</label>
+            <input type="url" class="form-input" id="review-url-input" placeholder="https://…">
+          </div>
+          <button class="btn btn--secondary btn--small" onclick="addVerificationReview()">Add</button>
+        </div>
+        <div id="verification-review-error" style="display:none;margin-top:8px;color:#f87171;font-size:var(--text-sm);"></div>
+      </div>
+
+      <!-- 4. References -->
+      <div class="card" id="verification-references-card">
+        <div class="card-header">
+          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> References</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:var(--text-base);">Add customers, suppliers, or business partners who can vouch for your work.</p>
+        <div id="verification-references-list" style="display:grid;gap:8px;margin-bottom:16px;"></div>
+        <div style="display:grid;gap:8px;">
+          <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <label class="form-label" for="ref-name-input">Name *</label>
+              <input type="text" class="form-input" id="ref-name-input" placeholder="Full name">
+            </div>
+            <div>
+              <label class="form-label" for="ref-company-input">Company</label>
+              <input type="text" class="form-input" id="ref-company-input" placeholder="Business name (optional)">
+            </div>
+          </div>
+          <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;">
+            <div>
+              <label class="form-label" for="ref-phone-input">Phone</label>
+              <input type="tel" class="form-input" id="ref-phone-input" placeholder="(555) 555-5555">
+            </div>
+            <div>
+              <label class="form-label" for="ref-relationship-input">Relationship *</label>
+              <select class="form-input" id="ref-relationship-input">
+                <option value="customer">Customer</option>
+                <option value="supplier">Supplier</option>
+                <option value="partner">Business partner</option>
+                <option value="colleague">Colleague</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <button class="btn btn--secondary btn--small" onclick="addVerificationReference()">Add</button>
+          </div>
+        </div>
+        <div id="verification-reference-error" style="display:none;margin-top:8px;color:#f87171;font-size:var(--text-sm);"></div>
+      </div>
+
+      <!-- 5. Submit for Verification -->
+      <div class="card" id="verification-submit-card" style="background:linear-gradient(135deg,rgba(42,46,51,0.9),rgba(201,168,76,0.08));border:1px solid var(--accent-gold);">
+        <div class="card-header">
+          <h2 class="card-title">Submit for verification</h2>
+        </div>
+        <p id="verification-submit-hint" style="color:var(--text-secondary);margin-bottom:12px;font-size:var(--text-base);">Upload at least one document, plus a review or reference, then submit. Admin review usually takes 1–3 business days.</p>
+        <div id="verification-submit-status" style="margin-bottom:12px;font-size:var(--text-sm);"></div>
+        <button class="btn btn--primary" id="verification-submit-btn" onclick="submitProviderVerification()" disabled>Submit for verification</button>
       </div>
 
       <!-- Team Member Background Checks Card -->
@@ -4296,17 +4371,17 @@
         </div>
       </div>
 
-      <!-- Background Check Info Card -->
+      <!-- Info Card -->
       <div class="card" style="background:linear-gradient(135deg,rgba(42,46,51,0.8),var(--accent-gold-soft));border:1px solid var(--accent-gold);backdrop-filter:blur(12px);">
         <div style="display:flex;align-items:flex-start;gap:16px;">
           <span style="font-size:2.5rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span></span>
           <div>
-            <h3 style="font-size:var(--text-lg);font-weight:600;margin-bottom:8px;">Why Background Checks Matter</h3>
+            <h3 style="font-size:var(--text-lg);font-weight:600;margin-bottom:8px;">Why verification matters</h3>
             <ul style="color:var(--text-secondary);font-size:var(--text-base);line-height:1.7;margin:0;padding-inline-start:20px;">
               <li>Builds trust with customers and increases your chances of winning bids</li>
-              <li>Verified providers are highlighted with a trusted badge on their profile</li>
+              <li>Verified providers show a trusted badge on their profile and rank higher in search</li>
               <li>Required for certain premium service categories and fleet contracts</li>
-              <li>Checks are conducted via BackgroundChecks.com and typically complete within 24-72 hours</li>
+              <li>Background checks are conducted via BackgroundChecks.com and typically complete within 24–72 hours</li>
             </ul>
           </div>
         </div>
@@ -7211,6 +7286,7 @@
   <script src="providers-core.js?v=20260914b"></script>
   <script src="mcc-taxonomy.js?v=20260920"></script>
   <script src="providers-settings.js?v=20260914"></script>
+  <script src="providers-verification.js?v=20260919"></script>
   <script src="providers-care-plans.js?v=20260516"></script>
   <script src="bgc-badge.js?v=20260428"></script>
   <script src="bgc-pricing.js?v=20260429"></script>
@@ -7283,6 +7359,11 @@
       const STEPS = [
         { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('profile')",                                                                       hint: 'Add bio, photo, and service area' },
         { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('background-checks')",                                                             hint: 'ID, insurance, and certifications' },
+        // Phase 3 — provider_verified marks the "submitted for verification"
+        // action, not the admin decision. Both pending and verified count as
+        // done on the server (member-onboarding.js provider branch), so the
+        // step goes checked as soon as the provider submits.
+        { key: 'provider_verified',      icon: '🛡️', label: 'Get verified to start bidding', action: "showSection('background-checks')",                                                             hint: 'Submit your documents, reviews, and references for review' },
         { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('profile')",                                                                       hint: 'Set the services you offer' },
         { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",                                                                   hint: 'Required to receive payments' },
         // Rate Card lives INSIDE the profile section as #rate-card-panel —
@@ -7352,6 +7433,11 @@
           if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">Unable to load checklist.</p>';
         }
       }
+
+      // Phase 3 — providers-verification.js calls this after a successful
+      // "Submit for verification" so provider_verified ticks over without
+      // a page reload.
+      window.reloadProviderOnboardingChecklist = loadProviderChecklist;
 
       // Expose helper so providers-core.js can call it after actions
       window.markProviderOnboardingStep = async function(step) {
