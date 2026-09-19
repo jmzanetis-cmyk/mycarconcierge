@@ -663,7 +663,7 @@
         const [codesRes, foundersRes] = await Promise.all([
           supabaseClient
             .from('provider_referral_codes')
-            .select('id, code, provider_id, type, uses_count, fee_exempt, skip_identity_verification, is_active, created_at')
+            .select('id, code, provider_id, code_type, uses_count, platform_fee_exempt, skip_identity_verification, is_active, created_at')
             .order('created_at', { ascending: false }),
           supabaseClient
             .from('member_founder_profiles')
@@ -745,9 +745,9 @@
                 <div style="font-weight:500;">${escapeHtml(p.full_name||'—')}</div>
                 <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email||'')}</div>
               </td>
-              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.type||'—')}</td>
+              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.code_type||'—')}</td>
               <td style="padding:10px 14px;text-align:center;font-weight:600;">${r.uses_count||0}</td>
-              <td style="padding:10px 14px;text-align:center;">${badge(r.fee_exempt)}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.platform_fee_exempt)}</td>
               <td style="padding:10px 14px;text-align:center;">${badge(r.skip_identity_verification)}</td>
               <td style="padding:10px 14px;text-align:center;">${badge(r.is_active)}</td>
               <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
