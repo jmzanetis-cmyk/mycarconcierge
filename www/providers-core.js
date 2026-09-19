@@ -346,6 +346,8 @@ async function showSection(id) {
   if (id === 'background-checks') {
     if (typeof loadVerificationBadgeStatus === 'function') loadVerificationBadgeStatus();
     if (typeof loadBackgroundCheckStatus === 'function') loadBackgroundCheckStatus();
+    // Phase 3 — populate Documents/Reviews/References cards + submit button.
+    if (typeof loadProviderVerification === 'function') loadProviderVerification();
   }
   // Note: background-check polling (_bgCheckPollTimer) continues across section changes so the
   // overview dashboard card stays fresh while a check is in-progress. It self-stops when resolved.

@@ -104,9 +104,12 @@ async function handleProviderChecklist(sb, uid) {
     // 1. Profile completeness — the same "does the provider have their
     //    shop's basics filled in" check the Business Profile page saves.
     //    services_offered doubles as the "provider_services" signal, kept
-    //    on the same row so one query covers both keys.
+    //    on the same row so one query covers both keys. verification_status
+    //    drives the provider_verified step added in Phase 3 (submitted →
+    //    pending, admin-approved → verified; both count as "done" for
+    //    the checklist).
     sb.from('profiles')
-      .select('business_name, city, state, description, services_offered, stripe_account_id')
+      .select('business_name, city, state, description, services_offered, stripe_account_id, verification_status')
       .eq('id', uid)
       .maybeSingle(),
     // 2. At least one verification doc uploaded (any document_type).
@@ -129,10 +132,16 @@ async function handleProviderChecklist(sb, uid) {
 
   const profile = profileRes.data;
   const services = Array.isArray(profile && profile.services_offered) ? profile.services_offered : [];
+  const vStatus = profile && profile.verification_status;
 
   const checklist = {
     provider_profile: !!(profile && profile.business_name && profile.city && profile.state && profile.description),
     provider_docs:    !!(docsRes.data && docsRes.data.length > 0),
+    // Phase 3 — provider_verified counts as done once verification has
+    // been submitted (pending) or granted (verified). Both are terminal
+    // states from the provider's checklist point of view: they've taken
+    // the action, admin review is now on the platform side.
+    provider_verified: vStatus === 'pending' || vStatus === 'verified',
     provider_services: services.length > 0,
     provider_stripe:  !!(profile && profile.stripe_account_id),
     provider_rate_card: !!(rateCardRes.data && rateCardRes.data.length > 0),
