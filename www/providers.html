@@ -7274,12 +7274,25 @@
   <script>
     // Provider onboarding checklist
     (function initProviderChecklist() {
+      // Every key here MUST have a matching case in the provider branch of
+      // member-onboarding.js's handleProviderChecklist — the server sends
+      // truthiness for these exact keys. `action` is eval'd inline via
+      // onclick, so anything valid as an inline-event string works
+      // (function calls; can chain with a scroll target if the destination
+      // is nested inside a section).
       const STEPS = [
-        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('profile')",         hint: 'Add bio, photo, and service area' },
-        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('background-checks')", hint: 'ID, insurance, and certifications' },
-        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('profile')",         hint: 'Set the services you offer' },
-        { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",   hint: 'Required to receive payments' },
-        { key: 'provider_first_booking', icon: '🎉', label: 'Receive your first booking',  action: null,                           hint: 'Post a job or wait for requests' }
+        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('profile')",                                                                       hint: 'Add bio, photo, and service area' },
+        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('background-checks')",                                                             hint: 'ID, insurance, and certifications' },
+        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('profile')",                                                                       hint: 'Set the services you offer' },
+        { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",                                                                   hint: 'Required to receive payments' },
+        // Rate Card lives INSIDE the profile section as #rate-card-panel —
+        // there is no top-level 'rate-card' section, so showSection('rate-card')
+        // would silently no-op via showSection's own "Unknown section" guard.
+        // Two-step: navigate to profile, then scroll the nested panel into
+        // view on the next tick. setTimeout gives the section-swap DOM
+        // painting a beat to settle before scrollIntoView runs.
+        { key: 'provider_rate_card',     icon: '💵', label: 'Price your services',          action: "showSection('profile');setTimeout(()=>document.getElementById('rate-card-panel')?.scrollIntoView({behavior:'smooth',block:'start'}),120)", hint: 'Set at least one Rate Card price so auto-bid can match you' },
+        { key: 'provider_first_booking', icon: '🎉', label: 'Receive your first booking',  action: null,                                                                                            hint: 'Post a job or wait for requests' }
       ];
 
       function renderProviderChecklist(checklist) {

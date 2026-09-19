@@ -1,6 +1,16 @@
-// GET  /api/member/onboarding       — return step completion + survey status
-// POST /api/member/onboarding/step  — mark a step done (upsert to member_onboarding_steps)
+// GET  /api/member/onboarding                 — member-side checklist (default)
+// GET  /api/member/onboarding?role=provider   — provider-side checklist (2026-09-18)
+// POST /api/member/onboarding/step            — mark a step done (upsert to member_onboarding_steps)
 // Auth: Bearer JWT
+//
+// The provider branch was added 2026-09-18 to close a shipped-broken behavior:
+// providers.html's `initProviderChecklist` calls
+// `/api/member/onboarding?role=provider` and looks for keys prefixed
+// `provider_*` (profile/docs/services/stripe/first_booking, plus a new
+// rate_card key), but the endpoint was ignoring the query param and only ever
+// returning member-side keys — every provider on prod saw an all-zero
+// checklist regardless of what they'd actually done. See the client's STEPS
+// array in providers.html (~7239) for the canonical key list.
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
@@ -35,9 +45,16 @@ function isStepPath(path) {
   return /\/api\/member\/onboarding\/step\/?$/.test(path || '');
 }
 
-async function handleGet(sb, user) {
+async function handleGet(event, sb, user) {
   const uid = user.id;
+  const qs = event.queryStringParameters || {};
+  const role = qs.role === 'provider' ? 'provider' : 'member';
 
+  if (role === 'provider') return handleProviderChecklist(sb, uid);
+  return handleMemberChecklist(sb, uid);
+}
+
+async function handleMemberChecklist(sb, uid) {
   // Run all DB checks in parallel
   const [
     profileRes,
@@ -69,6 +86,60 @@ async function handleGet(sb, user) {
   const top_priority     = surveyRes.data?.top_priority || null;
 
   return json(200, { survey_completed, checklist, top_priority });
+}
+
+// Provider checklist. Matches the STEPS array in www/providers.html at
+// initProviderChecklist — every key added here must have a corresponding
+// STEPS entry there or it will silently do nothing. Six queries run in
+// parallel (~one round trip); all fail-open (missing/error → false), so a
+// transient DB blip on one check can't accidentally flag a step as
+// "complete" — it just reads as incomplete until the next reload.
+async function handleProviderChecklist(sb, uid) {
+  const [
+    profileRes,
+    docsRes,
+    rateCardRes,
+    firstBookingRes,
+  ] = await Promise.all([
+    // 1. Profile completeness — the same "does the provider have their
+    //    shop's basics filled in" check the Business Profile page saves.
+    //    services_offered doubles as the "provider_services" signal, kept
+    //    on the same row so one query covers both keys.
+    sb.from('profiles')
+      .select('business_name, city, state, description, services_offered, stripe_account_id')
+      .eq('id', uid)
+      .maybeSingle(),
+    // 2. At least one verification doc uploaded (any document_type).
+    sb.from('provider_documents').select('id').eq('provider_id', uid).limit(1),
+    // 3. Rate Card: at least one row for this provider with a positive
+    //    price_cents AND active=true — same combination the Auto-Bid
+    //    matching engine and public profile display treat as "priced."
+    //    A row with active=false or a null price wouldn't get matched on.
+    sb.from('provider_rate_card_items')
+      .select('id')
+      .eq('provider_id', uid)
+      .eq('active', true)
+      .not('price_cents', 'is', null)
+      .limit(1),
+    // 4. Received first booking: at least one plan_bids row for this
+    //    provider with status='accepted'. Same signal `provider_earnings`
+    //    reports use — the member accepted their bid.
+    sb.from('plan_bids').select('id').eq('provider_id', uid).eq('status', 'accepted').limit(1),
+  ]);
+
+  const profile = profileRes.data;
+  const services = Array.isArray(profile && profile.services_offered) ? profile.services_offered : [];
+
+  const checklist = {
+    provider_profile: !!(profile && profile.business_name && profile.city && profile.state && profile.description),
+    provider_docs:    !!(docsRes.data && docsRes.data.length > 0),
+    provider_services: services.length > 0,
+    provider_stripe:  !!(profile && profile.stripe_account_id),
+    provider_rate_card: !!(rateCardRes.data && rateCardRes.data.length > 0),
+    provider_first_booking: !!(firstBookingRes.data && firstBookingRes.data.length > 0),
+  };
+
+  return json(200, { checklist });
 }
 
 async function handleMarkStep(event, sb, user) {
@@ -105,7 +176,7 @@ exports.handler = async function(event) {
   if (auth.error) return auth.error;
 
   if (event.httpMethod === 'GET' && !isStepPath(event.path)) {
-    return handleGet(sb, auth.user);
+    return handleGet(event, sb, auth.user);
   }
   if (event.httpMethod === 'POST' && isStepPath(event.path)) {
     return handleMarkStep(event, sb, auth.user);
