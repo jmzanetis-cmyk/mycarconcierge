@@ -41,6 +41,7 @@ const audit = (supabase, row) =>
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
+  console.log('[stripe-webhook] stripe_key_prefix=' + String(key || '').slice(0, 8) + ' livemode_expected=' + (String(key || '').startsWith('sk_live_')));
   if (!key) return null;
   return require('stripe')(key, { apiVersion: STRIPE_API_VERSION });
 }
