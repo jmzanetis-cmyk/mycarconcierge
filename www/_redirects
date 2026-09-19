@@ -373,6 +373,13 @@
 # Feature: public booking-widget.js embed (broken-client-caller cleanup, 2026-09-11)
 /api/shop/book /.netlify/functions/shop-book 200
 
+# Public browser config — currently just the Google Places key for the
+# onboarding-provider.html location autocomplete. Only /api/config in the
+# tree; separate from /api/config/stripe (Stripe publishable) which is
+# defined earlier. See netlify/functions/config.js for scope + why the
+# key is safe to expose (must be referrer-restricted in Google Cloud).
+/api/config /.netlify/functions/config 200
+
 # Signup consolidation — Flow B (signup-provider.html) redirects to canonical
 # Flow A (onboarding-provider.html). Query string carries over automatically
 # on Netlify 301s, so existing ?ref=CODE / ?founding_provider=true links keep
