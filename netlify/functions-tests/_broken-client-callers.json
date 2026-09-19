@@ -1,5 +1,5 @@
 {
-  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' \u2014 no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' \u2014 handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
+  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' — no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' — handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
   "urls": [
     {
       "url": "/api/additional-work/:param",
@@ -64,30 +64,6 @@
     {
       "url": "/api/checkin/position/:param",
       "caller": "check-in.js:368",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/checkin/queue/:param",
-      "caller": "providers.js:11377",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/checkin/queue/:param/call",
-      "caller": "providers.js:11463",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/checkin/queue/:param/complete",
-      "caller": "providers.js:11482",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/clover/sync/:param",
-      "caller": "providers.js:440",
       "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
       "ticket": ""
     },
@@ -214,7 +190,7 @@
     {
       "url": "/api/obd/scans/:param",
       "caller": "members.js:7727",
-      "reason": "No handler in _redirects or server.js \u2014 audit-identified broken caller",
+      "reason": "No handler in _redirects or server.js — audit-identified broken caller",
       "ticket": "#456"
     },
     {
@@ -236,78 +212,6 @@
       "ticket": ""
     },
     {
-      "url": "/api/pos/session/:param/authorize",
-      "caller": "providers.js:10957",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/checkout",
-      "caller": "providers.js:10996",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/confirm",
-      "caller": "providers.js:11115",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/link-marketplace",
-      "caller": "providers.js:10593",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/marketplace-confirm",
-      "caller": "providers.js:11118",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/marketplace-jobs",
-      "caller": "providers.js:10541",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/member-lookup",
-      "caller": "providers.js:10424",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/qr-lookup",
-      "caller": "providers.js:9735",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/resend-otp",
-      "caller": "providers.js:10013",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/service",
-      "caller": "providers.js:10847",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/vehicle",
-      "caller": "providers.js:10788",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/pos/session/:param/verify-otp",
-      "caller": "providers.js:10498",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
       "url": "/api/pos/transactions/:param",
       "caller": "providers-analytics.js:320",
       "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
@@ -320,86 +224,8 @@
       "ticket": ""
     },
     {
-      "url": "/api/provider/:param/analytics",
-      "caller": "providers.js:8777",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/provider/:param/notification-preferences",
-      "caller": "providers.js:12492",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/provider/:param/referrals",
-      "caller": "providers.js:9318",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/analytics/busy-hours",
-      "caller": "providers.js:8705",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/analytics/ratings",
-      "caller": "providers.js:8851",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/analytics/revenue",
-      "caller": "providers.js:8548",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/analytics/services",
-      "caller": "providers.js:8639",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/team",
-      "caller": "providers.js:11942",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/team/:param",
-      "caller": "providers.js:12214",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/team/invitations",
-      "caller": "providers.js:11957",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/team/invitations/:param",
-      "caller": "providers.js:12283",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/providers/:param/team/invite",
-      "caller": "providers.js:12167",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
       "url": "/api/shop/profile",
       "caller": "booking-widget.js:129",
-      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
-      "ticket": ""
-    },
-    {
-      "url": "/api/square/sync/:param",
-      "caller": "providers.js:578",
       "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects",
       "ticket": ""
     },
