@@ -27,6 +27,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { audit: sharedAudit } = require('./_shared/audit');
+const providerPlanWebhooks = require('./_provider-plan-webhooks');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the webhook handler — Stripe would retry on a
@@ -1224,11 +1225,25 @@ exports.handler = async function(event) {
       case 'checkout.session.completed':
         await handleCheckoutComplete(stripeEvent.data.object, supabase);
         break;
+      case 'customer.subscription.created':
+        // Provider-plan trial grant. White-label doesn't listen on .created.
+        await providerPlanWebhooks.handleProviderPlanSubscriptionCreated(stripeEvent.data.object, supabase);
+        break;
       case 'customer.subscription.updated':
+        // Both handlers are internally gated on their respective
+        // metadata.product values, so they're safely disjoint.
         await handleSubscriptionStatusSync(stripeEvent.data.object, supabase);
+        await providerPlanWebhooks.handleProviderPlanSubscriptionUpdated(stripeEvent.data.object, supabase);
         break;
       case 'customer.subscription.deleted':
         await handleSubscriptionStatusSync(stripeEvent.data.object, supabase);
+        await providerPlanWebhooks.handleProviderPlanSubscriptionDeleted(stripeEvent.data.object, supabase);
+        break;
+      case 'invoice.paid':
+        await providerPlanWebhooks.handleProviderPlanInvoicePaid(stripeEvent.data.object, supabase);
+        break;
+      case 'invoice.payment_failed':
+        await providerPlanWebhooks.handleProviderPlanInvoicePaymentFailed(stripeEvent.data.object, supabase);
         break;
       case 'charge.refunded':
         await handleChargeRefunded(stripeEvent.data.object, supabase);
