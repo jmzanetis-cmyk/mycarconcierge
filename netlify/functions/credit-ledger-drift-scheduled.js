@@ -84,14 +84,17 @@ async function runInlineDriftCheck(supabase) {
 
 async function emitAdminAlert(supabase, drift) {
   try {
-    await supabase.from('audit_log').insert({
+    // Real audit table is admin_audit_log (columns: action, target_id,
+    // target_type, reason, metadata, performed_by, performed_at). Not
+    // "audit_log" — that name was a typo in the initial Phase 1 draft.
+    await supabase.from('admin_audit_log').insert({
       action: 'credit_ledger_drift_detected',
       target_type: 'system',
       performed_by: 'credit-ledger-drift-scheduled',
       metadata: { drift_count: drift.length, providers: drift },
     });
   } catch (e) {
-    console.error('[credit-ledger-drift] audit_log insert failed:', e.message);
+    console.error('[credit-ledger-drift] admin_audit_log insert failed:', e.message);
   }
 }
 
