@@ -89,8 +89,6 @@ MOBILE_CRUFT_FILES=(
   # login.html: pages a prospective provider sees on the public website
   # before they have the app installed, not anything the already-logged-in
   # native app ever navigates to.
-  "signup-provider.html"
-  "signup-provider.js"
   "onboarding-provider.html"
   "bgc-enroll-account.html"
   "for-shops.html"
