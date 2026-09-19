@@ -179,6 +179,100 @@
       100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
+    /* Referral / founding-provider attribution pills. Shown on step 0 when
+       the page is loaded with ?ref=CODE or ?founding_provider=true — mirrors
+       Flow B (signup-provider.html) so the two entry points are visually
+       consistent for referred and founding-invited providers. */
+    .attribution-pill {
+      display: none;
+      max-width: 440px;
+      margin: 0 auto 18px;
+      padding: 12px 18px;
+      background: linear-gradient(135deg, rgba(201, 162, 39, 0.15), rgba(205, 127, 50, 0.1));
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      border-radius: 12px;
+      text-align: center;
+    }
+    .attribution-pill.show { display: block; }
+    .attribution-pill .referred-text {
+      color: rgba(255,255,255,0.65);
+      font-size: 0.7rem;
+      margin-bottom: 4px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .attribution-pill .provider-name {
+      font-family: 'Fraunces', Georgia, serif;
+      color: #C9A84C;
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .attribution-pill .disclosure {
+      color: rgba(255,255,255,0.55);
+      font-size: 0.7rem;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+    .attribution-pill.founding {
+      background: linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(201, 162, 39, 0.1));
+      border-color: rgba(52, 211, 153, 0.4);
+    }
+    .attribution-pill.founding .provider-name { color: #34d399; }
+
+    /* Step 6 taxonomy grid — one column of grouped checkboxes with hint
+       lines, replacing the old 4-column .service-chip grid. window.MCC_TAXONOMY
+       renders the group headings + labeled checkboxes; these styles scope
+       the layout to the onboarding services picker. */
+    .services-grid {
+      display: block;
+      max-width: 440px;
+      margin: 0 auto 20px;
+      text-align: left;
+    }
+    .services-grid .taxonomy-group {
+      color: rgba(255,255,255,0.55) !important;
+      font-family: inherit;
+      margin: 14px 0 6px !important;
+      padding: 0;
+    }
+    .services-grid .taxonomy-group:first-child { margin-top: 0 !important; }
+    .services-grid .service-checkbox {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .services-grid .service-checkbox:hover { background: rgba(255,255,255,0.06); }
+    .services-grid .service-checkbox input[type="checkbox"] {
+      margin: 3px 0 0;
+      accent-color: #C9A84C;
+      flex-shrink: 0;
+    }
+    .services-grid .service-checkbox:has(input:checked) {
+      background: rgba(201, 168, 76, 0.10);
+      border-color: rgba(201, 168, 76, 0.55);
+    }
+    .services-grid .service-checkbox-label { flex: 1; }
+    .services-grid .service-checkbox-title {
+      display: block;
+      color: #f5f5f5;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .services-grid .service-checkbox-hint {
+      display: block;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.75rem;
+      margin-top: 2px;
+      line-height: 1.3;
+    }
+
     .step-icon svg {
       width: 28px;
       height: 28px;
@@ -417,68 +511,6 @@
       font-weight: 600;
       color: #f5f5f7;
     }
-
-    .services-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      margin-bottom: 24px;
-      text-align: left;
-    }
-
-    .service-chip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border: 2px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 0.8rem;
-      font-weight: 500;
-      background: rgba(255,255,255,0.07);
-      user-select: none;
-    }
-
-    .service-chip:hover { border-color: rgba(201,168,76,0.5); }
-
-    .service-chip.selected {
-      border-color: #C9A84C;
-      background: rgba(201,168,76,0.08);
-      color: #C9A84C;
-    }
-
-    .service-chip input { display: none; }
-
-    .chip-check {
-      width: 18px;
-      height: 18px;
-      border: 2px solid #d1d5db;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: all 0.2s ease;
-    }
-
-    .service-chip.selected .chip-check {
-      background: #C9A84C;
-      border-color: #C9A84C;
-    }
-
-    .chip-check svg {
-      width: 12px;
-      height: 12px;
-      stroke: #ffffff;
-      stroke-width: 3;
-      fill: none;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .service-chip.selected .chip-check svg { opacity: 1; }
 
     .review-card {
       background: rgba(255,255,255,0.07);
@@ -1000,7 +1032,6 @@
       .btn--primary { padding: 14px 20px; }
       .type-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .type-card { padding: 12px; }
-      .services-grid { grid-template-columns: 1fr 1fr; }
       .category-grid { gap: 8px; }
       .category-card { padding: 12px; }
     }
@@ -1016,7 +1047,6 @@
       .step-icon { width: 88px; height: 88px; margin-bottom: 32px; }
       .step-icon svg { width: 42px; height: 42px; }
       .type-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
-      .services-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
       body::before {
         content: "Auto care. Handled.";
         position: fixed;
@@ -1065,6 +1095,16 @@
 
       <div class="step active" data-step="0">
         <div class="step-content">
+          <div class="attribution-pill" id="referral-banner" role="note" aria-live="polite">
+            <div class="referred-text">You've been referred by</div>
+            <div class="provider-name" id="referring-provider-name">Loading…</div>
+            <div class="disclosure">Disclosure: the person who referred you earns a commission on bid-credit purchases you make later. At no extra cost to you.</div>
+          </div>
+          <div class="attribution-pill founding" id="founding-banner" role="note" aria-live="polite">
+            <div class="referred-text">Founding Provider Invitation</div>
+            <div class="provider-name" id="founding-provider-name">Welcome!</div>
+            <div class="disclosure">Your Founding Provider agreement is applied to this account. Founding terms activate automatically at signup.</div>
+          </div>
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
@@ -1403,6 +1443,7 @@
   <script src="supabaseclient.js"></script>
   <script src="bgc-pricing.js"></script>
   <script src="bgc-onboarding.js"></script>
+  <script src="mcc-taxonomy.js"></script>
   <script>
     // ─── Bilingual labels for the BGC sub-flow (EN / ES) ──────────────────
     // Reads the saved language preference (set elsewhere in the app via
@@ -1493,29 +1534,29 @@
       referral: ''
     };
 
-    const servicesList = [
-      'Oil Change', 'Brakes', 'Tires', 'Engine Repair',
-      'Transmission', 'Electrical', 'AC/Heating', 'Diagnostics',
-      'Body Work', 'Paint', 'Detailing', 'Car Wash',
-      'Glass', 'Exhaust', 'Suspension', 'State Inspection'
-    ];
+    // Referral / founding-provider state, populated from URL params at page load.
+    // Mirrors Flow B (signup-provider.js): a ?ref=CODE link resolves via
+    // /api/provider-referral/lookup/<code>, and ?founding_provider=true&name=…
+    // &agreement_id=… flags a Founding Provider invite.
+    let providerReferralData = null;
+    let isFoundingProviderSignup = false;
+    let foundingAgreementId = '';
 
+    // Step 6 services — 20 taxonomy categories from window.MCC_TAXONOMY
+    // (Phase 2.6.1). serviceTypesToCategories has an identity pass-through
+    // for slugs, so /api/provider/finalize's provider_match_preferences
+    // seed uses these values directly (no server-side mapping needed).
     function initServices() {
       const grid = document.getElementById('services-grid');
-      grid.innerHTML = servicesList.map(s =>
-        '<div class="service-chip" onclick="toggleService(this)" role="checkbox" aria-checked="false" aria-label="' + s + '">' +
-          '<input type="checkbox" value="' + s + '">' +
-          '<span class="chip-check"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>' +
-          '<span>' + s + '</span>' +
-        '</div>'
-      ).join('');
-    }
-
-    function toggleService(chip) {
-      const isSelected = chip.classList.toggle('selected');
-      const cb = chip.querySelector('input');
-      cb.checked = isSelected;
-      chip.setAttribute('aria-checked', isSelected);
+      if (!grid) return;
+      if (!window.MCC_TAXONOMY || typeof window.MCC_TAXONOMY.renderCheckboxGroups !== 'function') {
+        console.error('MCC_TAXONOMY missing — services grid will not render');
+        return;
+      }
+      window.MCC_TAXONOMY.renderCheckboxGroups(grid, {
+        inputClass: 'onbo-service-check',
+        checked: Array.isArray(formData.services) ? formData.services : []
+      });
     }
 
     function selectType(card) {
@@ -1630,12 +1671,12 @@
           return false;
         }
       } else if (currentStep === 7) {
-        const selected = document.querySelectorAll('.service-chip.selected');
+        const selected = document.querySelectorAll('#services-grid .onbo-service-check:checked');
         if (selected.length === 0) {
           document.getElementById('error-services').style.display = 'block';
           return false;
         }
-        formData.services = Array.from(selected).map(c => c.querySelector('input').value);
+        formData.services = Array.from(selected).map(cb => cb.value);
       } else if (currentStep === 8) {
         const val = document.getElementById('input-years').value;
         if (!val || val < 0) {
@@ -1739,22 +1780,30 @@
             throw new Error('Could not establish a session. Please check your email to confirm your account, then sign in and try again.');
           }
           let appData = null;
+          const applicationPayload = {
+            business_name: formData.businessName,
+            contact_name: formData.contactName || formData.businessName,
+            phone: formData.phone,
+            email: formData.email,
+            business_type: formData.businessType,
+            city: formData.city,
+            state: formData.state,
+            services_offered: formData.services,
+            years_in_business: parseInt(formData.yearsInBusiness) || 0,
+            legal_signatory_name: formData.contactName || formData.businessName,
+            agreement_signed_at: new Date().toISOString(),
+            // Flow-B parity: founding-provider invite + referral-code fields.
+            // /api/provider/apply's whitelist (provider-application.js:150-151)
+            // accepts these; /api/provider/finalize later re-reads them from
+            // the row to derive founding trial-credit tier authoritatively.
+            is_founding_provider: !!isFoundingProviderSignup,
+            founding_agreement_id: foundingAgreementId || null,
+            referral_code: formData.referral || null
+          };
           const appResp = await fetch('/api/provider/apply', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              business_name: formData.businessName,
-              contact_name: formData.contactName || formData.businessName,
-              phone: formData.phone,
-              email: formData.email,
-              business_type: formData.businessType,
-              city: formData.city,
-              state: formData.state,
-              services_offered: formData.services,
-              years_in_business: parseInt(formData.yearsInBusiness) || 0,
-              legal_signatory_name: formData.contactName || formData.businessName,
-              agreement_signed_at: new Date().toISOString()
-            })
+            body: JSON.stringify(applicationPayload)
           });
           const appJson = await appResp.json().catch(() => ({}));
           if (!appResp.ok) {
@@ -1813,14 +1862,39 @@
             }
           }
 
+          // Referral registration — parity with signup-provider.js:353-381.
+          // The RPC's actual signature in prod is (p_referral_code text,
+          // p_provider_user_id uuid, p_provider_email text) — Flow A's
+          // previous call used {p_provider_id, p_referral_code} which never
+          // matched the function's arg names and silently failed, so no
+          // Flow A referrals were ever recorded. Fixed here.
           if (formData.referral) {
             try {
               await supabaseClient.rpc('register_provider_referral', {
-                p_provider_id: userId,
-                p_referral_code: formData.referral
+                p_referral_code: formData.referral,
+                p_provider_user_id: userId,
+                p_provider_email: formData.email
               });
             } catch (refErr) {
-              console.error('Referral error:', refErr);
+              console.error('Referral RPC error:', refErr);
+            }
+          }
+
+          // Post-finalize referral logging — parity with signup-provider.js:724-741.
+          // If the user arrived via ?ref=CODE, mark the referral as used so
+          // provider-referral analytics reflect the actual conversion.
+          if (providerReferralData && providerReferralData.referral_code) {
+            try {
+              await fetch('/api/provider-referral/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  user_id: userId,
+                  referral_code: providerReferralData.referral_code
+                })
+              });
+            } catch (refError) {
+              console.log('Note: provider-referral logging failed but signup completed:', refError);
             }
           }
         }
@@ -2254,11 +2328,76 @@
       bgcShowStep4();
     }
 
+    // Parity with Flow B: on page load, look for ?ref= / ?founding_provider=
+    // / ?name= / ?agreement_id= in the URL and surface the matching banner
+    // + prefill so referred and founding-invited providers see the same
+    // attribution they'd get on signup-provider.html.
+    async function initReferralAndFoundingFromURL() {
+      let params;
+      try { params = new URLSearchParams(window.location.search); } catch (_e) { return; }
+
+      const foundingParam = (params.get('founding_provider') || '').toLowerCase();
+      isFoundingProviderSignup = foundingParam === 'true' || foundingParam === '1';
+      foundingAgreementId = params.get('agreement_id') || '';
+      const nameParam = (params.get('name') || '').trim();
+
+      if (isFoundingProviderSignup) {
+        const banner = document.getElementById('founding-banner');
+        const nameEl = document.getElementById('founding-provider-name');
+        if (banner) banner.classList.add('show');
+        if (nameEl && nameParam) nameEl.textContent = 'Welcome, ' + nameParam;
+        if (nameParam) {
+          formData.contactName = nameParam;
+          const nameInput = document.getElementById('input-contact-name');
+          if (nameInput && !nameInput.value) nameInput.value = nameParam;
+        }
+      } else if (nameParam) {
+        // ?name= without founding_provider — just a light prefill hint.
+        const nameInput = document.getElementById('input-contact-name');
+        if (nameInput && !nameInput.value) {
+          formData.contactName = nameParam;
+          nameInput.value = nameParam;
+        }
+      }
+
+      const refCode = (params.get('ref') || '').trim();
+      if (!refCode) return;
+
+      try {
+        const resp = await fetch('/api/provider-referral/lookup/' + encodeURIComponent(refCode));
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok || !result.success) return;
+
+        providerReferralData = {
+          provider_id: result.provider_id || null,
+          provider_name: result.provider_name || 'Referrer',
+          referral_code: refCode.toUpperCase(),
+          code_type: result.code_type,
+          is_founding_provider: result.is_founding_provider || false
+        };
+
+        const banner = document.getElementById('referral-banner');
+        const nameEl = document.getElementById('referring-provider-name');
+        if (banner && nameEl) {
+          nameEl.textContent = providerReferralData.provider_name;
+          banner.classList.add('show');
+        }
+        // Prefill the step-8 referral drawer so the user doesn't have to
+        // paste the code they already came in with.
+        const drawerInput = document.getElementById('input-referral');
+        if (drawerInput && !drawerInput.value) drawerInput.value = providerReferralData.referral_code;
+        formData.referral = providerReferralData.referral_code;
+      } catch (err) {
+        console.error('Referral lookup error:', err);
+      }
+    }
+
     initServices();
     initPlacesAutocomplete();
     bgcResolveDomIndices();
     bgcPopulateCopy();
     updateProgress();
+    initReferralAndFoundingFromURL();
 
     // ─── Task #318: Facebook OAuth signup for the provider survey ──────
     // Mirrors the member flow in www/onboarding-member.html. Clicking the
