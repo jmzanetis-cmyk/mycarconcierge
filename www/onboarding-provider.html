@@ -1968,30 +1968,44 @@
         const config = await resp.json();
         if (!config.googlePlacesApiKey) return;
 
-        const script = document.createElement('script');
-        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + config.googlePlacesApiKey + '&libraries=places';
-        script.onload = function() {
-          const input = document.getElementById('input-location');
-          placesAutocomplete = new google.maps.places.Autocomplete(input, {
-            types: ['(cities)'],
-            componentRestrictions: { country: 'us' }
-          });
-          placesAutocomplete.addListener('place_changed', function() {
-            const place = placesAutocomplete.getPlace();
-            if (place && place.address_components) {
-              let city = '';
-              let state = '';
-              for (const comp of place.address_components) {
-                if (comp.types.includes('locality')) city = comp.long_name;
-                if (comp.types.includes('sublocality_level_1') && !city) city = comp.long_name;
-                if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
-              }
-              formData.city = city;
-              formData.state = state;
+        // Google's console warning about the Maps API loading synchronously
+        // goes away when the script tag carries loading=async AND we wait
+        // for the API via a &callback= param instead of assuming the script
+        // is ready in script.onload. Same behaviour as the legacy path,
+        // just without the warning.
+        //
+        // Future migration: google.maps.places.Autocomplete is scheduled to
+        // be superseded by google.maps.places.PlaceAutocompleteElement, but
+        // the legacy widget still works and isn't on Google's deprecation
+        // timeline yet — swap it when Google announces a removal date.
+        await new Promise((resolve, reject) => {
+          window._mccPlacesReady = resolve;
+          const script = document.createElement('script');
+          script.src = 'https://maps.googleapis.com/maps/api/js?key=' + config.googlePlacesApiKey + '&libraries=places&loading=async&callback=_mccPlacesReady';
+          script.async = true;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+
+        const input = document.getElementById('input-location');
+        placesAutocomplete = new google.maps.places.Autocomplete(input, {
+          types: ['(cities)'],
+          componentRestrictions: { country: 'us' }
+        });
+        placesAutocomplete.addListener('place_changed', function() {
+          const place = placesAutocomplete.getPlace();
+          if (place && place.address_components) {
+            let city = '';
+            let state = '';
+            for (const comp of place.address_components) {
+              if (comp.types.includes('locality')) city = comp.long_name;
+              if (comp.types.includes('sublocality_level_1') && !city) city = comp.long_name;
+              if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
             }
-          });
-        };
-        document.head.appendChild(script);
+            formData.city = city;
+            formData.state = state;
+          }
+        });
       } catch (e) {
         console.error('Failed to load Places API:', e);
       }
