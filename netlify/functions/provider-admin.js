@@ -403,10 +403,18 @@ async function adjustCredits(supabase, providerIds, delta, reason) {
       continue;
     }
 
+    // Phase 1 ledger — signed admin adjust. Cache trigger recomputes
+    // profiles.bid_credits so the audit metadata below still reflects the
+    // new value. Ledger source='admin' allows negative delta (per spec §1.4).
     const { error: updErr } = await supabase
-      .from('profiles')
-      .update({ bid_credits: after })
-      .eq('id', id);
+      .from('credit_ledger')
+      .insert({
+        provider_id: id,
+        delta: delta,
+        source: 'admin',
+        ref_type: 'admin_adjust',
+        ref_id: reason || null,
+      });
 
     if (updErr) {
       failed.push({ id, error: updErr.message });

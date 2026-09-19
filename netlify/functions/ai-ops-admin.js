@@ -569,11 +569,19 @@ async function _maybeGrantCarClubReturnBonus(supabase, providerId, memberId) {
       });
     } catch (_) {} // non-fatal if duplicate
 
-    const { data: p } = await supabase.from('profiles')
-      .select('bid_credits').eq('id', providerId).single();
-    await supabase.from('profiles')
-      .update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS })
-      .eq('id', providerId);
+    // Phase 1 ledger — car-club return-bonus grant (AI-ops admin path).
+    // Cache trigger updates profiles.bid_credits.
+    try {
+      await supabase.from('credit_ledger').insert({
+        provider_id: providerId,
+        delta: BONUS_CREDITS,
+        source: 'bonus',
+        ref_type: 'car_club_return_bonus',
+        ref_id: `member_${memberId}`,
+      });
+    } catch (e) {
+      console.error('[ai-ops-admin] credit_ledger bonus insert failed:', e.message);
+    }
 
     try {
       await supabase.from('notifications').insert({

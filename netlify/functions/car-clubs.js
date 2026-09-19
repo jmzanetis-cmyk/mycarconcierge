@@ -1209,11 +1209,18 @@ async function grantReturnBonus(event, sb, user) {
   // the rpc fails), crashing every call to this function. Use real
   // try/catch so the manual-increment fallback actually runs on failure
   // instead of the whole request 502ing.
+  // Phase 1 ledger — car-club return-bonus grant. Cache trigger updates
+  // profiles.bid_credits; no direct counter write needed anymore.
   try {
-    await sb.rpc('increment_value', { table: 'profiles', column: 'bid_credits', row_id: provider_id, delta: BONUS_CREDITS });
-  } catch (_) {
-    const { data: p } = await sb.from('profiles').select('bid_credits').eq('id', provider_id).single();
-    await sb.from('profiles').update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS }).eq('id', provider_id);
+    await sb.from('credit_ledger').insert({
+      provider_id: provider_id,
+      delta: BONUS_CREDITS,
+      source: 'bonus',
+      ref_type: 'car_club_return_bonus',
+      ref_id: club_id,
+    });
+  } catch (e) {
+    console.error('[car-clubs] credit_ledger bonus insert failed:', e.message);
   }
 
   try {

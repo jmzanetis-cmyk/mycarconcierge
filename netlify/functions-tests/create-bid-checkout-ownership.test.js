@@ -114,6 +114,15 @@ function makeSupabaseStub({ authedUserId, profileRole = 'provider', packExists =
           insert: async () => ({ data: null, error: null }),
         };
       }
+      // Phase 1 credit ledger — mobile pack checkout now inserts a `pack`
+      // grant row here instead of directly updating profiles.bid_credits.
+      // Mock is a no-op insert; the real cache trigger on credit_ledger
+      // handles the profile-cache sync in prod.
+      if (table === 'credit_ledger') {
+        return {
+          insert: async () => ({ data: null, error: null }),
+        };
+      }
       throw new Error('unexpected table ' + table);
     },
   };

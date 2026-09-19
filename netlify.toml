@@ -90,6 +90,13 @@
 [functions."wallet-bonus-expiry-scheduled"]
   schedule = "30 2 * * *"
 
+# Credit ledger — daily drift check (Phase 1 §1.5, provider subscriptions).
+# Asserts sum(credit_ledger.delta) matches profiles.bid_credits + free_trial_bids
+# per provider. Any mismatch writes to audit_log; zero-drift is the Phase 1
+# exit criterion.
+[functions."credit-ledger-drift-scheduled"]
+  schedule = "45 2 * * *"
+
 # Agent Fleet — Phase 1
 [functions."agent-orchestrator"]
   schedule = "* * * * *"

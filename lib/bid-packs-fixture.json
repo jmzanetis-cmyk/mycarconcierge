@@ -1,0 +1,11 @@
+{
+  "_doc": "Pack-catalog fixture used by netlify/functions-tests/credit-price-floor.test.js. Snapshot after 20260919i_bid_packs_reset — the pre-Phase-2 reset that collapsed the 19-pack ladder to the five packs the subscription spec was priced against, all honoring the $3.00/bid floor. Update when the catalog changes.",
+  "snapshotted_at": "2026-09-19",
+  "packs": [
+    { "name": "Single",   "price": 10.00,  "bid_count": 1,   "bonus_bids": 0, "is_active": true, "sort_order": 1 },
+    { "name": "Starter",  "price": 100.00, "bid_count": 10,  "bonus_bids": 0, "is_active": true, "sort_order": 2 },
+    { "name": "Standard", "price": 225.00, "bid_count": 25,  "bonus_bids": 0, "is_active": true, "sort_order": 3 },
+    { "name": "Pro",      "price": 400.00, "bid_count": 50,  "bonus_bids": 0, "is_active": true, "sort_order": 4 },
+    { "name": "Shop",     "price": 700.00, "bid_count": 100, "bonus_bids": 0, "is_active": true, "sort_order": 5 }
+  ]
+}

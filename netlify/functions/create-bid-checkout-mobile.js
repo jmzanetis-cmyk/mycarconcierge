@@ -144,11 +144,22 @@ exports.handler = async function(event) {
       if (!e.message?.includes('23505')) console.error('[create-bid-checkout-mobile] purchase insert error:', e.message);
     }
 
-    const { data: balanceRow } = await supabase.from('profiles')
-      .select('bid_credits').eq('id', authedProviderId).maybeSingle();
-    await supabase.from('profiles')
-      .update({ bid_credits: (balanceRow?.bid_credits || 0) + totalBids })
-      .eq('id', authedProviderId);
+    // Phase 1 ledger — pack grant. Cache trigger on credit_ledger AFTER
+    // INSERT updates profiles.bid_credits so existing readers keep working.
+    // Idempotency comes from the bid_credit_purchases dedupe above (or the
+    // webhook's parallel path); this grant only reaches here on a genuinely
+    // new purchase row.
+    const { error: ledgerErr } = await supabase.from('credit_ledger').insert({
+      provider_id: authedProviderId,
+      delta: totalBids,
+      source: 'pack',
+      invoice_id: `mobile_${pi.id}`,
+      ref_type: 'bid_credit_purchases',
+      ref_id: packId,
+    });
+    if (ledgerErr) {
+      console.error('[create-bid-checkout-mobile] credit_ledger insert error:', ledgerErr.message);
+    }
   }
 
   return utils().successResponse({
