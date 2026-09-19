@@ -335,7 +335,14 @@ async function main() {
     eq(currentSupabase._tables.bid_credit_purchases.length, 0);
   });
 
-  await run('checkout bid pack + founder commission: commission row + balance updated', async () => {
+  // Phase 2 §2.6 — commission is now recorded via accrueCommission into
+  // commission_ledger. Rate lookup goes commission_overrides first
+  // (Chris seeded 0.90), then the standard 50%. Founder lookup uses the
+  // two-step resolver: founder_referrals (member-founder path) + fallback
+  // provider_referrals (provider-founder path). Old founder_commissions
+  // table is unchanged for now (Phase 4 admin surface reads it), but no
+  // new writes land there.
+  await run('checkout bid pack + accrueCommission: commission_ledger row inserted at standard 50%', async () => {
     const session = {
       id: 'cs_founder',
       payment_intent: 'pi_founder_1',
@@ -346,28 +353,75 @@ async function main() {
     currentStripe = stripeWith(event('checkout.session.completed', session));
     currentSupabase = makeSupabase({
       tables: {
-        profiles: [{ id: 'prov-1', bid_credits: 0, referred_by_founder_id: 'founder-user-1' }],
+        profiles: [{ id: 'prov-1', bid_credits: 0, commission_opt_out: false }],
+        founder_referrals: [{
+          founder_id: 'mfp-1',
+          referred_user_id: 'prov-1',
+          referred_type: 'provider',
+          created_at: new Date().toISOString(),
+        }],
         member_founder_profiles: [{
           id: 'mfp-1',
           user_id: 'founder-user-1',
-          commission_rate: '0.10',
           status: 'active',
-          total_commissions_earned: 0,
-          pending_balance: 0,
         }],
-        founder_commissions: [],
+        commission_overrides: [],   // no override → standard 50% applies
+        commission_ledger: [],
       },
     });
     const res = await handler(makeRequest({}));
     eq(res.statusCode, 200);
-    eq(currentSupabase._tables.founder_commissions.length, 1, 'commission row created');
-    eq(currentSupabase._tables.founder_commissions[0].commission_amount, 10.00, '10% of $100');
-    eq(currentSupabase._tables.founder_commissions[0].commission_type, 'bid_pack');
-    eq(currentSupabase._tables.member_founder_profiles[0].pending_balance, 10.00);
-    eq(currentSupabase._tables.member_founder_profiles[0].total_commissions_earned, 10.00);
+    eq(currentSupabase._tables.commission_ledger.length, 1, 'commission_ledger row inserted');
+    const row = currentSupabase._tables.commission_ledger[0];
+    eq(row.referrer_id, 'founder-user-1', 'referrer_id resolved via founder_referrals → member_founder_profiles.user_id');
+    eq(row.provider_id, 'prov-1');
+    eq(row.invoice_id, 'cs_founder', 'invoice_id = session.id');
+    eq(row.product_type, 'pack');
+    eq(row.gross_amount, 100, '$100 gross');
+    eq(Number(row.rate), 0.50, 'standard rate 50%');
+    eq(Number(row.amount), 50.00, '50% of $100');
+    eq(row.status, 'payable');
   });
 
-  await run('checkout bid pack + founder commission: idempotency — dup source_transaction_id skips', async () => {
+  await run('checkout bid pack + accrueCommission: override rate wins (Chris @ 90%)', async () => {
+    const session = {
+      id: 'cs_chris_pack',
+      payment_intent: 'pi_chris_1',
+      payment_status: 'paid',
+      amount_total: 10000,
+      metadata: { provider_id: 'prov-1', bids: '20', bonus_bids: '0' },
+    };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    currentSupabase = makeSupabase({
+      tables: {
+        profiles: [{ id: 'prov-1', bid_credits: 0, commission_opt_out: false }],
+        founder_referrals: [{
+          founder_id: 'mfp-chris',
+          referred_user_id: 'prov-1',
+          referred_type: 'provider',
+          created_at: new Date().toISOString(),
+        }],
+        member_founder_profiles: [{
+          id: 'mfp-chris',
+          user_id: 'chris-user-id',
+          status: 'active',
+        }],
+        commission_overrides: [{
+          referrer_id: 'chris-user-id',
+          rate: '0.90',
+          window_months: null,   // perpetual
+        }],
+        commission_ledger: [],
+      },
+    });
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.commission_ledger.length, 1);
+    eq(Number(currentSupabase._tables.commission_ledger[0].rate), 0.90, 'override rate 0.90 applied');
+    eq(Number(currentSupabase._tables.commission_ledger[0].amount), 90.00, '90% of $100');
+  });
+
+  await run('checkout bid pack + accrueCommission: idempotency — same session_id skips', async () => {
     const session = {
       id: 'cs_founder_dup',
       payment_intent: 'pi_already_commisioned',
@@ -378,25 +432,21 @@ async function main() {
     currentStripe = stripeWith(event('checkout.session.completed', session));
     currentSupabase = makeSupabase({
       tables: {
-        profiles: [{ id: 'prov-1', bid_credits: 0, referred_by_founder_id: 'founder-user-1' }],
-        member_founder_profiles: [{
-          id: 'mfp-1',
-          user_id: 'founder-user-1',
-          commission_rate: '0.10',
-          status: 'active',
-          total_commissions_earned: 10,
-          pending_balance: 10,
+        profiles: [{ id: 'prov-1', bid_credits: 0, commission_opt_out: false }],
+        founder_referrals: [{
+          founder_id: 'mfp-1', referred_user_id: 'prov-1',
+          referred_type: 'provider', created_at: new Date().toISOString(),
         }],
-        founder_commissions: [{ source_transaction_id: 'pi_already_commisioned', founder_id: 'mfp-1' }],
+        member_founder_profiles: [{ id: 'mfp-1', user_id: 'founder-user-1', status: 'active' }],
+        commission_ledger: [{ invoice_id: 'cs_founder_dup', referrer_id: 'founder-user-1' }],
       },
     });
     const res = await handler(makeRequest({}));
     eq(res.statusCode, 200);
-    eq(currentSupabase._tables.founder_commissions.length, 1, 'no duplicate commission');
-    eq(currentSupabase._tables.member_founder_profiles[0].pending_balance, 10, 'balance unchanged');
+    eq(currentSupabase._tables.commission_ledger.length, 1, 'no duplicate commission_ledger row');
   });
 
-  await run('checkout bid pack + founder: inactive founder → no commission', async () => {
+  await run('checkout bid pack + accrueCommission: inactive founder → no commission', async () => {
     const session = {
       id: 'cs_inactive',
       payment_intent: 'pi_inactive',
@@ -407,21 +457,44 @@ async function main() {
     currentStripe = stripeWith(event('checkout.session.completed', session));
     currentSupabase = makeSupabase({
       tables: {
-        profiles: [{ id: 'prov-1', bid_credits: 0, referred_by_founder_id: 'founder-user-1' }],
-        member_founder_profiles: [{
-          id: 'mfp-1',
-          user_id: 'founder-user-1',
-          commission_rate: '0.10',
-          status: 'suspended',
-          total_commissions_earned: 0,
-          pending_balance: 0,
+        profiles: [{ id: 'prov-1', bid_credits: 0, commission_opt_out: false }],
+        founder_referrals: [{
+          founder_id: 'mfp-1', referred_user_id: 'prov-1',
+          referred_type: 'provider', created_at: new Date().toISOString(),
         }],
-        founder_commissions: [],
+        member_founder_profiles: [{ id: 'mfp-1', user_id: 'founder-user-1', status: 'suspended' }],
+        provider_referrals: [],  // no provider-founder fallback either
+        commission_ledger: [],
       },
     });
     const res = await handler(makeRequest({}));
     eq(res.statusCode, 200);
-    eq(currentSupabase._tables.founder_commissions.length, 0, 'no commission for suspended founder');
+    eq(currentSupabase._tables.commission_ledger.length, 0, 'no commission for suspended founder');
+  });
+
+  await run('checkout bid pack + accrueCommission: commission_opt_out → no commission', async () => {
+    const session = {
+      id: 'cs_optout',
+      payment_intent: 'pi_optout',
+      payment_status: 'paid',
+      amount_total: 10000,
+      metadata: { provider_id: 'prov-1', bids: '20', bonus_bids: '0' },
+    };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    currentSupabase = makeSupabase({
+      tables: {
+        profiles: [{ id: 'prov-1', bid_credits: 0, commission_opt_out: true }],
+        founder_referrals: [{
+          founder_id: 'mfp-1', referred_user_id: 'prov-1',
+          referred_type: 'provider', created_at: new Date().toISOString(),
+        }],
+        member_founder_profiles: [{ id: 'mfp-1', user_id: 'founder-user-1', status: 'active' }],
+        commission_ledger: [],
+      },
+    });
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.commission_ledger.length, 0, 'opt-out short-circuits');
   });
 
   // ── payment_intent.succeeded ───────────────────────────────────────────────

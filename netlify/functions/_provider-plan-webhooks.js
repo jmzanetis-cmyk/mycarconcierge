@@ -18,6 +18,8 @@
 // Stripe replays cannot double-grant.
 // ============================================================================
 
+const { accrueCommission } = require('./_accrue-commission');
+
 const TRIAL_REF_TYPE     = 'trial_grant';
 const INVOICE_REF_TYPE   = 'invoice_paid';
 const UPGRADE_REF_TYPE   = 'upgrade_prorated';
@@ -254,6 +256,32 @@ async function handleProviderPlanInvoicePaid(invoice, supabase) {
   const postBalance = await _sumRemainingSubscriptionCredits(supabase, providerId);
   if (postBalance > 2 * allotment) {
     console.warn(`[provider-plan-webhook] rollover cap breached: provider=${providerId} balance=${postBalance} allotment=${allotment}`);
+  }
+
+  // Phase 2 §2.6 — commission accrual for plan invoices. Idempotent by
+  // invoice_id (one commission row per Stripe invoice, ever). Best-effort:
+  // any failure inside accrueCommission is swallowed and logged.
+  try {
+    const { data: existingCommission } = await supabase
+      .from('commission_ledger')
+      .select('id')
+      .eq('invoice_id', invoice.id)
+      .limit(1);
+    if (!existingCommission || existingCommission.length === 0) {
+      const paidAtIso = invoice.status_transitions && invoice.status_transitions.paid_at
+        ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+        : new Date().toISOString();
+      const grossAmount = (invoice.amount_paid || 0) / 100;
+      await accrueCommission(supabase, {
+        providerId,
+        invoiceId: invoice.id,
+        grossAmount,
+        paidAt: paidAtIso,
+        productType: 'plan',
+      });
+    }
+  } catch (e) {
+    console.warn('[provider-plan-webhook] accrueCommission (plan) error (non-fatal):', e.message);
   }
 
   return { granted: allotment, expired: toExpire, post_balance: postBalance };

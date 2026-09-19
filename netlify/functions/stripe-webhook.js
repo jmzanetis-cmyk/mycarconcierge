@@ -28,6 +28,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { audit: sharedAudit } = require('./_shared/audit');
 const providerPlanWebhooks = require('./_provider-plan-webhooks');
+const { accrueCommission } = require('./_accrue-commission');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the webhook handler — Stripe would retry on a
@@ -311,45 +312,52 @@ async function handleCheckoutComplete(session, supabase) {
     },
   });
 
-  // Founder commission for bid pack (best-effort, routed through service-role RPC)
+  // Phase 2 §2.6 — founder commission via accrueCommission, replacing
+  // the old record_bid_pack_commission RPC. Idempotency-check first so
+  // replays of the same session don't insert duplicate rows.
   await _recordBidPackFounderCommission(session, meta, supabase);
 }
 
 async function _recordBidPackFounderCommission(session, meta, supabase) {
-  // Single writer: delegate entirely to the record_bid_pack_commission RPC which is
-  // SECURITY DEFINER, service_role-only, and idempotent on transaction_id. The RPC
-  // also updates member_founder_profiles.pending_balance atomically.
   try {
-    const purchaseAmount = (session.amount_total || 0) / 100;
-    if (!session.payment_intent || purchaseAmount <= 0) return;
+    const grossAmount = (session.amount_total || 0) / 100;
+    if (!session.payment_intent || grossAmount <= 0) return;
 
-    const { data: commissionId, error } = await supabase.rpc('record_bid_pack_commission', {
-      p_provider_id:     meta.provider_id,
-      p_purchase_amount: purchaseAmount,
-      p_transaction_id:  session.payment_intent,
+    // Idempotency — one commission row per Stripe session, ever.
+    const { data: existing } = await supabase
+      .from('commission_ledger')
+      .select('id')
+      .eq('invoice_id', session.id)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    const result = await accrueCommission(supabase, {
+      providerId: meta.provider_id,
+      invoiceId: session.id,
+      grossAmount,
+      paidAt: new Date().toISOString(),
+      productType: 'pack',
     });
 
-    if (error) {
-      console.warn('[stripe-webhook] record_bid_pack_commission RPC error (non-fatal):', error.message);
-      return;
-    }
-
-    if (commissionId) {
-      console.log(`[stripe-webhook] founder commission recorded via RPC — id ${commissionId}`);
+    if (result && result.inserted) {
+      console.log(`[stripe-webhook] founder commission recorded via accrueCommission — id ${result.inserted.id} amount ${result.inserted.amount}`);
       await audit(supabase, {
         action: 'founder_commission_recorded',
-        target_id: commissionId,
-        target_type: 'founder_commission',
+        target_id: result.inserted.id,
+        target_type: 'commission_ledger',
         performed_by: 'stripe_webhook',
         metadata: {
           provider_id: meta.provider_id,
           stripe_session_id: session.id,
           stripe_payment_intent: session.payment_intent,
-          purchase_amount: purchaseAmount,
+          gross_amount: grossAmount,
+          amount: result.inserted.amount,
+          product_type: 'pack',
         },
       });
+    } else if (result && result.skipped) {
+      console.log(`[stripe-webhook] founder commission skipped (${result.skipped})`);
     }
-    // NULL return = no referrer, inactive founder, or idempotent duplicate — all fine
   } catch (e) {
     console.warn('[stripe-webhook] founder commission error (non-fatal):', e.message);
   }
