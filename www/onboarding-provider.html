@@ -1764,10 +1764,54 @@
           }
           appData = { id: appJson.application_id };
 
-          await supabaseClient.from('profiles').update({
-            role: 'provider',
-            is_also_member: true
-          }).eq('id', userId);
+          // Server-side profile promotion via /api/provider/finalize.
+          //
+          // Was previously a browser-side supabaseClient.from('profiles').update({
+          //   role: 'provider', is_also_member: true }).eq('id', userId) — that
+          // path is BLOCKED by the BEFORE UPDATE trigger installed in
+          // 20260918c_profiles_privileged_columns_guard.sql (Task #474): role
+          // transitions to 'provider' are server-only, and is_also_member is
+          // monotonic false/null → true. Applied in prod 2026-09-19; the whole
+          // UPDATE fails atomically with 42501, leaving the account stuck at
+          // pending_provider.
+          //
+          // Finalize does more than the two-field update ever did: it derives
+          // is_founding_provider authoritatively from the just-inserted
+          // provider_applications row, seeds free_trial_bids / sms_consent /
+          // services_offered, and (importantly) upserts provider_match_preferences
+          // via serviceTypesToCategories(). Match Preferences is what auto-bid
+          // reads — without this call, brand-new providers hit the Job Board
+          // with empty match_categories and see "categories_required".
+          //
+          // service_area is required (1-200 chars) — Flow A doesn't collect it
+          // as a separate field, so synthesize from city + state; providers can
+          // refine it later in Settings. sms_consent defaults to false because
+          // Flow A doesn't collect it (safer default than opting them in silently).
+          const finalizePayload = {
+            full_name:        formData.contactName || formData.businessName,
+            business_name:    formData.businessName,
+            city:             formData.city,
+            state:            formData.state,
+            service_area:     [formData.city, formData.state].filter(Boolean).join(', ') || formData.city || formData.state || 'TBD',
+            services_offered: formData.services,
+            sms_consent:      false,
+          };
+          const finalizeResp = await fetch('/api/provider/finalize', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(finalizePayload),
+          });
+          const finalizeJson = await finalizeResp.json().catch(() => ({}));
+          if (!finalizeResp.ok) {
+            // 409 already_provider is idempotent-safe (re-signup / double-submit);
+            // any other status is a real failure — surface it so the account
+            // doesn't silently end up half-set-up.
+            if (finalizeResp.status !== 409) {
+              const msg = finalizeJson?.error || `Finalize failed (${finalizeResp.status})`;
+              const details = Array.isArray(finalizeJson?.details) ? `\n• ${finalizeJson.details.join('\n• ')}` : '';
+              throw new Error(`${msg}${details}`);
+            }
+          }
 
           if (formData.referral) {
             try {
