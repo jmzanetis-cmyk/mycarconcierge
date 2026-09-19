@@ -629,7 +629,7 @@
 
     function copyShareLink(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = `${window.location.origin}/${page}?ref=${code}`;
       navigator.clipboard.writeText(link).then(() => {
         showToast(`${type === 'provider' ? 'Provider' : 'Member'} share link copied!`);
@@ -638,7 +638,7 @@
 
     function shareViaEmail(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = `${window.location.origin}/${page}?ref=${code}`;
       const typeLabel = type === 'provider' ? 'provider' : 'member';
       const subject = encodeURIComponent(`Join My Car Concierge as a ${typeLabel}`);
@@ -648,7 +648,7 @@
 
     function shareViaSMS(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = `${window.location.origin}/${page}?ref=${code}`;
       const typeLabel = type === 'provider' ? 'service provider' : 'member';
       const message = encodeURIComponent(`Check out My Car Concierge! Join as a ${typeLabel} and get competitive bids on auto services. Sign up here: ${link}`);
@@ -661,14 +661,14 @@
 
     function shareToFacebook(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = encodeURIComponent(`${window.location.origin}/${page}?ref=${code}`);
       window.open(`https://www.facebook.com/sharer/sharer.php?u=${link}`, '_blank', 'width=600,height=400');
     }
 
     function shareToTwitter(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = `${window.location.origin}/${page}?ref=${code}`;
       const typeLabel = type === 'provider' ? 'service provider' : 'member';
       const text = encodeURIComponent(`Join My Car Concierge as a ${typeLabel}! Get competitive bids on auto services. ${link}`);
@@ -677,7 +677,7 @@
 
     function shareToWhatsApp(type) {
       const code = founderProfile.referral_code;
-      const page = type === 'provider' ? 'signup-provider.html' : 'signup-member.html';
+      const page = type === 'provider' ? 'onboarding-provider.html' : 'signup-member.html';
       const link = `${window.location.origin}/${page}?ref=${code}`;
       const typeLabel = type === 'provider' ? 'service provider' : 'member';
       const text = encodeURIComponent(`Check out My Car Concierge! Join as a ${typeLabel} and get competitive bids on auto services. Sign up here: ${link}`);
@@ -708,7 +708,7 @@
         }, memberCanvas);
       }
       
-      const providerSignupLink = `${window.location.origin}/signup-provider.html?ref=${code}`;
+      const providerSignupLink = `${window.location.origin}/onboarding-provider.html?ref=${code}`;
       const providerCanvas = document.getElementById('qr-code-provider');
       if (providerCanvas && typeof QrCreator !== 'undefined') {
         QrCreator.render({

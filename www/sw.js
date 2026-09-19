@@ -1,10 +1,9 @@
-const CACHE_NAME = 'mcc-cache-v150';
+const CACHE_NAME = 'mcc-cache-v151';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/login.html',
   '/signup-member.html',
-  '/signup-provider.html',
   '/members.html',
   '/providers.html',
   '/provider-info.html',
@@ -57,7 +56,6 @@ const STATIC_ASSETS = [
   '/founder-dashboard.js',
   '/check-in.js',
   '/split-pay.js',
-  '/signup-provider.js',
   '/stripeutils.js',
   '/supabaseclient.js',
   '/locales/en.json',
