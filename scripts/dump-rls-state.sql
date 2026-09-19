@@ -31,7 +31,10 @@ SELECT tablename, policyname, roles, cmd, qual, with_check
 
 -- ============================================================================
 -- Query B — public tables with RLS disabled.
--- Expected: 1 row, schema_migrations. Any other row is a lockdown gap.
+-- Expected: 0 rows. (Was "1 row, schema_migrations" through 2026-09-18; RLS
+-- was enabled on schema_migrations via the Supabase assistant on 2026-09-19,
+-- closing the last unguarded public table. Any row surfacing here now is a
+-- lockdown gap.)
 -- ============================================================================
 SELECT relname
   FROM pg_class

@@ -48,14 +48,22 @@
 
 -- ============================================================================
 -- 1. Query B — public tables with RLS disabled (relrowsecurity = false)
---    Result: one row, schema_migrations. Every other public table has
---    RLS enabled. Notably, this contradicts the original audit note
+--    Result (2026-09-18 capture): one row, schema_migrations. Every other
+--    public table had RLS enabled, contradicting the original audit note
 --    ("twelve tables with no RLS"). RLS was enabled directly on prod
 --    between the audit draft and the Task #469 live capture; see the
 --    ordering discussion in Task #471.
+--
+--    UPDATE (2026-09-19): RLS enabled on public.schema_migrations via the
+--    Supabase assistant during the migration-application session. The
+--    expected result is now 0 rows — any row surfacing here in future
+--    captures is a lockdown gap that has not been backfilled into
+--    scripts/dump-rls-state.sql's assumption.
 -- ============================================================================
--- Result rows:
+-- Result rows (2026-09-18):
 --   schema_migrations
+-- Result rows (2026-09-19 onward):
+--   (none)
 --
 -- Tables from the #471 twelve-table list that DO NOT EXIST in prod
 -- (surfaced when 20260918b was first applied — the DO block that codifies
