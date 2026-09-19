@@ -12,6 +12,13 @@ Four phases, each its own branch and draft, each independently shippable. Phase 
 
 Standing rules from the original spec apply throughout: floor of $3.00/bid; `FEATURE_WALLET` stays false; plans sold on the web only; subscription status is never an input to matchmaker invite selection.
 
+**Two ways to pay, one balance (clarified 2026-09-19).** Plans are *added alongside* bid packs, not in place of them:
+
+- The four existing packs keep their prices, their checkout, and their behavior. Pack credits never expire. A provider who never picks a plan sees no change in any phase except one new, ignorable card.
+- A subscriber gets a monthly allotment at a lower per-bid price and can still buy packs (at 10% off) as top-ups.
+- **The provider sees one credit balance, not two wallets.** The portal header and every "Your Bid Credits" figure show the single total from the ledger cache. Spend order (founder → subscription → pack) is invisible to the provider; an optional breakdown ("10 plan · 25 pack · 3 free") may appear on hover or in the Credits & Plans section, never as separate balances.
+- Nothing in Phase 1 changes what a provider sees or how packs work; it only changes where the number is stored.
+
 ---
 
 ## Phase 0 — Records (do first, trivial)
@@ -190,59 +197,3 @@ insert commission_ledger (referrer_id, provider_id, invoice_id, product_type, gr
 ## Reporting rules for CC
 
 Before writing Phase 1 code, report: how 20260918c detects the caller (so the ledger trigger is allowed to write the cache), and the exact table/columns that hold the referral date. Before Phase 2, report the Stripe dashboard retry settings currently in place. Stop and say so if anything in this document contradicts what's in the repo.
-
----
-
-## Addendum — Phase 1 preflight resolutions + Phase 2 decisions (2026-09-19)
-
-### Phase 1 preflight — answers
-
-**20260918c caller detection.** The BEFORE UPDATE trigger function `restrict_profile_suspension_writes` is `SECURITY INVOKER` (verified via `pg_proc.prosecdef=false`). It gates on `current_user NOT IN ('anon','authenticated')` → `RETURN NEW` at the top. A new `SECURITY DEFINER` trigger owned by `postgres` on `credit_ledger` AFTER INSERT sets `current_user=postgres` when it emits `UPDATE profiles`, so the 20260918c guard sees `postgres` (not `anon`/`authenticated`) and bypasses cleanly. Precedent: `place_plan_bid` (SECURITY DEFINER, owner postgres) has been updating `profiles.bid_credits` in prod today without being rejected — same pattern the ledger trigger will use.
-
-**Referral date column.** `public.founder_referrals.created_at` (timestamptz, default `now()`) is the referral date for the member-founder path. Set on INSERT inside `register_provider_referral` RPC via column default. The alternative `provider_referrals.created_at` covers the provider-founder path (see Chris trace below). Both are populated by `netlify/functions/referral-process.js` on `/api/provider-referral/process`.
-
-**Backfill counts (2026-09-19, prod).** 65 profiles total: 15 provider, 5 pending_provider, 44 member, 1 admin. 64 have non-zero credits. Aggregate: `sum(bid_credits)=60,717`, `sum(free_trial_bids)=176`. The Phase 1 backfill asserts, per profile: `sum(ledger.delta) = profiles.bid_credits + profiles.free_trial_bids`. All 64 non-zero profiles are backfilled (not just providers) so the invariant holds regardless of future role transitions.
-
-### Phase 2 decisions (2026-09-19, do not act until Phase 2)
-
-1. **Identity across the commission path = `profiles.id`.**
-   - `commission_overrides.referrer_id` and `commission_ledger.referrer_id` are `profiles.id` (equivalent to `member_founder_profiles.user_id` when the founder exists in that table).
-   - `founder_referrals.founder_id` stays as-is (points at `member_founder_profiles.id`) so existing founder-dashboard queries don't break.
-   - `accrueCommission` resolves referrer via `member_founder_profiles.user_id` when reading through `founder_referrals`. The existing `record_bid_pack_commission` bug — v2 body looks up `member_founder_profiles WHERE user_id = <profiles.referred_by_founder_id>`, but `register_provider_referral` writes `member_founder_profiles.id` into that column, so the join never matches for standard founders — is retired when the RPC is replaced by `accrueCommission`. Migration header must note this.
-2. **`profiles.commission_opt_out` short-circuit preserved.** `accrueCommission` returns early with no ledger row when the referred provider's `commission_opt_out = true`, same behavior as the current v2 RPC. No `commission_ledger` write, no override lookup, no throw.
-3. **`member_founder_profiles.total_commissions_earned` becomes a trigger-maintained cache.** Same pattern as `profiles.bid_credits` in Phase 1: an AFTER INSERT/UPDATE trigger on `commission_ledger` recomputes `total_commissions_earned` for the referrer as `SUM(amount) FILTER (status IN ('payable','paid')) - SUM(reversal amounts)`. The ledger is authoritative; the cache exists for read paths (founder dashboard, admin) that already query the column.
-
-### Chris trace — end-to-end (2026-09-19)
-
-Chris uses **both** referral paths depending on which endpoint fires. `accrueCommission` needs to check both.
-
-**Live prod state:**
-- `provider_referral_codes.CHRIS` row exists: `id=6928813e…, code_type='provider', provider_id=dbb15523… (Chris's user_id), platform_fee_exempt=true, skip_identity_verification=true, is_active=true, uses_count=0`.
-- `member_founder_profiles` row for Chris exists: `id=21837a02…, user_id=dbb15523…, full_name='Chris Agrapidis', commission_rate=0.90, referral_code='CHRIS', status='active'`. Same `user_id` links both.
-- Both are keyed by the same `dbb15523…` user identity.
-
-**When a provider signs up with `?ref=CHRIS`, two code paths write different things:**
-
-- **`register_provider_referral(p_referral_code, p_provider_user_id, p_provider_email)` RPC** (SECURITY DEFINER, called from Flow A onboarding and Flow B signup): looks up `member_founder_profiles.referral_code='CHRIS'`, inserts a `founder_referrals` row (`founder_id=member_founder_profiles.id`), writes `profiles.referred_by_founder_id = member_founder_profiles.id` (the synthetic PK, **NOT** user_id).
-- **`POST /api/provider-referral/process` → `_processProviderCode`** in `netlify/functions/referral-process.js` (fires post-finalize for analytics logging): finds CHRIS in `provider_referral_codes` first, inserts a `provider_referrals` row, writes `profiles.referred_by_founder_id = codeData.provider_id = user_id` (Chris's user_id), **THEN** because `codeData.provider_id` is set, also inserts a `founder_referrals` row.
-
-**Race outcome**: `/api/provider-referral/process` fires after `register_provider_referral`, so it overwrites `profiles.referred_by_founder_id` from `member_founder_profiles.id` → `user_id`. That's the value `record_bid_pack_commission` v2 then reads and successfully joins against `member_founder_profiles.user_id`. **Chris's commission path works today by this accidental second overwrite.**
-
-**Standard founders** don't have a `provider_referral_codes` row, so only `register_provider_referral` fires. Their `profiles.referred_by_founder_id` ends up as `member_founder_profiles.id` (not user_id). `record_bid_pack_commission`'s join `WHERE user_id = <that value>` never matches. **Standard founders have never been paid.**
-
-**Implication for Phase 2 `accrueCommission`:** look up the referrer with a two-step resolver:
-
-```
-1. LEFT JOIN founder_referrals ON referred_user_id = <provider_id>
-   → founder_id (member_founder_profiles.id)
-2. Resolve to user_id: SELECT user_id FROM member_founder_profiles WHERE id = <founder_id>
-3. If step 1 empty, LEFT JOIN provider_referrals ON referred_user_id = <provider_id>
-   → provider_id column (which stores user_id directly for provider-founder codes)
-4. Take earliest created_at across whichever hits; that's referred_at
-```
-
-The resolver returns a canonical `referrer_user_id` (`profiles.id`) — matches the Phase 2 decision above (identity = profiles.id). Fixing the underlying `profiles.referred_by_founder_id` inconsistency is out of scope for `accrueCommission`; the ledger doesn't care what's in that column once the resolver runs.
-
-**Not fixed in Phase 2**: the race between the two write paths for `profiles.referred_by_founder_id`. A followup could either drop the column (with backfill) or standardize both writers on user_id. The subscriptions build works without touching this if `accrueCommission` uses the resolver above.
-
-**One more thing to record**: `commission_overrides` seeded with Chris will be redundant with `member_founder_profiles.commission_rate = 0.90` for the same user. The spec treats `commission_overrides` as authoritative; `member_founder_profiles.commission_rate` becomes derived/legacy (kept for now, deprecated later). Migration header should call this out.

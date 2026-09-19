@@ -242,7 +242,7 @@ async function main() {
 
   // ── checkout.session.completed: bid pack ──────────────────────────────────
 
-  await run('checkout bid pack: inserts purchase row, increments bid_credits', async () => {
+  await run('checkout bid pack: inserts purchase row, grants credits via credit_ledger', async () => {
     const session = {
       id: 'cs_test_1',
       payment_intent: 'pi_test_1',
@@ -259,7 +259,14 @@ async function main() {
     eq(currentSupabase._tables.bid_credit_purchases.length, 1, 'purchase row inserted');
     eq(currentSupabase._tables.bid_credit_purchases[0].bids_purchased, 12, '10+2 bids');
     eq(currentSupabase._tables.bid_credit_purchases[0].amount_paid, 50, '$50 in dollars');
-    eq(currentSupabase._tables.profiles[0].bid_credits, 15, '3 existing + 12');
+    // Phase 1 credit_ledger: the pack grant now goes via a ledger insert
+    // rather than a direct profiles.update. Cache trigger fires in prod;
+    // this mock DB just records the insert.
+    const ledger = currentSupabase._tables.credit_ledger || [];
+    eq(ledger.length, 1, 'ledger row inserted');
+    eq(ledger[0].delta, 12, 'ledger delta = 10+2 bids');
+    eq(ledger[0].source, 'pack', 'source=pack');
+    eq(ledger[0].invoice_id, 'cs_test_1', 'invoice_id = session id');
   });
 
   await run('checkout bid pack: idempotency — duplicate session_id skips grant', async () => {

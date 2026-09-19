@@ -1,0 +1,25 @@
+{
+  "_doc": "Snapshot of public.bid_packs from prod on 2026-09-19 for the credit-price-floor test. When live pack pricing changes, re-snapshot with `SELECT id,name,price,bid_count,bonus_bids,is_active FROM bid_packs ORDER BY price` and update this file. Test only asserts against is_active=true rows.",
+  "snapshotted_at": "2026-09-19",
+  "packs": [
+    { "name": "Jumper Cables",  "price": 10.00,    "bid_count": 1,     "bonus_bids": 0,    "is_active": true },
+    { "name": "Dipstick",       "price": 200.00,   "bid_count": 50,    "bonus_bids": 5,    "is_active": true },
+    { "name": "Spark Plug",     "price": 250.00,   "bid_count": 70,    "bonus_bids": 10,   "is_active": true },
+    { "name": "Turbo",          "price": 300.00,   "bid_count": 95,    "bonus_bids": 15,   "is_active": true },
+    { "name": "V8",             "price": 400.00,   "bid_count": 140,   "bonus_bids": 25,   "is_active": true },
+    { "name": "Muscle Car",     "price": 500.00,   "bid_count": 195,   "bonus_bids": 40,   "is_active": true },
+    { "name": "Supercharger",   "price": 625.00,   "bid_count": 270,   "bonus_bids": 60,   "is_active": true },
+    { "name": "Racing Team",    "price": 800.00,   "bid_count": 385,   "bonus_bids": 85,   "is_active": true },
+    { "name": "Pit Crew",       "price": 1000.00,  "bid_count": 535,   "bonus_bids": 120,  "is_active": true },
+    { "name": "Speedway",       "price": 1250.00,  "bid_count": 745,   "bonus_bids": 170,  "is_active": true },
+    { "name": "Grand Prix",     "price": 1500.00,  "bid_count": 990,   "bonus_bids": 240,  "is_active": true },
+    { "name": "Formula One",    "price": 2000.00,  "bid_count": 1470,  "bonus_bids": 340,  "is_active": true },
+    { "name": "Le Mans",        "price": 2500.00,  "bid_count": 2050,  "bonus_bids": 480,  "is_active": true },
+    { "name": "Daytona",        "price": 3000.00,  "bid_count": 2725,  "bonus_bids": 680,  "is_active": true },
+    { "name": "Indy 500",       "price": 4000.00,  "bid_count": 4040,  "bonus_bids": 960,  "is_active": true },
+    { "name": "Monaco",         "price": 5000.00,  "bid_count": 5620,  "bonus_bids": 1350, "is_active": true },
+    { "name": "Autobahn",       "price": 6250.00,  "bid_count": 7800,  "bonus_bids": 1900, "is_active": true },
+    { "name": "Nürburgring",    "price": 7500.00,  "bid_count": 10400, "bonus_bids": 2650, "is_active": true },
+    { "name": "Championship",   "price": 10000.00, "bid_count": 15400, "bonus_bids": 3700, "is_active": true }
+  ]
+}

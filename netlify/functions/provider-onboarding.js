@@ -339,8 +339,9 @@ async function handleFinalize(event, supabase, user) {
     state: body.state.trim(),
     service_area: body.service_area.trim(),
     services_offered: body.services_offered,
-    free_trial_bids: isFounding ? 999999 : 3,
-    bid_credits: 0,
+    // Phase 1 ledger — bid_credits and free_trial_bids are no longer written
+    // directly here. The credit_ledger insert below is the authoritative
+    // source; the AFTER INSERT cache trigger updates both columns on profiles.
     total_bids_purchased: 0,
     total_bids_used: 0,
     is_founding_provider: isFounding,
@@ -355,6 +356,23 @@ async function handleFinalize(event, supabase, user) {
   if (updErr) {
     console.error('[provider-onboarding] finalize profile update failed:', updErr.message);
     return jsonResponse(500, { error: 'failed to finalize profile', details: updErr.message });
+  }
+
+  // Phase 1 ledger — seed the initial trial/founder grant. Founding providers
+  // get 999999 (source='founder'); everyone else gets 3 (source='trial').
+  // Cache trigger sets profiles.free_trial_bids on the row we just updated.
+  const initialGrant = isFounding ? 999999 : 3;
+  const { error: seedErr } = await supabase.from('credit_ledger').insert({
+    provider_id: user.id,
+    delta: initialGrant,
+    source: isFounding ? 'founder' : 'trial',
+    ref_type: 'provider_finalize',
+    ref_id: app.id,
+  });
+  if (seedErr) {
+    console.error('[provider-onboarding] finalize credit_ledger seed failed:', seedErr.message);
+    // Don't fail the whole finalize — profile is promoted; the credit seed
+    // can be inserted by admin as an `admin` row if this ever slips through.
   }
 
   // Seed provider_match_preferences from the signup answers. Before this
@@ -403,7 +421,7 @@ async function handleFinalize(event, supabase, user) {
     user_id: user.id,
     role: 'provider',
     is_founding_provider: isFounding,
-    free_trial_bids: updateRow.free_trial_bids
+    free_trial_bids: initialGrant
   });
 }
 

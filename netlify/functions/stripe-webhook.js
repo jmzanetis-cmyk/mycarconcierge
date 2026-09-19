@@ -266,13 +266,28 @@ async function handleCheckoutComplete(session, supabase) {
     return;
   }
 
-  // Increment bid_credits balance
-  const { data: p } = await supabase.from('profiles')
+  // Phase 1 ledger — insert a `pack` grant row; the AFTER INSERT trigger
+  // on credit_ledger recomputes profiles.bid_credits so all existing
+  // readers keep working. Idempotency is provided upstream by the
+  // bid_credit_purchases dedupe on stripe_session_id (line ~253) — this
+  // grant only runs after that insert succeeded, so a replay of the same
+  // Stripe event exits before reaching here.
+  const { data: preProfile } = await supabase.from('profiles')
     .select('bid_credits').eq('id', meta.provider_id).maybeSingle();
-  const prevBidCredits = p?.bid_credits || 0;
-  await supabase.from('profiles')
-    .update({ bid_credits: prevBidCredits + totalBids })
-    .eq('id', meta.provider_id);
+  const prevBidCredits = preProfile?.bid_credits || 0;
+
+  const { error: ledgerErr } = await supabase.from('credit_ledger').insert({
+    provider_id: meta.provider_id,
+    delta: totalBids,
+    source: 'pack',
+    invoice_id: session.id,
+    ref_type: 'bid_credit_purchases',
+    ref_id: meta.pack_id || null,
+  });
+  if (ledgerErr) {
+    console.error('[stripe-webhook] credit_ledger insert failed:', ledgerErr.message);
+    return;
+  }
 
   console.log(`[stripe-webhook] granted ${totalBids} bid credits to provider ${meta.provider_id}`);
 
@@ -475,11 +490,106 @@ async function _handleFounderCommissionClawback(paymentIntentId, reason, supabas
 
 async function handleChargeRefunded(charge, supabase) {
   await _handleFounderCommissionClawback(charge.payment_intent, 'refund', supabase);
+  await _reverseBidCreditPack(charge.payment_intent, 'refund', supabase);
 }
 
 async function handleChargeDisputeCreated(dispute, supabase) {
   // dispute.payment_intent is present in Stripe API 2024-04-10+
   await _handleFounderCommissionClawback(dispute.payment_intent, 'dispute', supabase);
+  await _reverseBidCreditPack(dispute.payment_intent, 'dispute', supabase);
+}
+
+// Phase 1 ledger — bid-pack refund/dispute reversal.
+//
+// When a pack purchase is refunded or disputed, claw back the UNSPENT
+// remainder of that lot: never below zero-spent (if the provider has
+// already bid through more credits than the pack contained, we don't
+// force a negative balance — they still won those bids). Inserts a
+// `refund` row on credit_ledger with delta = -(grant.delta + sum of
+// child spend deltas). If unspent = 0, no-op.
+//
+// Idempotent: DELETE previous `refund` rows for the same lot before
+// re-inserting so replays of the same Stripe event don't double-refund.
+async function _reverseBidCreditPack(paymentIntentId, reason, supabase) {
+  if (!paymentIntentId) return;
+  try {
+    // Find the pack purchase for this payment intent — gives us the
+    // session_id that the original credit_ledger grant used as invoice_id.
+    const { data: purchase } = await supabase
+      .from('bid_credit_purchases')
+      .select('provider_id, stripe_session_id, bids_purchased')
+      .eq('stripe_payment_id', paymentIntentId)
+      .maybeSingle();
+    if (!purchase) return; // not a pack purchase — nothing to reverse
+
+    // Look up the grant row on credit_ledger. The stripe_session_id lands
+    // in invoice_id at grant time (see handleCheckoutSessionCompleted).
+    // Mobile pack uses `mobile_<pi>` as the session id.
+    const invoiceIds = [purchase.stripe_session_id, `mobile_${paymentIntentId}`].filter(Boolean);
+    const { data: grants } = await supabase
+      .from('credit_ledger')
+      .select('id, delta')
+      .eq('provider_id', purchase.provider_id)
+      .eq('source', 'pack')
+      .in('invoice_id', invoiceIds)
+      .limit(1);
+    if (!grants || grants.length === 0) return;
+    const grant = grants[0];
+
+    // Compute unspent = grant.delta + SUM(child spends' delta).
+    // Children include existing reversals from prior replays, which is
+    // fine — we DELETE those below before inserting fresh.
+    const { data: children } = await supabase
+      .from('credit_ledger')
+      .select('id, delta, source')
+      .eq('lot_id', grant.id);
+    const priorReversals = (children || []).filter(c => c.source === 'refund');
+    // Drop stale reversal rows so recompute doesn't double-count them.
+    if (priorReversals.length > 0) {
+      await supabase.from('credit_ledger').delete().in('id', priorReversals.map(r => r.id));
+    }
+    const spends = (children || []).filter(c => c.source !== 'refund');
+    const totalSpend = spends.reduce((acc, c) => acc + c.delta, 0);
+    const unspent = grant.delta + totalSpend; // spends are negative
+
+    if (unspent <= 0) {
+      console.log(`[stripe-webhook] pack lot ${grant.id} already fully spent (${reason}); no reversal.`);
+      return;
+    }
+
+    const { error: revErr } = await supabase.from('credit_ledger').insert({
+      provider_id: purchase.provider_id,
+      delta: -unspent,
+      source: 'refund',
+      lot_id: grant.id,
+      invoice_id: purchase.stripe_session_id,
+      ref_type: 'stripe_' + reason,
+      ref_id: paymentIntentId,
+    });
+    if (revErr) {
+      console.warn('[stripe-webhook] credit_ledger reversal insert failed (non-fatal):', revErr.message);
+      return;
+    }
+
+    console.log(`[stripe-webhook] reversed ${unspent} unspent credits on lot ${grant.id} — ${reason}`);
+    await audit(supabase, {
+      action: 'bid_credits_reversed',
+      target_id: purchase.provider_id,
+      target_type: 'profile',
+      performed_by: 'stripe_webhook',
+      reason,
+      metadata: {
+        stripe_payment_intent: paymentIntentId,
+        stripe_session_id: purchase.stripe_session_id,
+        lot_id: grant.id,
+        grant_delta: grant.delta,
+        total_spend: totalSpend,
+        unspent_reversed: unspent,
+      },
+    });
+  } catch (e) {
+    console.warn('[stripe-webhook] bid-credit pack reversal error (non-fatal):', e.message);
+  }
 }
 
 // ── payment_intent.succeeded ───────────────────────────────────────────────
