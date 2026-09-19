@@ -262,6 +262,7 @@ async function handleReference(event, supabase, user) {
     .from('provider_references')
     .insert({
       application_id: body.application_id,
+      provider_id: user.id,
       reference_name: body.reference_name.trim(),
       reference_company: body.reference_company ? body.reference_company.trim() : null,
       reference_phone: body.reference_phone ? String(body.reference_phone).trim() : null,
