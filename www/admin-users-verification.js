@@ -605,22 +605,43 @@
 
     async function loadPendingCARs() {
       try {
+        // The prior select had TWO parallel embeds via `provider:provider_id`
+        // AND `provider_stats:provider_id`, which PostgREST resolved by
+        // aliasing profiles as `profiles_1` for the second embed — and then
+        // failed with 42703 because `profiles.average_rating` doesn't exist
+        // (the columns live on `provider_stats`, which uses a foreign-key
+        // ALIAS `provider_id` that PostgREST can't disambiguate from the
+        // profiles FK without the `!provider_id` hint). Nest provider_stats
+        // INSIDE provider so PostgREST resolves via the profiles→provider_stats
+        // FK named `provider_id` (thus `provider_stats!provider_id`). This
+        // matches the shape 20260918d unblocks at the RLS layer.
         const { data, error } = await supabaseClient
           .from('corrective_action_responses')
           .select(`
-            *,
-            provider:provider_id(id, full_name, business_name, email, suspended_at),
-            provider_stats:provider_id(average_rating, total_reviews, suspended, suspended_at, primary_complaint_reason, complaint_counts)
+            *, provider:provider_id(id, full_name, business_name, email, suspended_at,
+              provider_stats!provider_id(average_rating, total_reviews, suspended, suspended_at,
+                primary_complaint_reason, complaint_counts))
           `)
           .order('submitted_at', { ascending: false });
-        
+
         if (error) {
           console.error('Error loading CARs:', error);
           allCARs = [];
         } else {
-          allCARs = data || [];
+          // Normalize: PostgREST returns nested embeds either as a single
+          // object OR as a one-element array depending on the join's
+          // multiplicity heuristics. Render code assumes `row.provider_stats`
+          // is a bare object (matching the prior top-level embed's shape),
+          // so hoist + flatten here rather than sprinkling `?.[0]` through
+          // renderCARs.
+          allCARs = (data || []).map(row => ({
+            ...row,
+            provider_stats: Array.isArray(row.provider?.provider_stats)
+              ? row.provider.provider_stats[0]
+              : row.provider?.provider_stats ?? null,
+          }));
         }
-        
+
         updateCARStats();
         renderCARs();
         

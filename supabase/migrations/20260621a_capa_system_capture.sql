@@ -46,6 +46,20 @@
 --      has been silently broken in prod (in which case it needs either a
 --      4th policy USING is_admin() OR an admin backend endpoint).
 --
+--      RESOLVED (2026-09-19):
+--        - supabase/migrations/20260918d_car_reviews_admin_select_policy.sql
+--          adds "Admins can view all CARs" (SELECT USING public.is_admin())
+--          so admin.js reads succeed at the RLS layer.
+--        - www/admin-users-verification.js loadPendingCARs() was ALSO
+--          issuing a 42703 error independent of RLS: it did two parallel
+--          embeds via `provider:provider_id` + `provider_stats:provider_id`,
+--          which PostgREST resolved by aliasing profiles as profiles_1 and
+--          then failing because profiles.average_rating doesn't exist. Fix
+--          in that file's loadPendingCARs (2026-09-19 commit) nests
+--          provider_stats INSIDE provider with the explicit FK hint
+--          `provider_stats!provider_id`, plus a normalization step that
+--          flattens array-vs-object embed responses.
+--
 --   2. Both RPCs are SECURITY DEFINER but do NOT pin search_path.
 --      Captured verbatim — adding SET search_path = public, pg_temp is
 --      a separate hardening commit (low risk; search_path attacks
