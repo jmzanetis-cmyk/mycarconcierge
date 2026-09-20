@@ -31,22 +31,29 @@
   // The server-side endpoints also 403 when the flag is off (defense in
   // depth against a curl bypass); this client check is purely so the UI
   // doesn't advertise a feature the backend refuses.
+  async function _fetchConfigOnce() {
+    if (window.__mccConfig) return window.__mccConfig;
+    try {
+      var res = await fetch('/api/config', { credentials: 'omit' });
+      if (!res.ok) { window.__mccConfig = {}; return window.__mccConfig; }
+      window.__mccConfig = await res.json();
+      return window.__mccConfig;
+    } catch (_) {
+      window.__mccConfig = {};
+      return window.__mccConfig;
+    }
+  }
+
   async function _isProviderPlansEnabled() {
     if (typeof window.__featureProviderPlans === 'boolean') {
       return window.__featureProviderPlans;
     }
-    try {
-      var res = await fetch('/api/config', { credentials: 'omit' });
-      if (!res.ok) { window.__featureProviderPlans = false; return false; }
-      var body = await res.json();
-      var on = !!(body && body.features && body.features.providerPlans === true);
-      window.__featureProviderPlans = on;
-      return on;
-    } catch (_) {
-      window.__featureProviderPlans = false;
-      return false;
-    }
+    var cfg = await _fetchConfigOnce();
+    var on = !!(cfg && cfg.features && cfg.features.providerPlans === true);
+    window.__featureProviderPlans = on;
+    return on;
   }
+
 
   async function loadProviderPlans() {
     var card = document.getElementById('provider-plans-card');
@@ -93,9 +100,17 @@
     try { await client.auth.getSession(); } catch (_) { /* non-fatal */ }
 
     try {
+      // Deliberately does NOT select stripe_price_monthly / _test. Price
+      // ids are a server-side concern — plan-checkout picks the correct
+      // column by the STRIPE_SECRET_KEY prefix and returns 503
+      // plan_not_provisioned if the mode's column is null, which
+      // startProviderPlanCheckout surfaces via alert. Keeping the client
+      // out of the price-id business means we can't accidentally show a
+      // test id to a live-mode user (or vice versa) even if the mode
+      // detection flips.
       var { data: plans } = await client
         .from('subscription_plans')
-        .select('plan_key, name, credits_per_month, monthly_price_cents, stripe_price_monthly, sort_order')
+        .select('plan_key, name, credits_per_month, monthly_price_cents, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
@@ -153,11 +168,11 @@
           buttonLabel = 'Start trial';
           buttonAction = "startProviderPlanCheckout('" + p.plan_key + "')";
         }
-        if (!p.stripe_price_monthly) {
-          buttonLabel = 'Coming soon';
-          buttonAction = "";
-          buttonDisabled = true;
-        }
+        // No client-side "Coming soon" gate. If the plan is is_active
+        // but the current-mode price column is still null, plan-checkout
+        // will 503 plan_not_provisioned on click and startProviderPlanCheckout
+        // alerts the user. That's a narrow window (bootstrap runs once
+        // per mode) and keeps price ids server-side.
 
         var badge = isCurrent ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-teal,#22d3ee);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">CURRENT</div>' :
                     isPopular ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">MOST POPULAR</div>' : '';
@@ -208,6 +223,10 @@
       if (!resp.ok) {
         if (resp.status === 409 && body.error === 'trial_used') {
           alert('You have already started a trial. Use "Manage plan" to change or resume.');
+          return;
+        }
+        if (resp.status === 503 && body.error === 'plan_not_provisioned') {
+          alert('This plan isn\'t available yet. Please check back shortly.');
           return;
         }
         console.error('[plan-checkout] failed:', body);

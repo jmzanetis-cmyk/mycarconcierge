@@ -103,17 +103,23 @@ exports.handler = async function (event) {
   if (!planKey) return json(400, { error: 'plan_key required' });
 
   // ── Plan lookup ─────────────────────────────────────────────────────
+  // Mode-aware price id read — see admin-provider-plans-bootstrap.js
+  // header for why the DB stores test and live ids side-by-side.
+  const isLive = (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live_');
+  const priceCol = isLive ? 'stripe_price_monthly' : 'stripe_price_monthly_test';
+
   const { data: plan } = await supabase
     .from('subscription_plans')
-    .select('plan_key, name, credits_per_month, stripe_price_monthly, is_active')
+    .select('plan_key, name, credits_per_month, ' + priceCol + ', is_active')
     .eq('plan_key', planKey)
     .maybeSingle();
   if (!plan) return json(404, { error: 'plan not found', plan_key: planKey });
   if (!plan.is_active) return json(400, { error: 'plan not active', plan_key: planKey });
-  if (!plan.stripe_price_monthly) {
+  const stripePrice = plan[priceCol];
+  if (!stripePrice) {
     return json(503, {
       error: 'plan_not_provisioned',
-      details: `stripe_price_monthly is null for ${planKey}. Run POST /api/admin/provider-plans/bootstrap.`,
+      details: `${priceCol} is null for ${planKey} (livemode=${isLive}). Run POST /api/admin/provider-plans/bootstrap.`,
     });
   }
 
@@ -162,7 +168,7 @@ exports.handler = async function (event) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
-      line_items: [{ price: plan.stripe_price_monthly, quantity: 1 }],
+      line_items: [{ price: stripePrice, quantity: 1 }],
       subscription_data: {
         trial_period_days: TRIAL_DAYS,
         trial_settings: {

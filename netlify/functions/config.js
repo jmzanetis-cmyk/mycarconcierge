@@ -43,5 +43,10 @@ exports.handler = async function(event) {
       // regardless — if a subscription somehow exists it must be honored.
       providerPlans: process.env.FEATURE_PROVIDER_PLANS === 'true',
     },
+    // Stripe mode — surfaced so the browser can pick the right
+    // stripe_price_monthly / stripe_price_monthly_test column when
+    // rendering the Plans card. Key material is NEVER sent, only the
+    // sk_live_ prefix inference.
+    stripe_livemode: (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live_'),
   });
 };
