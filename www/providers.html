@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <title>Provider Portal – My Car Concierge</title>
+  <!-- Same-origin guard (2026-09-20). Netlify redirects apex → www with a
+       308, but Safari refuses to follow a POST redirect across origins,
+       which surfaced as "Network error starting checkout" when Start
+       trial fired from an apex tab. Redirect the whole document to www
+       BEFORE any script (including mcc-config.js's fetch interceptor)
+       runs, so every subsequent /api/* call is same-origin with the
+       function endpoint. -->
+  <script>(function(){if(location.hostname==='mycarconcierge.com'){location.replace('https://www.mycarconcierge.com'+location.pathname+location.search+location.hash);}})();</script>
   <script src="mcc-theme.js?v=20260918"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#12161c" />
@@ -2267,25 +2275,15 @@
         </div>
       </div>
 
-      <!-- Native-only "buy on our website" card. Shown ONLY when body has
-           .native-app (see the class-setter script + CSS at top of body).
-           No in-app purchase UI, no price list, no CTA that could look
-           like a transaction — just a redirect to the web where the
-           purchase legitimately happens outside the App Store / Play
-           Store rules. -->
-      <div class="card native-purchase-only" style="text-align:center;">
-        <div style="font-size:2rem;margin-bottom:8px;">🛒</div>
-        <h2 class="card-title" style="margin-bottom:8px;">Buy credits on our website</h2>
-        <p style="color:var(--text-secondary);font-size:var(--text-base);line-height:1.5;max-width:520px;margin:0 auto 20px;">
-          Bid credits are purchased outside the app on
-          <strong>mycarconcierge.com</strong>. Tap the button below to open
-          it in your browser — you'll be signed in already, then go to
-          <strong>Bid Credits</strong> to complete your purchase.
-        </p>
-        <button class="btn btn--primary" onclick="openWebPurchase()" style="padding:14px 32px;font-size:var(--text-md);font-weight:600;">
-          Open mycarconcierge.com →
-        </button>
-      </div>
+      <!-- Native "buy on our website" prompt REMOVED 2026-09-20 (PR #23
+           gave native the in-app pack + plan purchase flow via Browser.open
+           over the Stripe URL; this card was the redundant path that
+           routed users into a full Safari tab on providers.html and let
+           them fall onto apex, triggering the plan-checkout redirect
+           failure). If the .native-purchase-only styling is ever
+           re-added, the openWebPurchase() destination must be re-verified
+           to never leave the app on apex. -->
+      <div class="card native-purchase-only" style="display:none;" aria-hidden="true"></div>
 
       <!-- How It Works -->
       <div class="card">
