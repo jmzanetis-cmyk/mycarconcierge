@@ -60,8 +60,11 @@ const REPO_ROOT  = path.resolve(path.dirname(__filename), '..', '..', '..');
 const DRAFT        = process.env.DRAFT_URL || 'https://provider-plans--deft-capybara-078770.netlify.app';
 const TARGET_EMAIL = 'testprovider@test.com';
 const TARGET_ID    = '0bb98854-8aa8-41f7-816b-d06785167194';
-const SHOT_PATH    = path.join(REPO_ROOT, 'docs/specs/evidence/provider-plans-card-draft.png');
-const FAIL_PATH    = path.join(REPO_ROOT, 'docs/specs/evidence/provider-plans-card-draft-FAIL.png');
+// Different filename for prod runs so the draft evidence stays intact.
+const IS_PROD_RUN  = /www\.mycarconcierge\.com/.test(DRAFT);
+const SHOT_NAME    = IS_PROD_RUN ? 'provider-plans-card-prod.png' : 'provider-plans-card-draft.png';
+const SHOT_PATH    = path.join(REPO_ROOT, 'docs/specs/evidence', SHOT_NAME);
+const FAIL_PATH    = path.join(REPO_ROOT, 'docs/specs/evidence', SHOT_NAME.replace('.png', '-FAIL.png'));
 
 function fail(msg) {
   console.log(JSON.stringify({ ok: false, error: msg }));
@@ -151,8 +154,14 @@ if (/login\.html/.test(page.url())) {
 // onAuthStateChange listener will re-render.
 try {
   await page.waitForSelector('#provider-plans-card', { state: 'attached', timeout: 30000 });
+  // Wait for either the plans-card render (flag on) OR
+  // __featureProviderPlans to settle to false (flag off). Under
+  // flag-off, loadProviderPlans hides the card and returns without
+  // populating the grid — the empty-grid wait would time out and mask
+  // the correct dark-mode behavior as a failure.
   await page.waitForFunction(
     () => {
+      if (window.__featureProviderPlans === false) return true;
       const grid = document.getElementById('provider-plans-grid');
       if (!grid) return false;
       const html = grid.innerHTML || '';
@@ -160,20 +169,19 @@ try {
     },
     { timeout: 30000 }
   );
-  // Section routing on providers.html: sections are shown/hidden by
-  // showSection(id) in providers-core.js. The URL hash doesn't
-  // auto-fire the switcher, and a plain click on the nav item can
-  // race the click handler's registration on cold load. Call
-  // showSection directly instead.
-  await page.evaluate(() => {
-    if (typeof window.showSection === 'function') {
-      window.showSection('subscription');
+  const flagOn = await page.evaluate(() => window.__featureProviderPlans === true);
+  if (flagOn) {
+    // Section routing on providers.html: sections are shown/hidden by
+    // showSection(id) in providers-core.js. Call it directly rather
+    // than clicking, to avoid racing the click-handler registration.
+    await page.evaluate(() => {
+      if (typeof window.showSection === 'function') window.showSection('subscription');
+    });
+    await page.waitForTimeout(500);
+    const card = await page.$('#provider-plans-card');
+    if (card) {
+      try { await card.scrollIntoViewIfNeeded({ timeout: 3000 }); } catch (_) {}
     }
-  });
-  await page.waitForTimeout(500);
-  const card = await page.$('#provider-plans-card');
-  if (card) {
-    try { await card.scrollIntoViewIfNeeded({ timeout: 3000 }); } catch (_) {}
   }
 } catch (e) {
   await page.screenshot({ path: FAIL_PATH, fullPage: true });
