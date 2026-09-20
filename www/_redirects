@@ -380,6 +380,18 @@
 # key is safe to expose (must be referrer-restricted in Google Cloud).
 /api/config /.netlify/functions/config 200
 
+# Provider plans admin bootstrap — one-shot endpoint that seeds Stripe
+# Products + Prices for each active subscription_plans row. Test-mode when
+# hit on the branch draft; live-mode when hit on prod. See
+# netlify/functions/admin-provider-plans-bootstrap.js.
+/api/admin/provider-plans/bootstrap /.netlify/functions/admin-provider-plans-bootstrap 200
+
+# Provider plans (Phase 2 §2.4): checkout creates a Stripe subscription in
+# subscription mode with 730-day trial; portal returns a Stripe Billing
+# Portal URL for the provider to manage their plan.
+/api/provider/plan-checkout /.netlify/functions/provider-plan-checkout 200
+/api/provider/plan-portal   /.netlify/functions/provider-plan-portal 200
+
 # Provider verification — Phase 3 of signup consolidation. GET returns the
 # state used to render the Verification section (docs/reviews/refs +
 # status); POST transitions the profile to verification_status='pending'.

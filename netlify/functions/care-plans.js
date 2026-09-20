@@ -9,6 +9,7 @@ const { dispatchBidAcceptedPush } = require('./notifications-bid-accepted-push')
 const { audit: sharedAudit } = require('./_shared/audit');
 const { isReviewerAccount } = require('./_shared/reviewer-guard');
 const { isServiceFit } = require('./_eligibility');
+const { onBidAccepted } = require('./_bid-accept-hook');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the money operation — the shared helper guarantees
@@ -437,7 +438,14 @@ async function handleAcceptBid(event, sb, user, planId) {
         wallet_applied_cents: walletDeductedCents,
       },
     });
-    await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
+    await onBidAccepted(sb, {
+      bid,
+      callerId: user.id,
+      planId,
+      planTitle: plan.title,
+      bidAmount: bid.amount,
+      notifyAcceptedProvider,
+    });
     return json(200, {
       success: true,
       paid_by_wallet: true,
@@ -503,7 +511,14 @@ async function handleAcceptBid(event, sb, user, planId) {
     // which has its own reviewer guard — the FCM push is skipped. The in-app
     // notifications row still lands in the reviewer-provider's inbox, which is
     // harmless (no one reads it).
-    await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
+    await onBidAccepted(sb, {
+      bid,
+      callerId: user.id,
+      planId,
+      planTitle: plan.title,
+      bidAmount: bid.amount,
+      notifyAcceptedProvider,
+    });
     return json(200, {
       success: true,
       paid_by_wallet: true,

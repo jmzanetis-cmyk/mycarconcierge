@@ -88,12 +88,28 @@ exports.handler = async function(event) {
   let priceInCents = Math.round(pack.price * 100);
   let totalBids = pack.bid_count + (pack.bonus_bids || 0);
 
+  // Phase 2 §2.4 — subscriber pack discount. Providers with an active
+  // subscription (any plan) get 10% off any pack via a fixed Stripe
+  // coupon 'mcc-subscriber-10off' (bootstrapped in
+  // admin-provider-plans-bootstrap.js). Non-subscribers pay list.
+  let subscriberDiscount = false;
+  try {
+    const { data: activeSub } = await supabase
+      .from('provider_subscriptions')
+      .select('id')
+      .eq('provider_id', authedProviderId)
+      .in('status', ['trialing', 'active'])
+      .limit(1)
+      .maybeSingle();
+    subscriberDiscount = !!activeSub;
+  } catch (_) { /* non-fatal — checkout proceeds at list price */ }
+
   try {
     let { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
     let stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
     let domain = 'https://www.mycarconcierge.com';
 
-    let session = await stripe.checkout.sessions.create({
+    const sessionParams = {
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
@@ -113,9 +129,14 @@ exports.handler = async function(event) {
         provider_id: authedProviderId,
         pack_id: packId,
         bids: pack.bid_count.toString(),
-        bonus_bids: (pack.bonus_bids || 0).toString()
-      }
-    });
+        bonus_bids: (pack.bonus_bids || 0).toString(),
+        subscriber_discount: subscriberDiscount ? '10pct' : 'none',
+      },
+    };
+    if (subscriberDiscount) {
+      sessionParams.discounts = [{ coupon: 'mcc-subscriber-10off' }];
+    }
+    let session = await stripe.checkout.sessions.create(sessionParams);
 
     await audit(supabase, {
       action: 'bid_credits_checkout_initiated',

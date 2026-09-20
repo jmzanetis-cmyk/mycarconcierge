@@ -81,8 +81,24 @@ exports.handler = async function(event) {
 async function _processProviderCode(supabase, user_id, upperCode, codeData) {
   var profileUpdate = { provider_referral_type: codeData.code_type };
 
+  // Phase 2 cleanup — profiles.referred_by_founder_id should point at the
+  // member_founder_profiles.id, not the user_id. register_provider_referral
+  // RPC already writes .id there; standardize this path too so both writers
+  // agree, and accrueCommission's resolver sees consistent state.
+  // Look up the founder row first; if none exists, leave the column NULL
+  // (used to store codeData.provider_id which was user_id — that's the bug).
+  var founderProfileId = null;
   if (codeData.provider_id) {
-    profileUpdate.referred_by_founder_id = codeData.provider_id;
+    var founderProbe = await supabase
+      .from('member_founder_profiles')
+      .select('id, total_provider_referrals')
+      .eq('user_id', codeData.provider_id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (founderProbe.data) {
+      founderProfileId = founderProbe.data.id;
+      profileUpdate.referred_by_founder_id = founderProbe.data.id;
+    }
   }
 
   if (codeData.code_type === 'loyal_customer') {
@@ -107,29 +123,28 @@ async function _processProviderCode(supabase, user_id, upperCode, codeData) {
     created_at: new Date().toISOString()
   });
 
-  // Record in founder_referrals if code owner is also a member founder
-  if (codeData.provider_id) {
+  // Record in founder_referrals if code owner is also a member founder.
+  // Idempotency: register_provider_referral RPC may have already inserted
+  // an identical row during signup. The founder_referrals unique index
+  // (founder_id, referred_user_id) added in migration 20260919l makes this
+  // insert a no-op when the RPC already fired first.
+  if (founderProfileId) {
     try {
-      var founderRes = await supabase
-        .from('member_founder_profiles')
-        .select('id, total_provider_referrals')
-        .eq('user_id', codeData.provider_id)
-        .eq('status', 'active')
-        .maybeSingle();
+      var insertRes = await supabase.from('founder_referrals').upsert({
+        founder_id:       founderProfileId,
+        referral_code:    upperCode,
+        referred_type:    'provider',
+        referred_user_id: user_id,
+        status:           'pending',
+        created_at:       new Date().toISOString()
+      }, { onConflict: 'founder_id,referred_user_id', ignoreDuplicates: true });
 
-      if (founderRes.data) {
-        var fp = founderRes.data;
-        await supabase.from('founder_referrals').insert({
-          founder_id:       fp.id,
-          referral_code:    upperCode,
-          referred_type:    'provider',
-          referred_user_id: user_id,
-          status:           'pending',
-          created_at:       new Date().toISOString()
-        });
+      // Only bump total_provider_referrals when this call actually inserted
+      // a NEW row. If the RPC already wrote it, the counter was bumped there.
+      if (!insertRes.error && insertRes.data && insertRes.data.length > 0) {
         await supabase.from('member_founder_profiles')
-          .update({ total_provider_referrals: (fp.total_provider_referrals || 0) + 1 })
-          .eq('id', fp.id);
+          .update({ total_provider_referrals: (founderProbe.data.total_provider_referrals || 0) + 1 })
+          .eq('id', founderProfileId);
       }
     } catch (founderErr) {
       console.warn('[referral-process] founder_referrals insert skipped:', founderErr.message);

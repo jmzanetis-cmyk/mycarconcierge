@@ -106,6 +106,34 @@ exports.handler = async function () {
   try {
     const drift = await runDriftCheck(supabase);
     if (drift.length === 0) {
+      // Emit a countable positive signal so the "three consecutive clean
+      // runs" merge gate can read from admin_audit_log directly. Same
+      // action taxonomy as the failure path (_detected); details carry
+      // ledger + cache sums so future regressions have a baseline to
+      // diff against.
+      try {
+        const [{ data: sums }, { data: cache }] = await Promise.all([
+          supabase.from('credit_ledger').select('delta'),
+          supabase.from('profiles').select('bid_credits, free_trial_bids'),
+        ]);
+        const ledgerSum = (sums || []).reduce((a, r) => a + (r.delta || 0), 0);
+        const cacheSum = (cache || []).reduce(
+          (a, r) => a + (r.bid_credits || 0) + (r.free_trial_bids || 0), 0);
+        const rowCount = (sums || []).length;
+        await supabase.from('admin_audit_log').insert({
+          action: 'credit_ledger_drift_ok',
+          target_type: 'system',
+          performed_by: 'credit-ledger-drift-scheduled',
+          metadata: {
+            ledger_rows: rowCount,
+            ledger_sum: ledgerSum,
+            cache_sum: cacheSum,
+            checked_at: new Date().toISOString(),
+          },
+        });
+      } catch (e) {
+        console.error('[credit-ledger-drift] drift_ok audit log insert failed (non-fatal):', e.message);
+      }
       console.log('[credit-ledger-drift] OK — no drift detected');
       return { statusCode: 200, body: JSON.stringify({ ok: true, drift: 0 }) };
     }
