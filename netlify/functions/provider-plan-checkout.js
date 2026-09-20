@@ -23,6 +23,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isLiveKey } = require('../../lib/stripe-mode');
 
 const TRIAL_DAYS = 730;
 
@@ -105,7 +106,7 @@ exports.handler = async function (event) {
   // ── Plan lookup ─────────────────────────────────────────────────────
   // Mode-aware price id read — see admin-provider-plans-bootstrap.js
   // header for why the DB stores test and live ids side-by-side.
-  const isLive = (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live_');
+  const isLive = isLiveKey(process.env.STRIPE_SECRET_KEY || '');
   const priceCol = isLive ? 'stripe_price_monthly' : 'stripe_price_monthly_test';
 
   const { data: plan } = await supabase
