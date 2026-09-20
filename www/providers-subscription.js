@@ -252,7 +252,8 @@
       window.location.href = body.checkout_url;
     } catch (e) {
       console.error('[plan-checkout] fetch error:', e);
-      alert('Network error starting checkout.');
+      var msg = (e && e.message) ? String(e.message) : String(e);
+      alert('Network error starting checkout (' + msg + ')');
     }
   }
 
@@ -273,7 +274,8 @@
       if (body.portal_url) window.location.href = body.portal_url;
     } catch (e) {
       console.error('[plan-portal] fetch error:', e);
-      alert('Network error opening manage portal.');
+      var msg = (e && e.message) ? String(e.message) : String(e);
+      alert('Network error opening manage portal (' + msg + ')');
     }
   }
 
