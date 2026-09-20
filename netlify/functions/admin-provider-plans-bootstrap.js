@@ -39,6 +39,7 @@ const { createClient } = require('@supabase/supabase-js');
 const utils = require('./utils');
 
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isLiveKey } = require('../../lib/stripe-mode');
 
 function jsonResponse(statusCode, data) {
   return {
@@ -117,8 +118,9 @@ async function bootstrapPlans({ supabase, stripe, isLive }) {
       }
     }
 
+    let product, price;
     try {
-      const product = await stripe.products.create({
+      product = await stripe.products.create({
         name: `MCC ${plan.name}`,
         description: `${plan.credits_per_month} bid credits per month`,
         metadata: {
@@ -127,8 +129,22 @@ async function bootstrapPlans({ supabase, stripe, isLive }) {
           credits_per_month: String(plan.credits_per_month),
         },
       });
+    } catch (e) {
+      // Restricted keys often lack Products:write. Return the specific
+      // resource + Stripe error code/type so the operator can grant the
+      // missing scope in the Stripe dashboard rather than reading a
+      // generic 500.
+      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} product create failed:`, e.message);
+      results.push({
+        plan_key: plan.plan_key, status: 'error',
+        resource: 'product', stripe_code: e.code || null, stripe_type: e.type || null,
+        error: e.message,
+      });
+      continue;
+    }
 
-      const price = await stripe.prices.create({
+    try {
+      price = await stripe.prices.create({
         product: product.id,
         unit_amount: plan.monthly_price_cents,
         currency: 'usd',
@@ -139,31 +155,46 @@ async function bootstrapPlans({ supabase, stripe, isLive }) {
           credits_per_month: String(plan.credits_per_month),
         },
       });
-
-      // Write ONLY the columns for this mode. Explicit object build so the
-      // opposite mode's columns are never touched — critical when both
-      // modes share the DB.
-      const patch = {};
-      patch[priceCol]   = price.id;
-      patch[productCol] = product.id;
-
-      const { error: uErr } = await supabase
-        .from('subscription_plans')
-        .update(patch)
-        .eq('plan_key', plan.plan_key);
-      if (uErr) throw new Error(`db update failed: ${uErr.message}`);
-
-      results.push({
-        plan_key: plan.plan_key,
-        status: 'created',
-        [productCol]: product.id,
-        [priceCol]:   price.id,
-        unit_amount_cents: plan.monthly_price_cents,
-      });
     } catch (e) {
-      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} failed:`, e.message);
-      results.push({ plan_key: plan.plan_key, status: 'error', error: e.message });
+      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} price create failed:`, e.message);
+      results.push({
+        plan_key: plan.plan_key, status: 'error',
+        resource: 'price', stripe_code: e.code || null, stripe_type: e.type || null,
+        error: e.message,
+        product_created: product.id,   // so the operator knows to clean up
+      });
+      continue;
     }
+
+    // Write ONLY the columns for this mode. Explicit object build so the
+    // opposite mode's columns are never touched — critical when both
+    // modes share the DB.
+    const patch = {};
+    patch[priceCol]   = price.id;
+    patch[productCol] = product.id;
+
+    const { error: uErr } = await supabase
+      .from('subscription_plans')
+      .update(patch)
+      .eq('plan_key', plan.plan_key);
+    if (uErr) {
+      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} db update failed:`, uErr.message);
+      results.push({
+        plan_key: plan.plan_key, status: 'error',
+        resource: 'db',
+        error: 'db update failed: ' + uErr.message,
+        product_created: product.id, price_created: price.id,
+      });
+      continue;
+    }
+
+    results.push({
+      plan_key: plan.plan_key,
+      status: 'created',
+      [productCol]: product.id,
+      [priceCol]:   price.id,
+      unit_amount_cents: plan.monthly_price_cents,
+    });
   }
 
   return results;
@@ -193,7 +224,13 @@ async function bootstrapCoupon(stripe) {
     }
   } catch (e) {
     console.error('[admin-provider-plans-bootstrap] coupon bootstrap failed:', e.message);
-    return { status: 'error', error: e.message };
+    return {
+      status: 'error',
+      resource: 'coupon',
+      stripe_code: e.code || null,
+      stripe_type: e.type || null,
+      error: e.message,
+    };
   }
 }
 
@@ -212,8 +249,35 @@ exports.handler = async function (event) {
 
   const rawKey = process.env.STRIPE_SECRET_KEY || '';
   const keyPrefix = rawKey.slice(0, 8);
-  const isLive = rawKey.startsWith('sk_live_');
-  console.log(`[admin-provider-plans-bootstrap] stripe_key_prefix=${keyPrefix} livemode=${isLive}`);
+  const isLiveByPrefix = isLiveKey(rawKey);
+
+  // Authoritative cross-check via Stripe. If a future key prefix isn't
+  // one of sk_/rk_live_/sk_/rk_test_, or a key was renamed weirdly, the
+  // prefix classifier can lie. balance.retrieve().livemode is the truth
+  // from Stripe's side. On disagreement, log a warning and trust Stripe.
+  // If balance.retrieve itself fails (rk_ key missing balance permission
+  // is a real case), continue with the prefix answer and surface the
+  // permission error in the response so the operator knows.
+  let isLive = isLiveByPrefix;
+  let balanceCheck = null;
+  try {
+    const balance = await stripe.balance.retrieve();
+    if (typeof balance.livemode === 'boolean') {
+      balanceCheck = { livemode: balance.livemode, source: 'stripe.balance.retrieve' };
+      if (balance.livemode !== isLiveByPrefix) {
+        console.warn(`[admin-provider-plans-bootstrap] MODE DISAGREEMENT: prefix says livemode=${isLiveByPrefix}, balance.livemode=${balance.livemode}. Trusting balance.`);
+        isLive = balance.livemode;
+      }
+    }
+  } catch (e) {
+    // Restricted keys without balance-read permission surface here as
+    // permission_error. That's non-fatal for the bootstrap classification
+    // (we fall back to the prefix), but it IS informative — surface it.
+    balanceCheck = { error: e.message, code: e.code || null, type: e.type || null };
+    console.warn(`[admin-provider-plans-bootstrap] balance.retrieve failed (${e.code || e.type || 'unknown'}): ${e.message}`);
+  }
+
+  console.log(`[admin-provider-plans-bootstrap] stripe_key_prefix=${keyPrefix} livemode=${isLive} (prefix=${isLiveByPrefix}, balance=${balanceCheck?.livemode ?? 'n/a'})`);
 
   let results;
   try {
@@ -226,6 +290,7 @@ exports.handler = async function (event) {
   return jsonResponse(200, {
     livemode: isLive,
     stripe_key_prefix: keyPrefix,
+    balance_check: balanceCheck,
     processed: results.length,
     results,
     coupon: couponInfo,

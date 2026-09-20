@@ -20,6 +20,7 @@
 // ============================================================================
 
 var utils = require('./utils');
+var { isLiveKey } = require('../../lib/stripe-mode');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -47,6 +48,6 @@ exports.handler = async function(event) {
     // stripe_price_monthly / stripe_price_monthly_test column when
     // rendering the Plans card. Key material is NEVER sent, only the
     // sk_live_ prefix inference.
-    stripe_livemode: (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_live_'),
+    stripe_livemode: isLiveKey(process.env.STRIPE_SECRET_KEY || ''),
   });
 };
