@@ -31,21 +31,35 @@
   // The server-side endpoints also 403 when the flag is off (defense in
   // depth against a curl bypass); this client check is purely so the UI
   // doesn't advertise a feature the backend refuses.
+  async function _fetchConfigOnce() {
+    if (window.__mccConfig) return window.__mccConfig;
+    try {
+      var res = await fetch('/api/config', { credentials: 'omit' });
+      if (!res.ok) { window.__mccConfig = {}; return window.__mccConfig; }
+      window.__mccConfig = await res.json();
+      return window.__mccConfig;
+    } catch (_) {
+      window.__mccConfig = {};
+      return window.__mccConfig;
+    }
+  }
+
   async function _isProviderPlansEnabled() {
     if (typeof window.__featureProviderPlans === 'boolean') {
       return window.__featureProviderPlans;
     }
-    try {
-      var res = await fetch('/api/config', { credentials: 'omit' });
-      if (!res.ok) { window.__featureProviderPlans = false; return false; }
-      var body = await res.json();
-      var on = !!(body && body.features && body.features.providerPlans === true);
-      window.__featureProviderPlans = on;
-      return on;
-    } catch (_) {
-      window.__featureProviderPlans = false;
-      return false;
-    }
+    var cfg = await _fetchConfigOnce();
+    var on = !!(cfg && cfg.features && cfg.features.providerPlans === true);
+    window.__featureProviderPlans = on;
+    return on;
+  }
+
+  // Picks the correct stripe_price_monthly / _test column based on the
+  // server's Stripe mode. Same DB row is shared between draft (test) and
+  // production (live) — the client must not use a test price id on prod.
+  async function _stripeLivemode() {
+    var cfg = await _fetchConfigOnce();
+    return !!(cfg && cfg.stripe_livemode === true);
   }
 
   async function loadProviderPlans() {
@@ -92,10 +106,15 @@
     // for getSession() to resolve forces the hydrate to complete first.
     try { await client.auth.getSession(); } catch (_) { /* non-fatal */ }
 
+    // Read both live and test price columns; per-card render below picks
+    // the one matching stripe_livemode.
+    var livemode = await _stripeLivemode();
+
     try {
       var { data: plans } = await client
         .from('subscription_plans')
-        .select('plan_key, name, credits_per_month, monthly_price_cents, stripe_price_monthly, sort_order')
+        .select('plan_key, name, credits_per_month, monthly_price_cents, ' +
+                'stripe_price_monthly, stripe_price_monthly_test, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
@@ -153,7 +172,8 @@
           buttonLabel = 'Start trial';
           buttonAction = "startProviderPlanCheckout('" + p.plan_key + "')";
         }
-        if (!p.stripe_price_monthly) {
+        var stripePriceForMode = livemode ? p.stripe_price_monthly : p.stripe_price_monthly_test;
+        if (!stripePriceForMode) {
           buttonLabel = 'Coming soon';
           buttonAction = "";
           buttonDisabled = true;

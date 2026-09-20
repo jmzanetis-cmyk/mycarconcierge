@@ -2,17 +2,27 @@
 // admin-provider-plans-bootstrap
 //
 // One-shot admin endpoint that seeds Stripe Products + monthly Prices for
-// every active subscription_plans row where stripe_price_monthly IS NULL.
-// Idempotent — plans already carrying a Stripe price ID are skipped.
+// every active subscription_plans row. Idempotent — plans already carrying
+// a valid Stripe price ID for the current key mode are skipped.
 //
-// Environment sensitivity:
-//   • On the provider-plans branch draft (deploy-preview context), Netlify
-//     serves the sk_test_… Stripe key. Running this endpoint there creates
-//     TEST-mode products/prices. Safe.
-//   • On production (main branch, live context), Netlify serves sk_live_…
-//     Running this endpoint there creates LIVE products. Do NOT run in prod
-//     until Jordan explicitly says "create live products" — the Phase 2 spec
-//     says live products get created at merge time, not before.
+// Mode awareness (the whole point of migration 20260920a):
+//   • Draft (sk_test_…) writes to stripe_product_id_test /
+//     stripe_price_monthly_test and reads only those columns for the skip
+//     check.
+//   • Production (sk_live_…) writes to stripe_product_id /
+//     stripe_price_monthly and reads only those.
+//
+// The DB is shared between draft and production, so the pre-migration
+// single-column layout would have made a prod bootstrap silently skip
+// creation (test ids from the sandbox run sat in the same field). See PR
+// discussion + 20260920a header for the failure mode.
+//
+// Skip check is now two-part:
+//   (a) DB column for this mode is non-null, AND
+//   (b) stripe.prices.retrieve(id) succeeds (id still exists in Stripe).
+// If (a) passes but (b) 404s (someone deleted the object out-of-band),
+// we treat it as unprovisioned and recreate — the new price id overwrites
+// the stale one.
 //
 // Metadata written to each Stripe Product + Price:
 //   product          = 'provider_plan'   (webhook handlers gate on this)
@@ -57,6 +67,136 @@ function getStripe() {
   return require('stripe')(key, { apiVersion: STRIPE_API_VERSION });
 }
 
+// Column pair for the current Stripe mode. Exported for the unit test.
+function columnsForMode(isLive) {
+  return isLive
+    ? { priceCol: 'stripe_price_monthly',       productCol: 'stripe_product_id' }
+    : { priceCol: 'stripe_price_monthly_test',  productCol: 'stripe_product_id_test' };
+}
+
+// Bootstrap loop factored out of the handler so the unit test can drive it
+// against stripe + supabase stubs without setting up an HTTP event.
+async function bootstrapPlans({ supabase, stripe, isLive }) {
+  const { priceCol, productCol } = columnsForMode(isLive);
+
+  const { data: plans, error: qErr } = await supabase
+    .from('subscription_plans')
+    .select(
+      'plan_key, name, credits_per_month, monthly_price_cents, ' +
+      'stripe_price_monthly, stripe_price_monthly_test, ' +
+      'stripe_product_id, stripe_product_id_test'
+    )
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+  if (qErr) throw new Error('plan fetch failed: ' + qErr.message);
+
+  const results = [];
+  for (const plan of plans || []) {
+    const existingPrice = plan[priceCol];
+
+    if (existingPrice) {
+      // (b) Confirm the price still exists in Stripe. If it does, skip.
+      // A `resource_missing` means someone deleted it out-of-band — fall
+      // through to recreate.
+      try {
+        await stripe.prices.retrieve(existingPrice);
+        results.push({
+          plan_key: plan.plan_key,
+          status: 'skipped',
+          reason: 'already_provisioned',
+          [priceCol]: existingPrice,
+        });
+        continue;
+      } catch (e) {
+        if (e.code !== 'resource_missing') {
+          results.push({ plan_key: plan.plan_key, status: 'error',
+                         error: 'stripe retrieve failed: ' + e.message });
+          continue;
+        }
+        // resource_missing → fall through to recreate.
+      }
+    }
+
+    try {
+      const product = await stripe.products.create({
+        name: `MCC ${plan.name}`,
+        description: `${plan.credits_per_month} bid credits per month`,
+        metadata: {
+          product: 'provider_plan',
+          plan_key: plan.plan_key,
+          credits_per_month: String(plan.credits_per_month),
+        },
+      });
+
+      const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: plan.monthly_price_cents,
+        currency: 'usd',
+        recurring: { interval: 'month' },
+        metadata: {
+          product: 'provider_plan',
+          plan_key: plan.plan_key,
+          credits_per_month: String(plan.credits_per_month),
+        },
+      });
+
+      // Write ONLY the columns for this mode. Explicit object build so the
+      // opposite mode's columns are never touched — critical when both
+      // modes share the DB.
+      const patch = {};
+      patch[priceCol]   = price.id;
+      patch[productCol] = product.id;
+
+      const { error: uErr } = await supabase
+        .from('subscription_plans')
+        .update(patch)
+        .eq('plan_key', plan.plan_key);
+      if (uErr) throw new Error(`db update failed: ${uErr.message}`);
+
+      results.push({
+        plan_key: plan.plan_key,
+        status: 'created',
+        [productCol]: product.id,
+        [priceCol]:   price.id,
+        unit_amount_cents: plan.monthly_price_cents,
+      });
+    } catch (e) {
+      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} failed:`, e.message);
+      results.push({ plan_key: plan.plan_key, status: 'error', error: e.message });
+    }
+  }
+
+  return results;
+}
+
+async function bootstrapCoupon(stripe) {
+  // Subscriber pack discount coupon per spec §2.4 — retrieve-before-create
+  // so re-runs don't fail on duplicate id. Stripe coupons are mode-scoped
+  // exactly like prices, so the "already exists" check runs per-mode
+  // naturally without any DB gymnastics.
+  try {
+    try {
+      const existing = await stripe.coupons.retrieve('mcc-subscriber-10off');
+      return { status: 'exists', id: existing.id, percent_off: existing.percent_off };
+    } catch (notFoundErr) {
+      if (notFoundErr.code === 'resource_missing') {
+        const created = await stripe.coupons.create({
+          id: 'mcc-subscriber-10off',
+          percent_off: 10,
+          duration: 'forever',
+          name: 'MCC Subscriber (10% off any pack)',
+          metadata: { product: 'provider_plan_subscriber_pack_discount' },
+        });
+        return { status: 'created', id: created.id, percent_off: created.percent_off };
+      }
+      throw notFoundErr;
+    }
+  } catch (e) {
+    console.error('[admin-provider-plans-bootstrap] coupon bootstrap failed:', e.message);
+    return { status: 'error', error: e.message };
+  }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
   if (event.httpMethod !== 'POST')    return jsonResponse(405, { error: 'POST only' });
@@ -70,105 +210,18 @@ exports.handler = async function (event) {
   const stripe = getStripe();
   if (!stripe) return jsonResponse(500, { error: 'Stripe not configured' });
 
-  // Startup log — proves which mode we're seeding into.
   const rawKey = process.env.STRIPE_SECRET_KEY || '';
   const keyPrefix = rawKey.slice(0, 8);
   const isLive = rawKey.startsWith('sk_live_');
   console.log(`[admin-provider-plans-bootstrap] stripe_key_prefix=${keyPrefix} livemode=${isLive}`);
 
-  // Only bootstrap plans that are active AND missing a monthly Stripe price.
-  // Pro / Shop (is_active=false) stay dormant; when they're released, this
-  // endpoint re-runs and provisions them without touching the two live ones.
-  const { data: plans, error: qErr } = await supabase
-    .from('subscription_plans')
-    .select('plan_key, name, credits_per_month, monthly_price_cents, stripe_price_monthly')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
-  if (qErr) return jsonResponse(500, { error: 'plan fetch failed', details: qErr.message });
-
-  const results = [];
-  for (const plan of plans || []) {
-    if (plan.stripe_price_monthly) {
-      results.push({ plan_key: plan.plan_key, status: 'skipped', reason: 'already_provisioned',
-                     stripe_price_monthly: plan.stripe_price_monthly });
-      continue;
-    }
-
-    try {
-      // 1. Create the Product with metadata that webhook handlers gate on.
-      const product = await stripe.products.create({
-        name: `MCC ${plan.name}`,
-        description: `${plan.credits_per_month} bid credits per month`,
-        metadata: {
-          product: 'provider_plan',
-          plan_key: plan.plan_key,
-          credits_per_month: String(plan.credits_per_month),
-        },
-      });
-
-      // 2. Create the recurring monthly Price with the same metadata mirrored.
-      //    Stripe recommends metadata on both Product AND Price because some
-      //    webhook payloads reference only one or the other depending on
-      //    event type.
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: plan.monthly_price_cents,
-        currency: 'usd',
-        recurring: { interval: 'month' },
-        metadata: {
-          product: 'provider_plan',
-          plan_key: plan.plan_key,
-          credits_per_month: String(plan.credits_per_month),
-        },
-      });
-
-      // 3. Record the price ID on the plan. Store product ID too for future
-      //    reference (annual price creation in Phase 3 will attach here).
-      const { error: uErr } = await supabase
-        .from('subscription_plans')
-        .update({ stripe_price_monthly: price.id })
-        .eq('plan_key', plan.plan_key);
-      if (uErr) throw new Error(`db update failed: ${uErr.message}`);
-
-      results.push({
-        plan_key: plan.plan_key,
-        status: 'created',
-        stripe_product_id: product.id,
-        stripe_price_monthly: price.id,
-        unit_amount_cents: plan.monthly_price_cents,
-      });
-    } catch (e) {
-      console.error(`[admin-provider-plans-bootstrap] ${plan.plan_key} failed:`, e.message);
-      results.push({ plan_key: plan.plan_key, status: 'error', error: e.message });
-    }
-  }
-
-  // Also bootstrap the subscriber pack discount coupon per spec §2.4.
-  // 10% off any pack for providers with an active subscription. Fixed
-  // id so the checkout function can reference it by name without a lookup.
-  let couponInfo = null;
+  let results;
   try {
-    try {
-      const existing = await stripe.coupons.retrieve('mcc-subscriber-10off');
-      couponInfo = { status: 'exists', id: existing.id, percent_off: existing.percent_off };
-    } catch (notFoundErr) {
-      if (notFoundErr.code === 'resource_missing') {
-        const created = await stripe.coupons.create({
-          id: 'mcc-subscriber-10off',
-          percent_off: 10,
-          duration: 'forever',
-          name: 'MCC Subscriber (10% off any pack)',
-          metadata: { product: 'provider_plan_subscriber_pack_discount' },
-        });
-        couponInfo = { status: 'created', id: created.id, percent_off: created.percent_off };
-      } else {
-        throw notFoundErr;
-      }
-    }
+    results = await bootstrapPlans({ supabase, stripe, isLive });
   } catch (e) {
-    console.error('[admin-provider-plans-bootstrap] coupon bootstrap failed:', e.message);
-    couponInfo = { status: 'error', error: e.message };
+    return jsonResponse(500, { error: e.message });
   }
+  const couponInfo = await bootstrapCoupon(stripe);
 
   return jsonResponse(200, {
     livemode: isLive,
@@ -178,3 +231,7 @@ exports.handler = async function (event) {
     coupon: couponInfo,
   });
 };
+
+exports.bootstrapPlans   = bootstrapPlans;
+exports.bootstrapCoupon  = bootstrapCoupon;
+exports.columnsForMode   = columnsForMode;
