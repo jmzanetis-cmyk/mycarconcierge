@@ -223,6 +223,18 @@ const assertions = await page.evaluate(() => {
     value: window.__featureProviderPlans,
   };
 
+  // Diagnostic-only: does the white-label "Provider Shop Plan" card
+  // still show "Loading…" after render? loadShopSubscription() in
+  // providers-settings.js already awaits getSession() so it shouldn't
+  // race hydration, but a non-OK /api/saas/shop-status response leaves
+  // the badge stuck. Not treated as a hard-fail assertion — noted so
+  // the runner can decide whether to harden the code path.
+  const shopPlanBadge = document.getElementById('shop-sub-plan');
+  results.shop_plan_hydrated = {
+    pass: !!shopPlanBadge && !/Loading/i.test(shopPlanBadge.textContent || ''),
+    text: shopPlanBadge ? shopPlanBadge.textContent.trim() : null,
+  };
+
   return results;
 });
 
@@ -241,7 +253,9 @@ try {
   signOutStatus = 'error:' + e.message;
 }
 
-const allPass = Object.values(assertions).every(a => a.pass);
+// shop_plan_hydrated is diagnostic — don't fail the run on it.
+const gates = ['card_visible', 'plans_content', 'bid_packs_still_present', 'flag_true'];
+const allPass = gates.every(k => assertions[k]?.pass);
 console.log(JSON.stringify({
   ok: allPass,
   assertions,

@@ -104,6 +104,10 @@
         return;
       }
 
+      // #provider-plans-trial-hint was the dynamic Starter-count in the
+      // old plan-neutral copy; the current subtitle no longer names a
+      // number, so this update is a no-op today. Left in place so the
+      // element can be re-wired if we ever put a per-plan count back.
       if (trialHint && plans[0]) trialHint.textContent = String(plans[0].credits_per_month);
 
       var { data: sub } = await client
