@@ -45,6 +45,11 @@ exports.handler = async function(event) {
 
   let packId = parsed.packId;
   let bodyProviderId = parsed.providerId; // back-compat: accepted but must equal authed id
+  // §native purchase flow (2026-09-20). Client sends 'native' when the
+  // buy is initiated from Capacitor iOS/Android; success/cancel land on
+  // static return pages that don't require auth (SFSafariViewController
+  // has no session with providers.html). Any other value = web.
+  let isNativeCaller = parsed.platform === 'native';
 
   if (!packId || !utils.isValidUUID(packId)) {
     return utils.errorResponse(400, 'Valid packId is required');
@@ -123,14 +128,19 @@ exports.handler = async function(event) {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: domain + '/providers.html?purchase=success&pack=' + packId,
-      cancel_url: domain + '/providers.html?purchase=cancelled',
+      success_url: isNativeCaller
+        ? domain + '/purchase-complete.html?kind=pack&pack=' + packId
+        : domain + '/providers.html?purchase=success&pack=' + packId,
+      cancel_url: isNativeCaller
+        ? domain + '/purchase-cancelled.html?kind=pack'
+        : domain + '/providers.html?purchase=cancelled',
       metadata: {
         provider_id: authedProviderId,
         pack_id: packId,
         bids: pack.bid_count.toString(),
         bonus_bids: (pack.bonus_bids || 0).toString(),
         subscriber_discount: subscriberDiscount ? '10pct' : 'none',
+        platform: isNativeCaller ? 'native' : 'web',
       },
     };
     if (subscriberDiscount) {

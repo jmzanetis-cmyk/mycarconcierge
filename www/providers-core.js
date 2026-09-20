@@ -317,6 +317,39 @@ async function initializeProviderDashboard(user) {
   
   setupRealtimeSubscriptions();
   initProviderPushNotifications();
+  _setupNativeFocusRefresh();
+}
+
+// ========== NATIVE FOCUS REFRESH ==========
+// When the SFSafariViewController opened by Browser.open closes (checkout
+// done or cancelled), or when the app returns to the foreground for any
+// reason, we can't know from the JS side whether a purchase completed
+// or not — Stripe's webhook has already run against the server, but the
+// in-app balance / plans still reflect a pre-purchase snapshot. Just
+// re-run the loaders on focus. Debounced 500ms so a burst of events
+// (appStateChange + browserFinished fire back-to-back on Browser close)
+// coalesces into one refresh.
+let _nativeFocusRefreshTimer = 0;
+function _refreshOnNativeFocus() {
+  clearTimeout(_nativeFocusRefreshTimer);
+  _nativeFocusRefreshTimer = setTimeout(() => {
+    if (typeof loadSubscription === 'function') loadSubscription();
+    if (typeof loadProviderPlans === 'function') loadProviderPlans();
+  }, 500);
+}
+
+function _setupNativeFocusRefresh() {
+  if (!_isNativePlatform()) return;
+  const CapApp    = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  const Browser   = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+  if (CapApp && typeof CapApp.addListener === 'function') {
+    CapApp.addListener('appStateChange', (state) => {
+      if (state && state.isActive) _refreshOnNativeFocus();
+    });
+  }
+  if (Browser && typeof Browser.addListener === 'function') {
+    Browser.addListener('browserFinished', () => _refreshOnNativeFocus());
+  }
 }
 
 // ========== NATIVE SCROLL LAYOUT NUDGE ==========
