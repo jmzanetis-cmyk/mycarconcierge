@@ -2462,14 +2462,24 @@ console.log('providers-settings.js loaded');
 // ========== PROVIDER SHOP SAAS (Task #89) ==========
 
 async function loadShopSubscription() {
+  // #shop-sub-plan is initialized to "Loading…" in providers.html. Every
+  // early-return path below has to explicitly set it to a real state,
+  // otherwise the placeholder sticks — this card is counsel-visible in
+  // the Credits & Plans section and a permanent "Loading…" reads as
+  // broken. Wrap the badge write in a helper so no path is missed.
+  const planBadge = document.getElementById('shop-sub-plan');
+  const setBadge = (t) => { if (planBadge) planBadge.textContent = t; };
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return;
+    if (!session) { setBadge('No Plan'); return; }
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const res = await fetch(`${apiBase}/api/saas/shop-status`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     if (!res.ok) {
+      // /api/saas/shop-status returns 404 today (endpoint not wired
+      // up); "No Plan" is the honest surface for that state.
+      setBadge('No Plan');
       console.warn('[loadShopSubscription] /api/saas/shop-status returned', res.status);
       return;
     }
@@ -2521,6 +2531,7 @@ async function loadShopSubscription() {
 
     window._shopSaasData = data;
   } catch (err) {
+    setBadge('No Plan');
     console.error('[ShopSaaS] Failed to load shop subscription:', err);
   }
 }
