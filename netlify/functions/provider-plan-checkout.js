@@ -161,8 +161,16 @@ exports.handler = async function (event) {
   }
 
   const origin = siteOrigin(event);
-  const successUrl = `${origin}/providers.html?subscription=success#subscription`;
-  const cancelUrl  = `${origin}/providers.html?subscription=cancelled#subscription`;
+  // §native purchase flow — see create-bid-checkout.js. Client sends
+  // platform:'native' when the trial is started from Capacitor; the
+  // return page is a static one that any Safari session can render.
+  const isNativeCaller = body.platform === 'native';
+  const successUrl = isNativeCaller
+    ? `${origin}/purchase-complete.html?kind=plan&plan=${encodeURIComponent(planKey)}`
+    : `${origin}/providers.html?subscription=success#subscription`;
+  const cancelUrl  = isNativeCaller
+    ? `${origin}/purchase-cancelled.html?kind=plan`
+    : `${origin}/providers.html?subscription=cancelled#subscription`;
 
   // ── Checkout Session ────────────────────────────────────────────────
   try {
@@ -187,6 +195,7 @@ exports.handler = async function (event) {
       metadata: {
         product: 'provider_plan',
         provider_id: user.id,
+        platform: isNativeCaller ? 'native' : 'web',
         plan_key: planKey,
       },
     });

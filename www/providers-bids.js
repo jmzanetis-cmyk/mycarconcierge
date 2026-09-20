@@ -1054,11 +1054,11 @@ function renderServiceCredits() {
   const container = document.getElementById('bid-packs-grid');
   if (!container) return;
 
-  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
-    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px 0;">Service credit purchases are available on the web — sign in at <strong>mycarconcierge.com</strong> to add credits.</p>';
-    return;
-  }
-
+  // Native flow (2026-09-20): show the same grid on Capacitor iOS/Android
+  // as on web. Tap → in-app JWT → /api/create-bid-checkout with
+  // platform:'native' → Browser.open the returned Stripe URL. Prices are
+  // rendered by the buyer's own device, the button opens the external
+  // Stripe page (US-storefront link-out pattern; no Apple IAP sheet).
   if (!bidPacks.length) {
     container.innerHTML = '<p style="color:var(--text-muted);">No service credit packs available.</p>';
     return;
@@ -1245,16 +1245,44 @@ async function purchaseBidPack(packId) {
   const pack = bidPacks.find(p => p.id === packId);
   if (!pack) return;
 
-  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
-    // Apple 3.1.1: any surviving native call to purchaseBidPack (e.g. a
-    // console invocation, or a UI regression that unhides the pack cards)
-    // hands off to the OS browser instead of showing a dead-end toast.
-    // Matches the low/no-credits warning-button behavior via handleBuyCreditsClick.
-    openWebPurchase();
+  const totalBids = pack.bid_count + (pack.bonus_bids || 0);
+  const isNative = _isNativeApp();
+
+  // Native path (2026-09-20): call /api/create-bid-checkout with the
+  // in-app JWT (the app's own Supabase session) and Browser.open the
+  // returned Stripe URL in SFSafariViewController. No confirm() — the
+  // provider already tapped Buy Now on a card that shows the pack's
+  // price. openWebPurchase() stays only as a last-resort fallback if
+  // the API call itself fails (network / server 5xx).
+  if (isNative) {
+    try {
+      showToast('Opening checkout…', 'success');
+      const session = await supabaseClient.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) { showToast('Please sign in again.', 'error'); return; }
+
+      const response = await fetch(STRIPE_CHECKOUT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ packId: pack.id, providerId: currentUser.id, platform: 'native' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.error || `Checkout failed (${response.status})`);
+
+      const Browser = window.Capacitor?.Plugins?.Browser;
+      if (Browser) {
+        await Browser.open({ url: data.url });
+      } else {
+        // Capacitor plugin missing but we're native — punt to openWebPurchase.
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error('[purchaseBidPack] native checkout failed:', err);
+      showToast('Could not start checkout — opening web…', 'error');
+      openWebPurchase();  // last-resort fallback
+    }
     return;
   }
-
-  const totalBids = pack.bid_count + (pack.bonus_bids || 0);
 
   if (!confirm(`Purchase ${pack.name} pack?\n\n${pack.bid_count} bids${pack.bonus_bids > 0 ? ` + ${pack.bonus_bids} bonus` : ''} = ${totalBids} total bids\nPrice: $${pack.price.toFixed(2)}\n\nYou'll be redirected to complete payment.`)) {
     return;

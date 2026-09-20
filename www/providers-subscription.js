@@ -209,15 +209,25 @@
     });
   }
 
+  function _isNativeApp() {
+    return !!(window.Capacitor
+      && window.Capacitor.isNativePlatform
+      && window.Capacitor.isNativePlatform());
+  }
+
   async function startProviderPlanCheckout(planKey) {
     var headers = await _authHeaders();
     if (!headers) { alert('Please sign in again.'); return; }
 
+    var isNative = _isNativeApp();
+    // §native purchase flow (2026-09-20). Tag platform so the server
+    // returns success/cancel URLs that don't require auth (the
+    // SFSafariViewController has no session with providers.html).
     try {
       var resp = await fetch('/api/provider/plan-checkout', {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ plan_key: planKey }),
+        body: JSON.stringify({ plan_key: planKey, platform: isNative ? 'native' : 'web' }),
       });
       var body = await resp.json().catch(function () { return {}; });
       if (!resp.ok) {
@@ -233,7 +243,13 @@
         alert(body.error ? 'Checkout failed: ' + body.error : 'Checkout failed.');
         return;
       }
-      if (body.checkout_url) window.location.href = body.checkout_url;
+      if (!body.checkout_url) return;
+
+      if (isNative) {
+        var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+        if (Browser) { await Browser.open({ url: body.checkout_url }); return; }
+      }
+      window.location.href = body.checkout_url;
     } catch (e) {
       console.error('[plan-checkout] fetch error:', e);
       alert('Network error starting checkout.');

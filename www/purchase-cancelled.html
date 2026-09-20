@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cancelled — My Car Concierge</title>
+  <link rel="stylesheet" href="/shared-styles.css" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; margin:0; }
+    .wrap {
+      max-width: 480px; width:100%; background: var(--bg-card, #1a1a24);
+      border:1px solid var(--border-subtle, rgba(255,255,255,0.1));
+      border-radius: 16px; padding: 32px 28px; text-align:center;
+    }
+    .icon {
+      width:64px; height:64px; margin: 0 auto 20px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius: 50%; background: rgba(160,168,184,0.15);
+      color: var(--text-muted, #a0a8b8);
+    }
+    h1 { font-size: 1.5rem; font-weight:600; margin: 0 0 12px; }
+    p  { color: var(--text-muted, #a0a8b8); font-size: 0.95rem; line-height:1.5; margin: 0 0 20px; }
+    .btn {
+      display:inline-block; padding: 12px 24px; background: var(--accent-gold, #c9a227);
+      color:#0a0a0f; border-radius: 100px; text-decoration:none; font-weight:600;
+      font-size:0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </div>
+    <h1>Cancelled</h1>
+    <p>No charge was made. You can return to the app and try again anytime.</p>
+    <a class="btn" href="mycarconcierge://return-to-app">Return to app</a>
+  </div>
+</body>
+</html>

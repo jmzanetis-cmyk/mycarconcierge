@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Received — My Car Concierge</title>
+  <!--
+    Native-purchase return page. Deliberately auth-free and Supabase-free:
+    this is what Stripe's success_url lands the user on inside the
+    SFSafariViewController opened by Capacitor Browser.open. The provider's
+    in-app session lives in the app's WebView, not this Safari surface;
+    forcing a sign-in here would defeat the entire native-checkout flow.
+
+    ?kind=pack|plan is used only for the display copy. The webhook has
+    already run against Stripe's callback URL by the time the user gets
+    here, so nothing on this page needs to write to the DB. The app polls
+    for the balance update via appStateChange / Browser.browserFinished
+    when the user returns.
+  -->
+  <link rel="stylesheet" href="/shared-styles.css" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; margin:0; }
+    .wrap {
+      max-width: 480px; width:100%; background: var(--bg-card, #1a1a24);
+      border:1px solid var(--border-subtle, rgba(255,255,255,0.1));
+      border-radius: 16px; padding: 32px 28px; text-align:center;
+    }
+    .check {
+      width:64px; height:64px; margin: 0 auto 20px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius: 50%; background: rgba(52, 211, 153, 0.15);
+      color:#34d399;
+    }
+    h1 { font-size: 1.5rem; font-weight:600; margin: 0 0 12px; }
+    p  { color: var(--text-muted, #a0a8b8); font-size: 0.95rem; line-height:1.5; margin: 0 0 20px; }
+    .btn {
+      display:inline-block; padding: 12px 24px; background: var(--accent-gold, #c9a227);
+      color:#0a0a0f; border-radius: 100px; text-decoration:none; font-weight:600;
+      font-size:0.95rem;
+    }
+    .kind { font-weight:600; color: var(--text-primary, #fff); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="check">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1>Payment received</h1>
+    <p>You can return to the <span class="kind">My Car Concierge</span> app. Your <span id="kind-word">credits</span> will appear in a moment.</p>
+    <a class="btn" href="mycarconcierge://return-to-app">Return to app</a>
+  </div>
+  <script>
+    // Cosmetic: adjust the noun based on ?kind. Server sets kind=pack for
+    // bid packs and kind=plan for subscription trials.
+    (function () {
+      var kind = new URLSearchParams(location.search).get('kind') || '';
+      var w = document.getElementById('kind-word');
+      if (w && kind === 'plan') w.textContent = 'plan';
+    })();
+  </script>
+</body>
+</html>

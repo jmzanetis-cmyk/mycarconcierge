@@ -92,5 +92,18 @@
         <string>My Car Concierge uses your location to find nearby service providers and enable temporary location sharing during vehicle service.</string>
         <key>ITSAppUsesNonExemptEncryption</key>
         <false/>
+        <key>CFBundleURLTypes</key>
+        <array>
+                <dict>
+                        <key>CFBundleTypeRole</key>
+                        <string>Editor</string>
+                        <key>CFBundleURLName</key>
+                        <string>com.zanetisholdings.mycarconcierge</string>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                <string>mycarconcierge</string>
+                        </array>
+                </dict>
+        </array>
 </dict>
 </plist>
