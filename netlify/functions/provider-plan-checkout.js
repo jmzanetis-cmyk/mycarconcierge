@@ -172,6 +172,19 @@ exports.handler = async function (event) {
     ? `${origin}/purchase-cancelled.html?kind=plan`
     : `${origin}/providers.html?subscription=cancelled#subscription`;
 
+  // Checkout copy — Stripe hard-codes the 730-day trial header text
+  // ("Free for 730 days · Then $X per month starting ..."), so the
+  // clarifying language lives here in the custom_text block and in
+  // subscription_data.description. Both fields cap at 1200 characters
+  // per Stripe. Wording review 2026-09-20 — pending counsel per PR #17
+  // item (d).
+  const CUSTOM_TEXT_SUBMIT =
+    "Your card will not be charged until you win your first customer on MyCarConcierge. When your first bid is accepted, your plan starts at the monthly price shown and renews monthly until you cancel. Stripe requires a fixed trial length, so it shows the maximum (730 days); your actual free period ends at your first accepted bid. You can also buy one-time bid credit packs at any time, with or without a plan.";
+  const CUSTOM_TEXT_AFTER_SUBMIT =
+    "You're set. No charge today — billing begins when your first bid is accepted. Manage or cancel anytime from Credits & Plans.";
+  const SUB_DESCRIPTION =
+    'MCC ' + (plan.name || planKey) + ' — free until first accepted bid';
+
   // ── Checkout Session ────────────────────────────────────────────────
   try {
     const session = await stripe.checkout.sessions.create({
@@ -183,11 +196,16 @@ exports.handler = async function (event) {
         trial_settings: {
           end_behavior: { missing_payment_method: 'cancel' },
         },
+        description: SUB_DESCRIPTION,
         metadata: {
           product: 'provider_plan',
           provider_id: user.id,
           plan_key: planKey,
         },
+      },
+      custom_text: {
+        submit:       { message: CUSTOM_TEXT_SUBMIT },
+        after_submit: { message: CUSTOM_TEXT_AFTER_SUBMIT },
       },
       payment_method_collection: 'always',
       success_url: successUrl,
