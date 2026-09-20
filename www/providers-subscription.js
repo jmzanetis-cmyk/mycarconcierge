@@ -79,10 +79,23 @@
     var client = window.supabaseClient;
     if (!client) return;
 
+    // Guard against re-entry — onAuthStateChange fires again after
+    // hydration and we don't want two concurrent renders.
+    if (window.__providerPlansRendering) return;
+    window.__providerPlansRendering = true;
+
+    // supabase-js hydrates persisted sessions asynchronously on client
+    // init. The first loadProviderPlans() at DOMContentLoaded can win
+    // the race and query subscription_plans while the client is still
+    // anon — RLS ({authenticated} SELECT policy) then returns zero rows
+    // and we paint the empty state instead of the real plans. Waiting
+    // for getSession() to resolve forces the hydrate to complete first.
+    try { await client.auth.getSession(); } catch (_) { /* non-fatal */ }
+
     try {
       var { data: plans } = await client
         .from('subscription_plans')
-        .select('plan_key, name, credits_per_month, monthly_price_cents, stripe_price_monthly, is_popular, sort_order')
+        .select('plan_key, name, credits_per_month, monthly_price_cents, stripe_price_monthly, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
@@ -117,6 +130,9 @@
 
       grid.innerHTML = plans.map(function (p) {
         var isCurrent = sub && sub.plan_key === p.plan_key && sub.status !== 'canceled';
+        // "Popular" is derived client-side rather than persisted on
+        // subscription_plans — a cosmetic badge doesn't earn a column.
+        var isPopular = p.plan_key === 'standard';
         var priceStr = '$' + (p.monthly_price_cents / 100).toFixed(0) + '/mo';
         var perBid = (p.monthly_price_cents / 100) / p.credits_per_month;
         var perBidStr = '$' + perBid.toFixed(2) + '/bid';
@@ -140,16 +156,16 @@
         }
 
         var badge = isCurrent ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-teal,#22d3ee);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">CURRENT</div>' :
-                    p.is_popular ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">MOST POPULAR</div>' : '';
+                    isPopular ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">MOST POPULAR</div>' : '';
 
         return '<div style="background:var(--bg-elevated);border:2px solid ' +
-          (isCurrent ? 'var(--accent-teal,#22d3ee)' : (p.is_popular ? 'var(--accent-gold)' : 'var(--border-subtle)')) +
+          (isCurrent ? 'var(--accent-teal,#22d3ee)' : (isPopular ? 'var(--accent-gold)' : 'var(--border-subtle)')) +
           ';border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">' +
           badge +
           '<h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">' + _esc(p.name) + '</h3>' +
           '<div style="margin:14px 0 4px;font-size:1.8rem;font-weight:700;color:var(--accent-gold);">' + priceStr + '</div>' +
           '<div style="color:var(--text-muted);font-size:var(--text-sm);margin-bottom:12px;">' + p.credits_per_month + ' credits · ' + perBidStr + '</div>' +
-          '<button class="btn ' + (isCurrent || p.is_popular ? 'btn-primary' : 'btn-secondary') + '" style="width:100%;"' +
+          '<button class="btn ' + (isCurrent || isPopular ? 'btn-primary' : 'btn-secondary') + '" style="width:100%;"' +
           (buttonAction ? ' onclick="' + buttonAction + '"' : '') +
           (buttonDisabled ? ' disabled' : '') +
           '>' + _esc(buttonLabel) + '</button>' +
@@ -158,6 +174,8 @@
     } catch (e) {
       console.error('[providers-subscription] load failed:', e);
       if (err) { err.style.display = 'block'; err.textContent = 'Could not load plans: ' + e.message; }
+    } finally {
+      window.__providerPlansRendering = false;
     }
   }
 
@@ -224,9 +242,39 @@
   window.startProviderPlanCheckout = startProviderPlanCheckout;
   window.openProviderPlanPortal = openProviderPlanPortal;
 
+  // Re-fire on hydrate. supabase-js emits INITIAL_SESSION as soon as
+  // it finishes restoring a persisted session, and SIGNED_IN when a
+  // fresh sign-in completes. Either event means the RLS-gated
+  // subscription_plans query will now succeed. The re-entry guard in
+  // loadProviderPlans prevents this racing with the DOMContentLoaded
+  // firing.
+  function _wireAuthRefire() {
+    var c = window.supabaseClient;
+    if (!c || !c.auth || typeof c.auth.onAuthStateChange !== 'function') return false;
+    if (window.__providerPlansAuthWired) return true;
+    window.__providerPlansAuthWired = true;
+    c.auth.onAuthStateChange(function (event) {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        loadProviderPlans();
+      }
+    });
+    return true;
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadProviderPlans);
+    document.addEventListener('DOMContentLoaded', function () {
+      _wireAuthRefire();
+      loadProviderPlans();
+    });
   } else {
+    _wireAuthRefire();
     loadProviderPlans();
+  }
+  // supabaseClient may load after this IIFE runs; retry the wire.
+  if (!window.__providerPlansAuthWired) {
+    var _tries = 0;
+    var _iv = setInterval(function () {
+      if (_wireAuthRefire() || ++_tries > 20) clearInterval(_iv);
+    }, 100);
   }
 })();
