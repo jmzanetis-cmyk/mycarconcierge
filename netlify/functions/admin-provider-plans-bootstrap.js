@@ -77,6 +77,18 @@ function columnsForMode(isLive) {
 
 // Bootstrap loop factored out of the handler so the unit test can drive it
 // against stripe + supabase stubs without setting up an HTTP event.
+// Copy that lives on each Stripe Product. The dashboard shows this
+// name in the checkout header; the description appears on Stripe's
+// invoice UI and in the Billing Portal. Update-in-place so we never
+// have to create-and-migrate to reword.
+function productNameFor(plan)        { return `MCC ${plan.name} plan`; }
+function productDescriptionFor(plan) {
+  return `Free until you win your first customer on MyCarConcierge. ` +
+         `Billing starts the day your first bid is accepted — not before. ` +
+         `Includes ${plan.credits_per_month} bid credits per month. ` +
+         `Add one-time credit packs anytime, with or without a plan.`;
+}
+
 async function bootstrapPlans({ supabase, stripe, isLive }) {
   const { priceCol, productCol } = columnsForMode(isLive);
 
@@ -96,16 +108,55 @@ async function bootstrapPlans({ supabase, stripe, isLive }) {
     const existingPrice = plan[priceCol];
 
     if (existingPrice) {
-      // (b) Confirm the price still exists in Stripe. If it does, skip.
-      // A `resource_missing` means someone deleted it out-of-band — fall
-      // through to recreate.
+      // (b) Confirm the price still exists in Stripe. If it does, ALSO
+      // sync the Product's name + description to the current copy (so a
+      // copy revision doesn't require re-creating the product). If the
+      // productCol wasn't populated in the DB (early bootstrap runs
+      // predate mode-aware storage), backfill it from price.product.
+      let existingProductId = plan[productCol];
       try {
-        await stripe.prices.retrieve(existingPrice);
+        const priceObj = await stripe.prices.retrieve(existingPrice);
+        if (!existingProductId && priceObj && priceObj.product) {
+          existingProductId = typeof priceObj.product === 'string'
+            ? priceObj.product
+            : (priceObj.product.id || null);
+        }
+
+        let productUpdated = false;
+        if (existingProductId) {
+          try {
+            await stripe.products.update(existingProductId, {
+              name: productNameFor(plan),
+              description: productDescriptionFor(plan),
+              metadata: {
+                product: 'provider_plan',
+                plan_key: plan.plan_key,
+                credits_per_month: String(plan.credits_per_month),
+              },
+            });
+            productUpdated = true;
+          } catch (e) {
+            console.warn(`[admin-provider-plans-bootstrap] ${plan.plan_key} product update failed (non-fatal):`, e.message);
+          }
+        }
+
+        // If productCol was null, backfill it now so subsequent runs
+        // don't need to round-trip the price to find the product.
+        if (!plan[productCol] && existingProductId) {
+          try {
+            const patch = {};
+            patch[productCol] = existingProductId;
+            await supabase.from('subscription_plans').update(patch).eq('plan_key', plan.plan_key);
+          } catch (_) { /* non-fatal — will retry next run */ }
+        }
+
         results.push({
           plan_key: plan.plan_key,
           status: 'skipped',
           reason: 'already_provisioned',
           [priceCol]: existingPrice,
+          [productCol]: existingProductId || null,
+          product_updated: productUpdated,
         });
         continue;
       } catch (e) {
@@ -121,8 +172,8 @@ async function bootstrapPlans({ supabase, stripe, isLive }) {
     let product, price;
     try {
       product = await stripe.products.create({
-        name: `MCC ${plan.name}`,
-        description: `${plan.credits_per_month} bid credits per month`,
+        name: productNameFor(plan),
+        description: productDescriptionFor(plan),
         metadata: {
           product: 'provider_plan',
           plan_key: plan.plan_key,
