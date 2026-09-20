@@ -319,6 +319,56 @@ async function initializeProviderDashboard(user) {
   initProviderPushNotifications();
 }
 
+// ========== NATIVE SCROLL LAYOUT NUDGE ==========
+// On Capacitor iOS (WKWebView), any section whose DOM keeps growing AFTER
+// showSection() ran gets its scroll contentSize frozen at the size the
+// document had at section-switch time. Nothing forces a relayout of that
+// contentSize until the user opens the sidebar (which toggles body
+// overflow:hidden). Result: page feels unscrollable until the menu is
+// opened once — reported for Browse Packages on 2026-09-14, then for
+// multiple other provider sections (2026-09-20).
+//
+// Generalized workaround: run the same body-overflow toggle for every
+// section, and re-run it whenever the active section's size changes via
+// a ResizeObserver. No-op on web. Skip while the sidebar is open — the
+// menu owns body.overflow in that state.
+function nudgeScrollLayout() {
+  if (document.body.classList.contains('sidebar-open')) return;
+  const b = document.body;
+  const prev = b.style.overflow;
+  b.style.overflow = 'hidden';
+  void b.offsetHeight; // force reflow
+  b.style.overflow = prev;
+}
+
+function _isNativePlatform() {
+  return !!(window.Capacitor
+    && typeof window.Capacitor.isNativePlatform === 'function'
+    && window.Capacitor.isNativePlatform());
+}
+
+let _nudgeDebounce = 0;
+function _nudgeSoon() {
+  clearTimeout(_nudgeDebounce);
+  _nudgeDebounce = setTimeout(nudgeScrollLayout, 50);
+}
+
+// One reused observer; re-target on section switch so we never observe
+// two sections at once and never leak a listener when the user tab-hops.
+let _nudgeObserver = null;
+let _nudgeObservedEl = null;
+function _observeSectionForNudge(el) {
+  if (!_isNativePlatform() || !el) return;
+  if (!_nudgeObserver && typeof ResizeObserver === 'function') {
+    _nudgeObserver = new ResizeObserver(_nudgeSoon);
+  }
+  if (!_nudgeObserver) return;
+  if (_nudgeObservedEl === el) return;
+  if (_nudgeObservedEl) _nudgeObserver.unobserve(_nudgeObservedEl);
+  _nudgeObserver.observe(el);
+  _nudgeObservedEl = el;
+}
+
 // ========== NAVIGATION ==========
 function setupNav() {
   document.querySelectorAll('.nav-item[data-section]').forEach(item => {
@@ -376,22 +426,10 @@ async function showSection(id) {
   // inside a hidden container are not reflowed when the section is later shown,
   // so they render at zero height. Loading on show — like every other section
   // above — renders the cards while the section is visible. (2026-09-14)
+  // The follow-on scroll-layout nudge lives in the generalized native path
+  // at the bottom of showSection() (2026-09-20) — no per-section copy.
   if (id === 'browse' && typeof loadOpenPackages === 'function') {
-    // Load-on-show (cards render while the section is visible so WebKit lays
-    // them out with real height). Then nudge a body-overflow toggle: on native
-    // WKWebView the grown document's scroll contentSize isn't recomputed until
-    // a relayout is forced, so the page can't scroll until the user opens the
-    // menu (which toggles body overflow). Reproduce that toggle programmatically
-    // so Browse Packages scrolls immediately on landing. (2026-09-14)
-    Promise.resolve(loadOpenPackages()).then(() => {
-      requestAnimationFrame(() => {
-        const b = document.body;
-        const prev = b.style.overflow;
-        b.style.overflow = 'hidden';
-        void b.offsetHeight; // force reflow
-        b.style.overflow = prev;
-      });
-    });
+    loadOpenPackages();
   }
   if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
     loadProviderNotificationSettings();
@@ -413,6 +451,14 @@ async function showSection(id) {
   }
   if (id === 'my-documents' && typeof loadMyDocuments === 'function') {
     loadMyDocuments();
+  }
+
+  // Generalized WKWebView scroll-layout nudge. See nudgeScrollLayout()
+  // header — every section, not just Browse Packages. rAF so we run
+  // after the browser has committed the display change from above.
+  if (_isNativePlatform()) {
+    _observeSectionForNudge(target);
+    requestAnimationFrame(nudgeScrollLayout);
   }
 }
 
