@@ -54,13 +54,6 @@
     return on;
   }
 
-  // Picks the correct stripe_price_monthly / _test column based on the
-  // server's Stripe mode. Same DB row is shared between draft (test) and
-  // production (live) — the client must not use a test price id on prod.
-  async function _stripeLivemode() {
-    var cfg = await _fetchConfigOnce();
-    return !!(cfg && cfg.stripe_livemode === true);
-  }
 
   async function loadProviderPlans() {
     var card = document.getElementById('provider-plans-card');
@@ -106,15 +99,18 @@
     // for getSession() to resolve forces the hydrate to complete first.
     try { await client.auth.getSession(); } catch (_) { /* non-fatal */ }
 
-    // Read both live and test price columns; per-card render below picks
-    // the one matching stripe_livemode.
-    var livemode = await _stripeLivemode();
-
     try {
+      // Deliberately does NOT select stripe_price_monthly / _test. Price
+      // ids are a server-side concern — plan-checkout picks the correct
+      // column by the STRIPE_SECRET_KEY prefix and returns 503
+      // plan_not_provisioned if the mode's column is null, which
+      // startProviderPlanCheckout surfaces via alert. Keeping the client
+      // out of the price-id business means we can't accidentally show a
+      // test id to a live-mode user (or vice versa) even if the mode
+      // detection flips.
       var { data: plans } = await client
         .from('subscription_plans')
-        .select('plan_key, name, credits_per_month, monthly_price_cents, ' +
-                'stripe_price_monthly, stripe_price_monthly_test, sort_order')
+        .select('plan_key, name, credits_per_month, monthly_price_cents, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
@@ -172,12 +168,11 @@
           buttonLabel = 'Start trial';
           buttonAction = "startProviderPlanCheckout('" + p.plan_key + "')";
         }
-        var stripePriceForMode = livemode ? p.stripe_price_monthly : p.stripe_price_monthly_test;
-        if (!stripePriceForMode) {
-          buttonLabel = 'Coming soon';
-          buttonAction = "";
-          buttonDisabled = true;
-        }
+        // No client-side "Coming soon" gate. If the plan is is_active
+        // but the current-mode price column is still null, plan-checkout
+        // will 503 plan_not_provisioned on click and startProviderPlanCheckout
+        // alerts the user. That's a narrow window (bootstrap runs once
+        // per mode) and keeps price ids server-side.
 
         var badge = isCurrent ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-teal,#22d3ee);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">CURRENT</div>' :
                     isPopular ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">MOST POPULAR</div>' : '';
@@ -228,6 +223,10 @@
       if (!resp.ok) {
         if (resp.status === 409 && body.error === 'trial_used') {
           alert('You have already started a trial. Use "Manage plan" to change or resume.');
+          return;
+        }
+        if (resp.status === 503 && body.error === 'plan_not_provisioned') {
+          alert('This plan isn\'t available yet. Please check back shortly.');
           return;
         }
         console.error('[plan-checkout] failed:', body);
