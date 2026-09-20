@@ -160,6 +160,21 @@ try {
     },
     { timeout: 30000 }
   );
+  // Section routing on providers.html: sections are shown/hidden by
+  // showSection(id) in providers-core.js. The URL hash doesn't
+  // auto-fire the switcher, and a plain click on the nav item can
+  // race the click handler's registration on cold load. Call
+  // showSection directly instead.
+  await page.evaluate(() => {
+    if (typeof window.showSection === 'function') {
+      window.showSection('subscription');
+    }
+  });
+  await page.waitForTimeout(500);
+  const card = await page.$('#provider-plans-card');
+  if (card) {
+    try { await card.scrollIntoViewIfNeeded({ timeout: 3000 }); } catch (_) {}
+  }
 } catch (e) {
   await page.screenshot({ path: FAIL_PATH, fullPage: true });
   await browser.close();
