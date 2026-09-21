@@ -167,6 +167,13 @@ async function check(name, fn) {
     assert.ok(/730/.test(s), 'submit.message references 730 to explain the Stripe-rendered header');
   });
 
+  await check('payment_method_types restricted to card + link (off-session-safe for renewal)', async () => {
+    const pmt = lastSessionParams.payment_method_types;
+    assert.ok(Array.isArray(pmt), 'payment_method_types present as array');
+    assert.deepStrictEqual([...pmt].sort(), ['card', 'link'],
+      'must be exactly ["card","link"] — Klarna/Cash App/bank-debit cannot renew off-session up to 730d later');
+  });
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed === 0 ? 0 : 1);
 })();

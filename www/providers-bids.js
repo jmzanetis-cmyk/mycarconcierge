@@ -1192,19 +1192,21 @@ const USE_STRIPE = true;
 
 // Apple Guideline 3.1.1 / Google Play Billing compliance (2026-09-18,
 // revised 2026-09-19): bid-credit purchases must not be reachable from
-// the native app binary. The three touchpoints below cover the surface:
-//   - openWebPurchase() launches the OS's system browser via the
-//     @capacitor/browser plugin (SFSafariViewController on iOS,
-//     Chrome Custom Tabs on Android). Both open OUTSIDE the app's
-//     WebView, unaffected by allowNavigation, and are the pattern
-//     Apple expects for external purchase links. Falls back to
-//     window.open('_blank') on web (where there is no Capacitor).
-//   - handleBuyCreditsClick() is the dispatcher wired to the low/no-credits
-//     warning buttons in providers.html. Native → openWebPurchase(); web
-//     → scroll to bid-packs-grid (existing behavior).
-//   - purchaseBidPack()'s native branch also calls openWebPurchase() so
-//     every path from the native app ends up in the OS browser instead
-//     of showing a dead-end toast.
+// the native app binary. Current surface (post-PR #23 + PR #26):
+//   - purchaseBidPack() does the whole purchase in-app: POST
+//     /api/create-bid-checkout with the in-app JWT, then Browser.open
+//     the returned Stripe URL in SFSafariViewController (native) or
+//     window.location.href (web). openWebPurchase() stays only as a
+//     LAST-RESORT fallback inside the catch block if the API call
+//     itself fails.
+//   - handleBuyCreditsClick() (low/no-credits warning buttons) scrolls
+//     to #bid-packs-grid on BOTH native and web. No link-out —
+//     everything the provider needs to buy credits is already visible
+//     on that grid.
+//   - openWebPurchase() itself launches SFSafariViewController via the
+//     @capacitor/browser plugin, unaffected by allowNavigation. Kept
+//     for the one catch-block callsite and for anyone else who ever
+//     needs to punt to Safari.
 //
 // Prior fragile trick (removed): earlier revisions relied on
 // mycarconcierge.com being deliberately absent from
@@ -1230,8 +1232,12 @@ async function openWebPurchase() {
 }
 
 function handleBuyCreditsClick() {
-  if (_isNativeApp()) { openWebPurchase(); return; }
-  // Web: scroll to the pack grid (previous inline behavior of the warning buttons).
+  // Native and web behave identically now that the pack grid renders
+  // in-app (PR #23): the warning-button click scrolls to
+  // #bid-packs-grid and the provider taps Buy Now on the card they
+  // want. No more link-out to Safari from the low/no-credits warnings
+  // (which forced a re-login and, per Jordan's build-15 test, was the
+  // Safari-tab entry point for the "Network error" fallout in PR #24).
   const grid = document.getElementById('bid-packs-grid');
   if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
