@@ -190,6 +190,14 @@ exports.handler = async function (event) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
+      // Restrict to methods that Stripe can charge OFF-SESSION on the
+      // renewal date. The trial can extend up to 730 days on the DB
+      // side; Klarna / Cash App Pay / bank-debit style methods either
+      // don't support off-session renewals at all or need per-invoice
+      // authentication, which we can't ask the provider for months
+      // later. Card + Link only. (create-bid-checkout intentionally
+      // stays broad — packs are one-shot, no renewal concerns.)
+      payment_method_types: ['card', 'link'],
       line_items: [{ price: stripePrice, quantity: 1 }],
       subscription_data: {
         trial_period_days: TRIAL_DAYS,
