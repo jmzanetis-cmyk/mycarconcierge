@@ -81,6 +81,7 @@ const supabaseFactory = {
               plan_key: 'starter',
               name: 'Starter',
               credits_per_month: 10,
+              monthly_price_cents: 8900,
               stripe_price_monthly_test: 'price_test_stub',
               is_active: true,
             },
@@ -172,6 +173,30 @@ async function check(name, fn) {
     assert.ok(Array.isArray(pmt), 'payment_method_types present as array');
     assert.deepStrictEqual([...pmt].sort(), ['card', 'link'],
       'must be exactly ["card","link"] — Klarna/Cash App/bank-debit cannot renew off-session up to 730d later');
+  });
+
+  // Section A — affirmative consent at checkout
+  await check('consent_collection.terms_of_service is required', async () => {
+    assert.ok(lastSessionParams.consent_collection, 'consent_collection present');
+    assert.strictEqual(lastSessionParams.consent_collection.terms_of_service, 'required',
+      'must be exactly "required"');
+  });
+
+  await check('custom_text.terms_of_service_acceptance.message present + ≤ 1200 chars', async () => {
+    const tos = lastSessionParams.custom_text && lastSessionParams.custom_text.terms_of_service_acceptance;
+    assert.ok(tos, 'terms_of_service_acceptance present');
+    const msg = tos.message;
+    assert.ok(typeof msg === 'string' && msg.length > 0, 'message non-empty');
+    assert.ok(msg.length <= 1200, 'message ' + msg.length + ' > 1200');
+  });
+
+  await check('ToS acceptance message links to terms.html and interpolates the plan price', async () => {
+    const msg = lastSessionParams.custom_text.terms_of_service_acceptance.message;
+    assert.ok(/\[Terms of Service\]\(https:\/\/www\.mycarconcierge\.com\/terms\.html\)/.test(msg),
+      'must contain markdown link to terms.html');
+    // Starter's monthly_price_cents is 8900 in the stub → $89.
+    assert.ok(/\$89\/month/.test(msg), 'must interpolate "$89/month" for Starter');
+    assert.ok(/3 days'? notice/i.test(msg), 'must reference the 3-day notice');
   });
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

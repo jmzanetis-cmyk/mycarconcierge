@@ -449,6 +449,60 @@ async function handleProviderPlanSubscriptionDeleted(sub, supabase) {
   return { ended_at: endedAtIso, expires_at: expiresAtIso };
 }
 
+// ----------------------------------------------------------------------------
+// checkout.session.completed — Section A affirmative-consent stamp.
+//
+// The session object carries session.consent.terms_of_service ('accepted' when
+// the checkbox was ticked, undefined/'none' when it wasn't) and session.metadata.
+// We gate strictly on metadata.product === 'provider_plan' — pack purchases and
+// any other future checkout flows are silently ignored here.
+//
+// Ordering: Stripe fires customer.subscription.created BEFORE
+// checkout.session.completed for subscription-mode checkouts, so the
+// provider_subscriptions row already exists by the time we arrive. If for
+// any reason it doesn't (race, dropped event, out-of-order retry), we
+// no-op — a subsequent invoice.paid or subscription.updated will not
+// re-fire this event, but the DB stamps are backfillable from the Stripe
+// dashboard's session detail if compliance ever needs them.
+// ----------------------------------------------------------------------------
+async function handleProviderPlanCheckoutCompleted(session, supabase) {
+  const md = session && session.metadata ? session.metadata : {};
+  if (md.product !== 'provider_plan') return { skipped: 'not_provider_plan' };
+
+  const subId =
+    (session.subscription && typeof session.subscription === 'object' ? session.subscription.id : session.subscription) ||
+    null;
+  if (!subId) return { skipped: 'no_subscription_on_session' };
+
+  const consent = session.consent && session.consent.terms_of_service;
+  const accepted = consent === 'accepted';
+
+  const { TERMS_VERSION } = require('../../lib/plan-terms-version');
+
+  const patch = { checkout_session_id: session.id };
+  if (accepted) {
+    patch.terms_accepted_at = new Date().toISOString();
+    patch.terms_version = TERMS_VERSION;
+  }
+
+  const { error, data } = await supabase
+    .from('provider_subscriptions')
+    .update(patch)
+    .eq('stripe_subscription_id', subId)
+    .select('id');
+
+  if (error) {
+    console.error('[provider-plan-webhook] consent stamp update failed:', error.message);
+    return { error: error.message };
+  }
+
+  return {
+    stamped: (data && data.length > 0),
+    consent: consent || 'none',
+    checkout_session_id: session.id,
+  };
+}
+
 module.exports = {
   isProviderPlanSub,
   isProviderPlanInvoice,
@@ -460,4 +514,5 @@ module.exports = {
   handleProviderPlanInvoicePaymentFailed,
   handleProviderPlanSubscriptionUpdated,
   handleProviderPlanSubscriptionDeleted,
+  handleProviderPlanCheckoutCompleted,
 };

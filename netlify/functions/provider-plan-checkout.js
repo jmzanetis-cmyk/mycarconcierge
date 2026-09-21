@@ -24,6 +24,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { isLiveKey } = require('../../lib/stripe-mode');
+const { TERMS_VERSION, TERMS_URL } = require('../../lib/plan-terms-version');
 
 const TRIAL_DAYS = 730;
 
@@ -176,8 +177,7 @@ exports.handler = async function (event) {
   // ("Free for 730 days · Then $X per month starting ..."), so the
   // clarifying language lives here in the custom_text block and in
   // subscription_data.description. Both fields cap at 1200 characters
-  // per Stripe. Wording review 2026-09-20 — pending counsel per PR #17
-  // item (d).
+  // per Stripe.
   const CUSTOM_TEXT_SUBMIT =
     "Your card will not be charged until you win your first customer on MyCarConcierge. When your first bid is accepted, your plan starts at the monthly price shown and renews monthly until you cancel. Stripe requires a fixed trial length, so it shows the maximum (730 days); your actual free period ends at your first accepted bid. You can also buy one-time bid credit packs at any time, with or without a plan.";
   const CUSTOM_TEXT_AFTER_SUBMIT =
@@ -185,9 +185,28 @@ exports.handler = async function (event) {
   const SUB_DESCRIPTION =
     'MCC ' + (plan.name || planKey) + ' — free until first accepted bid';
 
+  // ── Section A: affirmative consent at Checkout ──────────────────────
+  // Per-plan price interpolated into the acceptance message so the
+  // provider sees the exact dollar amount they're agreeing to renew at.
+  // monthly_price_cents is authoritative (comes from the DB row that
+  // built the Stripe price). Format matches human-readable dollars.
+  const priceDisplay = '$' + (Number(plan.monthly_price_cents || 0) / 100).toFixed(0);
+  const TOS_ACCEPTANCE =
+    `I understand: no charge until my first bid is accepted, then ${priceDisplay}/month, ` +
+    `auto-renewing until I cancel. The "730 days free" shown above is Stripe's maximum, ` +
+    `not a promise — my free period ends at my first accepted bid, and I'll get 3 days' ` +
+    `notice by email before the first charge. I can cancel anytime from Credits & Plans → ` +
+    `Manage plan. Unused plan credits carry over up to 2× my monthly amount and have no ` +
+    `cash value. I agree to the [Terms of Service](${TERMS_URL}).`;
+
   // ── Checkout Session ────────────────────────────────────────────────
-  try {
-    const session = await stripe.checkout.sessions.create({
+  // Shared builder — takes { withConsent } so the retry path can drop
+  // consent_collection without duplicating the whole session-params
+  // object. The custom_text.terms_of_service_acceptance.message shows
+  // only when consent_collection.terms_of_service='required', so it's
+  // safe to include unconditionally in the base params.
+  const buildParams = ({ withConsent }) => {
+    const params = {
       mode: 'subscription',
       customer: customerId,
       // Restrict to methods that Stripe can charge OFF-SESSION on the
@@ -214,6 +233,7 @@ exports.handler = async function (event) {
       custom_text: {
         submit:       { message: CUSTOM_TEXT_SUBMIT },
         after_submit: { message: CUSTOM_TEXT_AFTER_SUBMIT },
+        terms_of_service_acceptance: { message: TOS_ACCEPTANCE },
       },
       payment_method_collection: 'always',
       success_url: successUrl,
@@ -224,10 +244,59 @@ exports.handler = async function (event) {
         platform: isNativeCaller ? 'native' : 'web',
         plan_key: planKey,
       },
-    });
-    return json(200, { checkout_url: session.url, session_id: session.id });
+    };
+    if (withConsent) {
+      params.consent_collection = { terms_of_service: 'required' };
+    }
+    return params;
+  };
+
+  // Try WITH consent first. If Stripe rejects because the ToS URL is
+  // missing from the connected account, retry once without consent and
+  // record the degradation in admin_audit_log so the operator sees it.
+  // Checkout MUST NEVER be blocked because of this.
+  let session;
+  let consentDegraded = false;
+  try {
+    session = await stripe.checkout.sessions.create(buildParams({ withConsent: true }));
   } catch (e) {
-    console.error('[plan-checkout] session create failed:', e.message);
-    return json(502, { error: 'checkout_failed', details: e.message });
+    const looksLikeMissingTos =
+      e && (e.type === 'StripeInvalidRequestError') &&
+      /terms of service/i.test(e.message || '');
+    if (!looksLikeMissingTos) {
+      console.error('[plan-checkout] session create failed:', e.message);
+      return json(502, { error: 'checkout_failed', details: e.message });
+    }
+    console.warn('[plan-checkout] consent_collection rejected (ToS URL missing?), retrying without:', e.message);
+    consentDegraded = true;
+    try {
+      session = await stripe.checkout.sessions.create(buildParams({ withConsent: false }));
+    } catch (e2) {
+      console.error('[plan-checkout] retry-without-consent failed:', e2.message);
+      return json(502, { error: 'checkout_failed', details: e2.message });
+    }
+    // Non-fatal audit write — the checkout still succeeded.
+    try {
+      await supabase.from('admin_audit_log').insert({
+        action: 'plan_checkout_consent_unavailable',
+        target_id: session.id,
+        target_type: 'stripe_checkout_session',
+        performed_by: user.id,
+        metadata: {
+          plan_key: planKey,
+          stripe_error: e.message,
+          stripe_error_type: e.type || null,
+          stripe_error_code: e.code || null,
+          livemode: isLive,
+        },
+      });
+    } catch (_) { /* audit failure never blocks money path */ }
   }
+
+  return json(200, {
+    checkout_url: session.url,
+    session_id: session.id,
+    consent_degraded: consentDegraded,
+    terms_version: TERMS_VERSION,
+  });
 };
