@@ -385,6 +385,7 @@
 # hit on the branch draft; live-mode when hit on prod. See
 # netlify/functions/admin-provider-plans-bootstrap.js.
 /api/admin/provider-plans/bootstrap /.netlify/functions/admin-provider-plans-bootstrap 200
+/api/admin/plan-consent-preflight /.netlify/functions/admin-plan-consent-preflight 200
 
 # Provider plans (Phase 2 §2.4): checkout creates a Stripe subscription in
 # subscription mode with 730-day trial; portal returns a Stripe Billing

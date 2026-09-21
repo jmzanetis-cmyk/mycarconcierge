@@ -1233,7 +1233,15 @@ exports.handler = async function(event) {
   try {
     switch (stripeEvent.type) {
       case 'checkout.session.completed':
+        // Both handlers are internally gated on their metadata:
+        //  · handleCheckoutComplete runs bid-pack + founder-commission
+        //    flows (mode=payment).
+        //  · handleProviderPlanCheckoutCompleted stamps consent on
+        //    provider_plan subscription rows (mode=subscription).
+        // Non-provider_plan checkouts are silently skipped by the
+        // provider-plan handler; safe to always dispatch both.
         await handleCheckoutComplete(stripeEvent.data.object, supabase);
+        await providerPlanWebhooks.handleProviderPlanCheckoutCompleted(stripeEvent.data.object, supabase);
         break;
       case 'customer.subscription.created':
         // Provider-plan trial grant. White-label doesn't listen on .created.
