@@ -176,14 +176,17 @@ function makeRlsClient(table, callerUid) {
       await svc.from('profiles').upsert({ id: uidB, email: emailB, role: 'provider' });
 
       // Insert alert rows via service role
+      // Real schema: alert_type NOT NULL with CHECK IN ('bgc_expiring','bgc_expired','
+      // compliance_lost'), title NOT NULL. Prior versions passed a non-existent 'message'
+      // column and silently self-skipped when SUPABASE_ANON_KEY was absent from CI env.
       const { data: insA, error: insErrA } = await svc.from('provider_alerts')
-        .insert({ provider_id: uidA, message: 'Alert for A', is_dismissed: false })
+        .insert({ provider_id: uidA, alert_type: 'compliance_lost', title: 'Alert for A', is_dismissed: false })
         .select('id').single();
       if (insErrA) throw new Error('insert alert A: ' + insErrA.message);
       alertAId = insA.id;
 
       const { data: insB, error: insErrB } = await svc.from('provider_alerts')
-        .insert({ provider_id: uidB, message: 'Alert for B', is_dismissed: false })
+        .insert({ provider_id: uidB, alert_type: 'compliance_lost', title: 'Alert for B', is_dismissed: false })
         .select('id').single();
       if (insErrB) throw new Error('insert alert B: ' + insErrB.message);
       alertBId = insB.id;
@@ -227,11 +230,14 @@ function makeRlsClient(table, callerUid) {
       console.error('  FAIL live roundtrip:', e.message);
       fail++;
     } finally {
-      // Cleanup
-      if (alertAId) await svc.from('provider_alerts').delete().eq('id', alertAId).catch(() => {});
-      if (alertBId) await svc.from('provider_alerts').delete().eq('id', alertBId).catch(() => {});
-      if (uidA) await svc.auth.admin.deleteUser(uidA).catch(() => {});
-      if (uidB) await svc.auth.admin.deleteUser(uidB).catch(() => {});
+      // Cleanup — must not throw. PostgrestFilterBuilder is thenable but doesn't
+      // implement `.catch`, so wrap each call in try/catch instead of chaining
+      // `.catch()` after `.eq()`. Normalized to try/catch for all four for
+      // consistency.
+      if (alertAId) { try { await svc.from('provider_alerts').delete().eq('id', alertAId); } catch {} }
+      if (alertBId) { try { await svc.from('provider_alerts').delete().eq('id', alertBId); } catch {} }
+      if (uidA)     { try { await svc.auth.admin.deleteUser(uidA); } catch {} }
+      if (uidB)     { try { await svc.auth.admin.deleteUser(uidB); } catch {} }
     }
   }
 
