@@ -902,8 +902,13 @@ async function loadMyReviews() {
     // provider_reviews_*_fkey constraints exist; there's no `reviews_*_fkey`).
     // The plain `maintenance_packages(title)` embed stays — PostgREST resolves
     // it via implicit FK introspection.
+    //
+    // 2026-09-22 fix: table is `provider_reviews` (not `reviews` — that table
+    // doesn't exist in prod; the previous query silently returned PGRST116
+    // and the tab always rendered "No reviews yet"). Column is `review_text`
+    // (not `comment`).
     const { data, error } = await supabaseClient
-      .from('reviews')
+      .from('provider_reviews')
       .select('*, maintenance_packages(title)')
       .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
@@ -955,7 +960,7 @@ function renderReviews() {
         <strong>${r.profiles?.full_name || 'Member'}</strong>
         <span style="color:var(--accent-gold);">${mccIcon('star', 16).repeat(r.rating)}${mccIcon('star', 16).repeat(5-r.rating)}</span>
       </div>
-      ${r.comment ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.comment}"</p>` : ''}
+      ${r.review_text ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.review_text}"</p>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</span>
         <button onclick="window.mccModeration && window.mccModeration.openReport({contentType:'review',contentId:'${r.id}',reportedUserId:'${r.member_id || ''}',subjectLabel:'this review'})" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:0;">Report</button>
