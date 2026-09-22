@@ -597,45 +597,58 @@ function closeModal(id) {
 function openDeleteAccountModal() {
   const input = document.getElementById('delete-confirm-input');
   const btn = document.getElementById('confirm-delete-btn');
+  const pwdInput = document.getElementById('delete-password-input');
   if (input) input.value = '';
+  if (pwdInput) pwdInput.value = '';
   if (btn) btn.disabled = true;
-  
-  // Add input listener for DELETE confirmation
-  if (input) {
-    input.oninput = function() {
-      btn.disabled = this.value !== 'DELETE';
-    };
-  }
-  
+
+  // Enable the delete button only when BOTH the DELETE confirmation AND a
+  // non-empty password are present. The server re-verifies the password via
+  // signInWithPassword (stolen-JWT defense at account-delete.js:57-70).
+  const updateBtnState = () => {
+    const deleteOk = input && input.value === 'DELETE';
+    const pwdOk    = pwdInput && pwdInput.value.length > 0;
+    if (btn) btn.disabled = !(deleteOk && pwdOk);
+  };
+  if (input)    input.oninput    = updateBtnState;
+  if (pwdInput) pwdInput.oninput = updateBtnState;
+
   openModal('delete-account-modal');
 }
 
 async function confirmDeleteAccount() {
   const input = document.getElementById('delete-confirm-input');
+  const pwdInput = document.getElementById('delete-password-input');
   if (!input || input.value !== 'DELETE') {
     showToast('Please type DELETE to confirm', 'error');
     return;
   }
-  
+  const password = pwdInput ? pwdInput.value : '';
+  if (!password) {
+    showToast('Please enter your password to confirm', 'error');
+    return;
+  }
+
   const btn = document.getElementById('confirm-delete-btn');
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid white;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Deleting...';
-  
+
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       showToast('You must be logged in', 'error');
       return;
     }
-    
+
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/account/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`
-      }
+      },
+      body: JSON.stringify({ password })
     });
 
     const result = await response.json().catch(() => ({}));

@@ -1267,41 +1267,8 @@
         </div>
       </div>
 
-      <!-- 2FA Verification Screen -->
-      <div id="twofa-screen" style="display:none;">
-        <div class="twofa-screen">
-          <div class="twofa-icon"><span class="icon-inline" data-icon="lock"></span></div>
-          <h2 class="twofa-title">Two-Factor Authentication</h2>
-          <p class="twofa-text">
-            Enter the 6-digit code sent to your phone<br>
-            <span class="twofa-phone" id="twofa-phone-display">****1234</span>
-          </p>
-          
-          <div class="code-inputs">
-            <input type="text" class="code-input" id="code-1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
-            <input type="text" class="code-input" id="code-2" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input type="text" class="code-input" id="code-3" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input type="text" class="code-input" id="code-4" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input type="text" class="code-input" id="code-5" maxlength="1" inputmode="numeric" pattern="[0-9]">
-            <input type="text" class="code-input" id="code-6" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          </div>
-          
-          <div class="login-message" id="twofa-message"></div>
-          
-          <div class="twofa-actions">
-            <button class="btn btn--primary" id="verify-btn" onclick="verify2faCode()">Verify Code</button>
-          </div>
-          
-          <div class="twofa-resend">
-            Didn't receive the code? <a id="resend-link" onclick="resend2faCode()">Resend code</a>
-          </div>
-          <div class="twofa-countdown" id="resend-countdown"></div>
-          
-          <div class="twofa-back">
-            <a onclick="back2faToLogin()">← Back to login</a>
-          </div>
-        </div>
-      </div>
+      <!-- SMS-based 2FA screen removed 2026-09-22 — zero enrollments, dead handlers.
+           TOTP flow below is the active 2FA path. -->
 
       <div id="totp-screen" style="display:none;">
         <div class="twofa-screen">

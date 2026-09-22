@@ -8339,6 +8339,11 @@
           <label class="form-label">Type DELETE to confirm</label>
           <input type="text" class="form-input" id="delete-confirm-input" placeholder="DELETE" autocomplete="off" style="border-color:rgba(239,95,95,0.4);">
         </div>
+        <div class="form-group" style="margin:16px 0 0;">
+          <label class="form-label">Enter your password</label>
+          <input type="password" class="form-input" id="delete-password-input" autocomplete="current-password" style="border-color:rgba(239,95,95,0.4);">
+          <div class="form-hint" style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">Required to confirm it's you.</div>
+        </div>
       </div>
       <div class="modal-footer" style="border-top-color:rgba(239,95,95,0.3);">
         <button class="btn btn-secondary" onclick="closeModal('delete-account-modal')">Cancel</button>
@@ -8838,7 +8843,17 @@
     // (single key) or data-feature-any="key1,key2" (reveal if ANY is enabled).
     // Fail-closed: missing/false flag = element stays hidden.
     function applyMccFeatureGates() {
-      const flags = window._mccFlags || {};
+      const flags = { ...(window._mccFlags || {}) };
+      // Apple 3.1.1 — the community-contribute UI (data-feature="crowdfunding_enabled")
+      // mounts in-app Stripe Elements card entry for a peer-to-peer donation. That's
+      // not a "physical service" (3.1.3(b) exemption), so it can't ship in the iOS
+      // bundle regardless of what the server flag says. Force-disable on iOS here so
+      // no data-feature reveal can slip through.
+      const isCapacitorIOS = window.Capacitor?.isNativePlatform?.() &&
+                             window.Capacitor?.getPlatform?.() === 'ios';
+      if (isCapacitorIOS) {
+        flags.crowdfunding_enabled = false;
+      }
       document.querySelectorAll('[data-feature]').forEach(el => {
         if (flags[el.getAttribute('data-feature')]) el.style.display = '';
       });

@@ -3551,48 +3551,61 @@ function closeModal(modalId) {
 // ========== DELETE ACCOUNT ==========
 function openDeleteAccountModal() {
   const input = document.getElementById('delete-confirm-input');
+  const pwdInput = document.getElementById('delete-password-input');
   const btn = document.getElementById('confirm-delete-btn');
   if (input) input.value = '';
+  if (pwdInput) pwdInput.value = '';
   if (btn) btn.disabled = true;
-  
-  // Add input listener for DELETE confirmation
-  if (input) {
-    input.oninput = function() {
-      btn.disabled = this.value !== 'DELETE';
-    };
-  }
-  
+
+  // Enable the delete button only when BOTH the DELETE confirmation AND a
+  // non-empty password are present. The server re-verifies the password via
+  // signInWithPassword (stolen-JWT defense at account-delete.js:57-70).
+  const updateBtnState = () => {
+    const deleteOk = input && input.value === 'DELETE';
+    const pwdOk    = pwdInput && pwdInput.value.length > 0;
+    if (btn) btn.disabled = !(deleteOk && pwdOk);
+  };
+  if (input)    input.oninput    = updateBtnState;
+  if (pwdInput) pwdInput.oninput = updateBtnState;
+
   openModal('delete-account-modal');
 }
 
 async function confirmDeleteAccount() {
   const input = document.getElementById('delete-confirm-input');
+  const pwdInput = document.getElementById('delete-password-input');
   if (!input || input.value !== 'DELETE') {
     showToast('Please type DELETE to confirm', 'error');
     return;
   }
-  
+  const password = pwdInput ? pwdInput.value : '';
+  if (!password) {
+    showToast('Please enter your password to confirm', 'error');
+    return;
+  }
+
   const btn = document.getElementById('confirm-delete-btn');
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid white;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Deleting...';
-  
+
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       showToast('You must be logged in', 'error');
       return;
     }
-    
+
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/account/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`
-      }
+      },
+      body: JSON.stringify({ password })
     });
-    
+
     const result = await response.json();
     
     if (result.success) {
@@ -3735,6 +3748,14 @@ async function loadCommunityBoard() {
 }
 
 function openContributeModal(packageId, packageTitle, goalCents, raisedCents) {
+  // Belt + suspenders — Apple 3.1.1. applyMccFeatureGates() should have already
+  // suppressed the Contribute buttons on iOS; refuse to open the in-app
+  // Stripe-Elements card-entry modal even if the button somehow rendered.
+  if (window.Capacitor?.isNativePlatform?.() &&
+      window.Capacitor?.getPlatform?.() === 'ios') {
+    showToast('Community contributions are unavailable in the app. Visit mycarconcierge.com in a browser to contribute.', 'error');
+    return;
+  }
   const remaining = goalCents ? Math.max(0, goalCents - raisedCents) : 0;
   const suggested = remaining > 0 ? Math.min(remaining / 100, 100).toFixed(0) : '25';
   const modal = document.createElement('div');

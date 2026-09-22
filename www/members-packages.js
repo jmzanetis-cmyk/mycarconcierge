@@ -2637,8 +2637,8 @@
         ${['payment_held', 'accepted', 'in_progress', 'completed'].includes(pkg.status) && (pkg.escrow_payment_intent_id || pkg.split_payment_id) ? `
           <div class="form-section" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
             <div class="form-section-title">${mccIcon('dollar-sign', 24)} Refund Options</div>
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;">If there's an issue with this service, you can request a refund.</p>
-            <button class="btn btn-secondary" onclick="openRefundModal('${packageId}', ${pkg.escrow_amount || 0})">${mccIcon('dollar-sign', 16)} Request Refund</button>
+            <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9rem;">If there's an issue with this service, contact support to request a refund. Please include your package reference when writing in.</p>
+            <a href="mailto:support@mycarconcierge.com?subject=Refund%20request%20-%20package%20${packageId}" class="btn btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">${mccIcon('mail', 16)} Contact Support</a>
           </div>
         ` : ''}
       `;
