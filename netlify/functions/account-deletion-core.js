@@ -261,6 +261,11 @@ async function _anonymizeJobRecords(supabase, userId, opts) {
         lat: null,
         lng: null,
         zip_code: null,
+        // city scrubbed too (2026-09-22 review): city-level location is
+        // still identifying in a small market. state + value range remain
+        // so the provider's record of "somewhere in NJ, ~$800 job" is
+        // meaningful without pinpointing the departed member.
+        city: null,
       })
       .in('id', preserveIds);
     if (keepRes.error) console.error('[account-deletion-core] care_plans anonymise failed:', keepRes.error.message);
