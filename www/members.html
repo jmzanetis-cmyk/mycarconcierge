@@ -1289,7 +1289,6 @@
       <!-- Transport Tracking -->
       <div id="transport-tracking-section" style="margin-bottom:24px;display:none;"></div>
 
-      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains nested HTML comments and an inner <script> populator. Card + applyMemFund, dismissDriverFundCard, memDonate are driver-fund-scoped (grepped: no other callers). Restore by removing the <template>/</template> boundary lines and this marker. -->
       <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Driver Launch Fundraising Card — web only; not shown in native app (Guideline 3.1.1) -->
       <div id="driver-fund-card" class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(201,162,39,0.07),rgba(26,32,42,0.95));border:1px solid rgba(201,162,39,0.25);position:relative;">
@@ -1505,7 +1504,6 @@
         </div>
       </div>
 
-      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains an inner HTML comment. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
       <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Rideshare Calculator Promo Card -->
       <div class="card" style="background: linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.08)); border: 1px solid rgba(74,200,140,0.3); margin-bottom: 24px;">
@@ -3556,7 +3554,6 @@
         </div>
       </div>
 
-      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains an inner HTML comment. downloadReferralQr() is shared with the provider referral card above; only the driver card is phased out. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
       <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Recruit a Driver QR -->
       <div class="card" style="margin-top:18px;background:linear-gradient(135deg,rgba(56,189,248,0.08),rgba(56,189,248,0.03));border:1px solid rgba(56,189,248,0.3);">
