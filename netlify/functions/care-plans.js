@@ -340,6 +340,14 @@ async function handleAcceptBid(event, sb, user, planId) {
   const { data: bid } = await sb.from('plan_bids').select('*').eq('id', bid_id).eq('care_plan_id', planId).single();
   if (!bid) return json(404, { error: 'Bid not found on this care plan' });
 
+  // plan_bids.provider_id became nullable in 20260921h: the bid row survives
+  // when a provider deletes their account so the member keeps their record of
+  // what was offered. Such a bid can no longer be accepted — there is nobody
+  // left to pay or to do the work.
+  if (!bid.provider_id) {
+    return json(409, { error: 'This provider is no longer on My Car Concierge. Please choose another bid.' });
+  }
+
   // If plan already has a different accepted bid, it's a race
   if (plan.accepted_bid_id && plan.accepted_bid_id !== bid_id && plan.payment_status === 'held') {
     return json(409, { error: 'A bid has already been accepted and payment is held for this care plan' });

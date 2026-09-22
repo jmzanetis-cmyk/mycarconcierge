@@ -178,6 +178,107 @@ async function _deleteMemberTables(supabase, userId) {
   await supabase.from('referrals').delete().eq('referred_id', userId);
 }
 
+// Task #186 follow-up (2026-09-21) — job records survive account deletion.
+//
+// care_plans / plan_bids / care_plan_completions were never added to the
+// "anonymise financial/legal records" list above, and their FKs cascaded
+// from auth.users. One member deleting their account therefore destroyed the
+// provider's invoice basis, warranty record and dispute history for work
+// already performed. Migration 20260921h makes those FKs ON DELETE SET NULL
+// with a DB trigger stamping *_deleted_at; this function does the parts the
+// database can't: snapshot the counterparty's identity before the link is
+// broken, and scrub the member's precise location from preserved jobs.
+//
+// Judgement calls, flagged for review:
+//   * Care plans WITH a completion row are preserved (work happened, both
+//     sides need the record). Care plans WITHOUT one are deleted — an open
+//     job request from a departed member is member-authored free text with
+//     no counterparty, and leaving it on the board is noise.
+//   * `description` is nulled on preserved plans. It's member free text and
+//     routinely contains an address or phone number. `title`, `services`,
+//     `service_types`, `city`, `state` and the value range are kept so the
+//     provider still knows what the job was. The provider's own account of
+//     the work lives in care_plan_completions.completion_notes, which is
+//     untouched.
+//   * lat/lng/zip_code are nulled; city/state are kept. Precise geolocation
+//     is personal data, a city is not.
+async function _anonymizeJobRecords(supabase, userId, opts) {
+  const isProvider = !!(opts && opts.isProvider);
+  const profile = (opts && opts.profile) || {};
+  const nowIso = new Date().toISOString();
+
+  if (isProvider) {
+    // Business name only — never the personal full_name, and never the email.
+    const businessSnapshot = profile.business_name || 'Former provider';
+
+    const bidsRes = await supabase.from('plan_bids')
+      .update({ provider_id: null, provider_deleted_at: nowIso })
+      .eq('provider_id', userId);
+    if (bidsRes.error) console.error('[account-deletion-core] plan_bids anonymise failed:', bidsRes.error.message);
+
+    const compRes = await supabase.from('care_plan_completions')
+      .update({
+        provider_business_name_snapshot: businessSnapshot,
+        provider_id: null,
+        provider_deleted_at: nowIso,
+      })
+      .eq('provider_id', userId);
+    if (compRes.error) console.error('[account-deletion-core] completions provider anonymise failed:', compRes.error.message);
+    return;
+  }
+
+  // ---- member path ----
+  // Personal display name only. Falls back to a placeholder rather than the
+  // email address, which would re-introduce the PII we're removing.
+  const memberSnapshot = profile.full_name || 'Former member';
+
+  const { data: plansRes } = await supabase
+    .from('care_plans').select('id').eq('member_id', userId);
+  const allPlanIds = (plansRes || []).map(r => r.id).filter(Boolean);
+
+  const { data: compsRes } = await supabase
+    .from('care_plan_completions').select('care_plan_id').eq('member_id', userId);
+  const preserveIds = [...new Set((compsRes || []).map(r => r.care_plan_id).filter(Boolean))];
+  const preserveSet = new Set(preserveIds);
+  const dropIds = allPlanIds.filter(id => !preserveSet.has(id));
+
+  // Completions always survive — they are the money record.
+  const compRes = await supabase.from('care_plan_completions')
+    .update({
+      member_name_snapshot: memberSnapshot,
+      member_id: null,
+      member_deleted_at: nowIso,
+    })
+    .eq('member_id', userId);
+  if (compRes.error) console.error('[account-deletion-core] completions member anonymise failed:', compRes.error.message);
+
+  if (preserveIds.length > 0) {
+    const keepRes = await supabase.from('care_plans')
+      .update({
+        member_id: null,
+        member_deleted_at: nowIso,
+        description: null,
+        lat: null,
+        lng: null,
+        zip_code: null,
+        // city scrubbed too (2026-09-22 review): city-level location is
+        // still identifying in a small market. state + value range remain
+        // so the provider's record of "somewhere in NJ, ~$800 job" is
+        // meaningful without pinpointing the departed member.
+        city: null,
+      })
+      .in('id', preserveIds);
+    if (keepRes.error) console.error('[account-deletion-core] care_plans anonymise failed:', keepRes.error.message);
+  }
+
+  // Open/abandoned plans with no completion: delete. plan_bids still
+  // cascades on care_plan_id, so unaccepted bids on those go with them.
+  if (dropIds.length > 0) {
+    const dropRes = await supabase.from('care_plans').delete().in('id', dropIds);
+    if (dropRes.error) console.error('[account-deletion-core] care_plans delete failed:', dropRes.error.message);
+  }
+}
+
 async function _cancelStripeSubscriptions(stripe, supabase, userId) {
   if (!stripe) return;
   const { data: subs } = await supabase
@@ -283,6 +384,9 @@ async function performAccountDeletion(opts) {
     } else {
       await _deleteMemberTables(supabase, userId);
     }
+    // Must run before _deleteAuthAndNotify: it reads profile identity and
+    // breaks the counterparty links while auth.users still exists.
+    await _anonymizeJobRecords(supabase, userId, { isProvider, profile });
     await _deleteAuthAndNotify(
       Object.assign({}, opts, { requestId, source, sendEmail }),
       displayName,
@@ -328,4 +432,4 @@ function escapeHtml(s) {
     .replaceAll('\'', '&#39;');
 }
 
-module.exports = { performAccountDeletion };
+module.exports = { performAccountDeletion, _anonymizeJobRecords };

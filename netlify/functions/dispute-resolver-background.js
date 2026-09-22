@@ -58,7 +58,10 @@ async function runDisputeResolverImpl(supabase, completionId) {
     completion.accepted_bid_id
       ? supabase.from('plan_bids').select('id, amount, note').eq('id', completion.accepted_bid_id).single()
       : Promise.resolve({ data: null }),
-    supabase.from('profiles').select('id, email, phone, full_name, created_at').eq('id', completion.member_id).maybeSingle(),
+    // member_id is nullable since 20260921h (deleted member, job record preserved)
+    completion.member_id
+      ? supabase.from('profiles').select('id, email, phone, full_name, created_at').eq('id', completion.member_id).maybeSingle()
+      : Promise.resolve({ data: null }),
     completion.provider_id
       ? supabase.from('profiles').select('id, email, phone, business_name, full_name, created_at, bid_credits').eq('id', completion.provider_id).maybeSingle()
       : Promise.resolve({ data: null })
@@ -69,7 +72,9 @@ async function runDisputeResolverImpl(supabase, completionId) {
   const providerProfile = providerRes.data || {};
 
   const [memberHistRes, providerHistRes] = await Promise.all([
-    supabase.from('care_plan_completions').select('id, status').eq('member_id', completion.member_id).neq('id', completionId).limit(10),
+    completion.member_id
+      ? supabase.from('care_plan_completions').select('id, status').eq('member_id', completion.member_id).neq('id', completionId).limit(10)
+      : Promise.resolve({ data: [] }),
     completion.provider_id
       ? supabase.from('care_plan_completions').select('id, status').eq('provider_id', completion.provider_id).neq('id', completionId).limit(10)
       : Promise.resolve({ data: [] })
