@@ -121,8 +121,9 @@ async function t(name, fn) {
     assert.strictEqual(p.lat, null);
     assert.strictEqual(p.lng, null);
     assert.strictEqual(p.zip_code, null);
+    assert.strictEqual(p.city, null, 'city IS scrubbed — city-level location is identifying in a small market (85d60aa)');
     assert.ok(!('title' in p), 'title is kept — the provider needs to know what the job was');
-    assert.ok(!('city' in p) && !('state' in p), 'city/state are kept — not identifying');
+    assert.ok(!('state' in p), 'state is kept — not identifying, useful for provider warranty record');
   });
 
   await t('member: plan with no completion is deleted, not orphaned', async () => {
