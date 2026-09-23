@@ -1093,6 +1093,17 @@
 <!-- SEO-INJECT:END -->
 </head>
 <body>
+  <!-- Detect native (iOS/Android via Capacitor) as early as possible so
+       the IAP-compliance CSS below can hide the right blocks before
+       first paint. Matches the pattern already in providers.html /
+       about.html / data-deletion.html. -->
+  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
+  <style>
+    /* Apple 2.1/2.2 + 3.1.1 compliance: hide founder-dashboard nav /
+       links and any "coming soon" UI on native. Web is unchanged. */
+    body.native-app .web-purchase-only { display: none !important; }
+    body:not(.native-app) .native-purchase-only { display: none !important; }
+  </style>
   <!-- Sidebar -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;"></div>
   <aside class="sidebar hide-on-mobile" id="sidebar">
@@ -1159,8 +1170,8 @@
     <div class="nav-item" data-section="settings" onclick="showSection('settings')"><span data-i18n="nav.settings"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Settings</span></div>
     <div class="nav-item" data-section="qr-checkin" onclick="showSection('qr-checkin')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg></span> My Check-In QR</span></div>
 
-    <!-- Founder Access (only visible to approved founders) -->
-    <div id="founder-nav" style="display:none;">
+    <!-- Founder Access (only visible to approved founders; hidden on iOS via web-purchase-only — Apple 2.1/2.2) -->
+    <div id="founder-nav" class="web-purchase-only" style="display:none;">
       <div class="nav-label">Founder</div>
       <div class="nav-item" onclick="window.location.href='founder-dashboard.html'"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Founder Dashboard</span></div>
     </div>
@@ -3823,7 +3834,7 @@
                 <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Email</label>
                 <input id="founder-invite-email" type="email" class="form-input" placeholder="provider@shop.com">
               </div>
-              <div style="opacity:0.5;pointer-events:none;">
+              <div class="web-purchase-only" style="opacity:0.5;pointer-events:none;">
                 <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Phone <span style="font-size:0.75rem;font-weight:400;text-transform:none;">(coming soon)</span></label>
                 <input id="founder-invite-phone" type="tel" class="form-input" placeholder="SMS invite requires consent infrastructure" disabled>
               </div>
@@ -3842,7 +3853,7 @@
         <div class="card">
           <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
             <h2 class="card-title">Commission Activity</h2>
-            <a href="founder-dashboard.html" class="btn btn-secondary btn-sm" style="text-decoration:none;">View Full Dashboard →</a>
+            <a href="founder-dashboard.html" class="btn btn-secondary btn-sm web-purchase-only" style="text-decoration:none;">View Full Dashboard →</a>
           </div>
           <div id="founder-activity-feed" style="min-height:80px;">
             <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading activity…</div>

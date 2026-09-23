@@ -2,7 +2,7 @@
 
 *Companion to the ASC submission Notes field. Reply to Apple's Guideline 2.1 "Information Needed" letter.*
 
-*Version reference: submitting from commit `65d8312cbec75b3caaea7fd9bc347736d065b19b` — CFBundleShortVersionString `1.1.0`, CFBundleVersion `19`. (Build 18 was uploaded to TestFlight and revealed a language-selector coverage bug on the provider portal, fixed in this commit; build 17 was side-loaded only.)*
+*Version reference: submitting CFBundleShortVersionString `1.1.0`, CFBundleVersion `21`. (Build 17 was side-loaded only. Build 18 revealed a language-selector coverage bug on the provider portal. Build 19 fixed refund-requests dimming but shipped with the switcher; build 20 replaced that with an English-only iOS gate. Build 21 additionally hides the Provider Shop Plan card + all remaining "coming soon" surfaces on iOS per Apple 2.1/2.2.)*
 
 *Demo credentials for the reviewer go in the App Store Connect "Sign-in required" section, NOT this file. See the pre-send checklist at the bottom.*
 
@@ -143,7 +143,7 @@ Off-repo tasks after this doc is committed:
 
 - [ ] **Screen recording of the delete flow (§3 D1–D6) captured on a real device / TestFlight build.** Upload to `[FILL IN — Vimeo / iCloud Drive / ASC media library]` and cite the URL in the ASC "Notes" field alongside these written responses.
 - [ ] **Screenshots refreshed for every currently-required device size** (6.9" iPhone 16 Pro Max, 6.7", 6.5"; 13" iPad Pro if iPad-supported). Old sizes for retired devices removed.
-- [ ] **Rebuild the archive from commit `65d8312cbec75b3caaea7fd9bc347736d065b19b`** — `CFBundleVersion=19`, `CFBundleShortVersionString=1.1.0`, `IPHONEOS_DEPLOYMENT_TARGET=15.0` (all set in the Xcode project already). Build 19 supersedes build 18 which had the language-switcher coverage bug.
+- [ ] **Rebuild the archive from the current build-21 commit** — `CFBundleVersion=21`, `CFBundleShortVersionString=1.1.0`, `IPHONEOS_DEPLOYMENT_TARGET=15.0`. Build 21 supersedes build 20 (English-only iOS gate + refund/dimming fix) and adds Provider Shop Plan card hide + "coming soon" surface hide (Apple 2.1/2.2). Build 19 had the refund-dimming bug; build 18 had the language-switcher coverage bug.
 - [ ] **Run `ios:prep`** to regenerate the iOS bundle mirror in `ios/App/App/public/` from the fresh `www/` (this pulls in commits 5e29709, 336fa7a, 72f895f, edcfc0d — all Phase-1 blocker fixes + the review-query fix).
 - [ ] **Confirm `MinimumOSVersion`** raised from 14.0 → 15.0 in the Xcode project (soft — Apple hasn't enforced yet, but flagged).
 - [ ] **Upload to TestFlight, verify the Delete Account flow on the real installed build end-to-end** before archiving for App Store submission.

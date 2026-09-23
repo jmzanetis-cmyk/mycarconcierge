@@ -1,4 +1,4 @@
-# Apple Guideline 3.1.1 response — draft (2026-09-21, reflects build 19)
+# Apple Guideline 3.1.1 response — draft (2026-09-23, reflects build 21)
 
 **Why this file exists.** Apple's Sept 13 notice on
 `com.zanetisholdings.mycarconcierge` listed "Guideline 3.1.1 – In-App
@@ -6,11 +6,17 @@ Purchase: In-App Purchase products should be configured and submitted
 alongside the app." The answer we prepared on 2026-09-18 (commit `d9f8593`,
 tracked in `apple-guideline-2.1-response.md`) described a **link-out card with
 no prices** that sent providers to Safari. That approach was replaced on
-2026-09-20 by PRs #23, #24 and #26: the app now shows pack and plan prices
-in-app and opens a Stripe-hosted checkout page on mycarconcierge.com inside
-SFSafariViewController. **The reply to Apple must describe build 19's actual
+2026-09-20 by PRs #23, #24 and #26: the app now shows pack prices in-app and
+opens a Stripe-hosted checkout page on mycarconcierge.com inside
+SFSafariViewController. **The reply to Apple must describe build 21's actual
 behavior, not the Sept 18 design.** This file is that reply. The checked
 3.1.1 item in `apple-guideline-2.1-response.md` is superseded by it.
+
+Note: build 21 hides the Provider Shop Plan card on iOS (the "Start trial"
+surface) via the same `web-purchase-only` gate that suppresses the plan
+checkout link. Only the bid-credit pack purchase path remains reachable on
+native. The reply text below reflects that — plans are described only for
+web behavior context, not as an in-app action.
 
 ## Before posting — two checks Jordan has to do himself
 
@@ -21,14 +27,15 @@ behavior, not the Sept 18 design.** This file is that reply. The checked
    selected, the old rule applies there ("may not advertise the offer") and
    the reply below is wrong for that storefront. Either restrict to US or tell
    me and we revert those storefronts to the no-price card.
-2. Attach the build you actually want reviewed. Build 18 was uploaded to
-   TestFlight and revealed a language-selector coverage bug on the provider
-   portal (Report: switcher showed but selecting a language did nothing on
-   `providers.html` / `fleet.html` / `provider-info.html` which have zero
-   `data-i18n` markup). Fixed in build 19 (commit `65d8312`, deploy
-   `6ab4197f…` on 2026-09-23) by suppressing the switcher on pages with no
-   translatable content. **Upload build 19 for review**, wait for
-   processing, attach it, then post.
+2. Attach the build you actually want reviewed. Build 18 revealed a
+   language-selector coverage bug on the provider portal (switcher showed
+   but selecting a language did nothing on `providers.html` / `fleet.html` /
+   `provider-info.html` which have zero `data-i18n` markup). Build 19 fixed
+   dimming/refund but shipped with the switcher; build 20 replaced that
+   with an English-only iOS gate. **Build 21** additionally hides the
+   Provider Shop Plan card + all remaining "coming soon" surfaces on iOS
+   (Apple 2.1/2.2). **Upload build 21 for review**, wait for processing,
+   attach it, then post.
 
 ## Reply text — paste into "Reply to App Review" under the 3.1.1 bullet
 
@@ -43,18 +50,22 @@ behavior, not the Sept 18 design.** This file is that reply. The checked
 > vehicle outside the app. These are payments for real-world services under
 > Guideline 3.1.3(e) and are processed with Stripe.
 >
-> **2. Providers (repair shops, mechanics) can buy bid credits and an
-> optional monthly plan.** Credits let a provider submit a bid on a member's
-> service request. These are sold through a Stripe-hosted checkout page on
-> our website (www.mycarconcierge.com). In the app, the Credits & Plans
-> screen lists the packs and plans with their prices; tapping "Buy Now" or
-> "Start trial" opens our website's checkout page in an SFSafariViewController
-> sheet. The purchase is completed on our website, not through the App Store,
-> and the app then refreshes the provider's balance. Under the United States
-> storefront terms of Guideline 3.1.1(a), an app may include buttons, external
-> links and calls to action directing users to purchasing mechanisms other
-> than In-App Purchase, and the app is available on the United States
-> storefront only.
+> **2. Providers (repair shops, mechanics) can buy bid credits.** Credits
+> let a provider submit a bid on a member's service request. These are sold
+> through a Stripe-hosted checkout page on our website
+> (www.mycarconcierge.com). In the app, the Credits & Plans screen lists
+> the packs with their prices; tapping "Buy Now" on a pack opens our
+> website's checkout page in an SFSafariViewController sheet. The purchase
+> is completed on our website, not through the App Store, and the app then
+> refreshes the provider's balance. **The app is distributed on the United
+> States storefront only.** Under the US-storefront terms of Guideline
+> 3.1.1(a) (updated May 2025 after *Epic v. Apple*), an app may include
+> buttons, external links and calls to action directing users to purchasing
+> mechanisms other than In-App Purchase.
+>
+> An optional monthly plan is offered to providers on our website, but this
+> build hides the plan management surface on iOS; providers who want to
+> subscribe do so from mycarconcierge.com in Safari, outside the app.
 >
 > Nothing in the app unlocks features or content through In-App Purchase, and
 > there is no consumable, subscription or non-consumable purchasable through
@@ -63,10 +74,8 @@ behavior, not the Sept 18 design.** This file is that reply. The checked
 > ship that variant in a follow-up build.
 >
 > To see the flow: sign in with the review account, open the Provider Portal
-> → Credits & Plans. Tapping Buy Now on any pack opens the checkout sheet; you
-> can close it without paying. The "Start trial" plan checkout collects a card
-> but charges nothing until a provider wins their first customer — the sheet
-> explains this above the button.
+> → Credits & Plans. Tapping Buy Now on any pack opens the checkout sheet;
+> you can close it without paying.
 
 ## Fallback if Apple rejects this framing
 
@@ -87,7 +96,10 @@ length and convert automatically.
 ## Status
 
 - [ ] Jordan: confirm US-only availability in App Store Connect
-- [ ] Jordan: phone retest of build 19 (Start trial, Buy Credits from a warning; also verify the language switcher no longer shows on the provider portal)
+- [ ] Jordan: phone retest of build 21 (Buy Credits on a pack opens the
+      SFSafariViewController sheet; Provider Shop Plan card is hidden; no
+      "coming soon" toasts reachable on iOS; language switcher does not
+      appear on the provider portal)
 - [ ] CC: `build-ios.sh` upload of the retested build; confirm processing
 - [ ] Jordan: attach build, post this reply under 3.1.1, keep the other five
       items' answers as already drafted in the Notes field
