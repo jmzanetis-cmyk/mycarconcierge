@@ -224,6 +224,19 @@ const I18n = (function() {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    // Suppress the switcher on pages with no translatable content —
+    // otherwise picking a language runs setLanguage() successfully but
+    // translatePage() finds nothing to update and the visible UI stays
+    // unchanged, which reads as a broken feature. Pages that need i18n
+    // must add data-i18n attributes to their translatable elements before
+    // the switcher will render. (providers.html / fleet.html /
+    // provider-info.html have 0 attrs today — the switcher stays hidden
+    // there until translation coverage is added.)
+    if (document.querySelectorAll('[data-i18n]').length === 0) {
+      console.info('[i18n] Language switcher suppressed — no data-i18n elements on this page');
+      return;
+    }
+
     const wrapper = document.createElement('div');
     wrapper.className = 'language-switcher';
     wrapper.innerHTML = `
