@@ -1,4 +1,4 @@
-# Apple Guideline 3.1.1 response — draft (2026-09-21, reflects build 17)
+# Apple Guideline 3.1.1 response — draft (2026-09-21, reflects build 19)
 
 **Why this file exists.** Apple's Sept 13 notice on
 `com.zanetisholdings.mycarconcierge` listed "Guideline 3.1.1 – In-App
@@ -8,7 +8,7 @@ tracked in `apple-guideline-2.1-response.md`) described a **link-out card with
 no prices** that sent providers to Safari. That approach was replaced on
 2026-09-20 by PRs #23, #24 and #26: the app now shows pack and plan prices
 in-app and opens a Stripe-hosted checkout page on mycarconcierge.com inside
-SFSafariViewController. **The reply to Apple must describe build 17's actual
+SFSafariViewController. **The reply to Apple must describe build 19's actual
 behavior, not the Sept 18 design.** This file is that reply. The checked
 3.1.1 item in `apple-guideline-2.1-response.md` is superseded by it.
 
@@ -21,11 +21,14 @@ behavior, not the Sept 18 design.** This file is that reply. The checked
    selected, the old rule applies there ("may not advertise the offer") and
    the reply below is wrong for that storefront. Either restrict to US or tell
    me and we revert those storefronts to the no-price card.
-2. Attach the build you actually want reviewed. Builds 16 and 17 have only
-   been installed directly by cable; the last upload to App Store Connect is
-   build 15, which still has the old flow. **Do not submit build 15 with this
-   reply.** Upload 17 (or whatever number is current after the phone retest),
-   wait for processing, attach it, then post.
+2. Attach the build you actually want reviewed. Build 18 was uploaded to
+   TestFlight and revealed a language-selector coverage bug on the provider
+   portal (Report: switcher showed but selecting a language did nothing on
+   `providers.html` / `fleet.html` / `provider-info.html` which have zero
+   `data-i18n` markup). Fixed in build 19 (commit `65d8312`, deploy
+   `6ab4197f…` on 2026-09-23) by suppressing the switcher on pages with no
+   translatable content. **Upload build 19 for review**, wait for
+   processing, attach it, then post.
 
 ## Reply text — paste into "Reply to App Review" under the 3.1.1 bullet
 
@@ -84,7 +87,7 @@ length and convert automatically.
 ## Status
 
 - [ ] Jordan: confirm US-only availability in App Store Connect
-- [ ] Jordan: phone retest of build 17 (Start trial, Buy Credits from a warning)
+- [ ] Jordan: phone retest of build 19 (Start trial, Buy Credits from a warning; also verify the language switcher no longer shows on the provider portal)
 - [ ] CC: `build-ios.sh` upload of the retested build; confirm processing
 - [ ] Jordan: attach build, post this reply under 3.1.1, keep the other five
       items' answers as already drafted in the Notes field
