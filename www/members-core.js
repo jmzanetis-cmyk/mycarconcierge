@@ -3120,7 +3120,18 @@ async function showSection(sectionId) {
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.querySelectorAll('.mobile-bottom-nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.mobile-bottom-nav-item[data-section="${sectionId}"]`)?.classList.add('active');
-  document.getElementById('sidebar').classList.remove('open');
+  // Close the mobile sidebar AND its overlay. Removing only `.open` from the
+  // sidebar element leaks the #sidebar-overlay div (position:fixed inset:0
+  // rgba(0,0,0,0.5) z-index:40) — the overlay stays visible over the newly-
+  // activated section, dims the whole page, and swallows every tap into
+  // toggleSidebar() (which re-opens the sidebar). Restore the full closed
+  // state so every nav-item tap lands cleanly on the destination section.
+  document.getElementById('sidebar')?.classList.remove('open');
+  const _sbOverlay = document.getElementById('sidebar-overlay');
+  if (_sbOverlay) _sbOverlay.style.display = 'none';
+  const _mobileClose = document.querySelector('.mobile-close');
+  if (_mobileClose) _mobileClose.style.display = 'none';
+  document.body.classList.remove('sidebar-open');
   
   // Reset scroll position to top
   document.querySelector('.main').scrollTop = 0;

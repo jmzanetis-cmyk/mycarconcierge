@@ -381,6 +381,14 @@
 <body>
 
   <div class="container">
+    <!-- Back-to-dashboard link. Visible from every state (loading / empty /
+         main) so a user who lands here inside the Capacitor native shell —
+         which has no browser back button — can always return. -->
+    <a href="providers.html" style="display:inline-flex;align-items:center;gap:6px;padding:10px 14px;margin-bottom:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:8px;color:var(--text-primary);text-decoration:none;font-size:0.9rem;font-weight:500;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      Dashboard
+    </a>
+
     <!-- Initial loading state, hidden once /my-provider-clubs resolves -->
     <div id="state-loading" class="state-loading">
       <div class="spinner"></div>

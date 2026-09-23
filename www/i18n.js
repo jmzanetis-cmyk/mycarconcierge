@@ -206,6 +206,24 @@ const I18n = (function() {
   }
 
   async function init() {
+    // Build 20 (2026-09-23): iOS is English-only. Full localization coverage
+    // + JS I18n.t() refactor + RTL CSS pass ships in 1.1.1. On Capacitor iOS
+    // we load English translations directly WITHOUT calling setLanguage(),
+    // so the saved localStorage/profile preference is preserved — a user who
+    // has Spanish saved from a web session keeps that preference; iOS just
+    // ignores it for this build.
+    const isCapacitorIOS = window.Capacitor?.isNativePlatform?.() &&
+                           window.Capacitor?.getPlatform?.() === 'ios';
+    if (isCapacitorIOS) {
+      currentLanguage = DEFAULT_LANGUAGE;
+      translations = await loadTranslations(DEFAULT_LANGUAGE);
+      fallbackTranslations = translations;
+      document.documentElement.lang = DEFAULT_LANGUAGE;
+      document.documentElement.dir = 'ltr';
+      translatePage();
+      isLoaded = true;
+      return currentLanguage;
+    }
     const savedLang = getSavedLanguage();
     const initialLang = savedLang || detectBrowserLanguage();
     await setLanguage(initialLang);
@@ -223,6 +241,14 @@ const I18n = (function() {
   function createLanguageSwitcher(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
+
+    // Build 20 (2026-09-23): iOS is English-only until 1.1.1 ships full
+    // localization + RTL CSS pass. Hide the header switcher entirely on
+    // Capacitor iOS. Web + Android unchanged.
+    if (window.Capacitor?.isNativePlatform?.() &&
+        window.Capacitor?.getPlatform?.() === 'ios') {
+      return;
+    }
 
     // Suppress the switcher on pages with no translatable content —
     // otherwise picking a language runs setLanguage() successfully but

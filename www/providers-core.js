@@ -420,7 +420,18 @@ async function showSection(id) {
   target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${id}"]`)?.classList.add('active');
-  document.getElementById('sidebar').classList.remove('open');
+  // Close the mobile sidebar AND its overlay. Removing only `.open` from the
+  // sidebar element leaks the #sidebar-overlay div (position:fixed inset:0
+  // rgba(0,0,0,0.5) z-index:40) — the overlay stays visible over the newly-
+  // activated section, dims the whole page, and swallows every tap into
+  // toggleSidebar() (which re-opens the sidebar). Restore the full closed
+  // state so every nav-item tap lands cleanly on the destination section.
+  document.getElementById('sidebar')?.classList.remove('open');
+  const _sbOverlay = document.getElementById('sidebar-overlay');
+  if (_sbOverlay) _sbOverlay.style.display = 'none';
+  const _mobileClose = document.querySelector('.mobile-close');
+  if (_mobileClose) _mobileClose.style.display = 'none';
+  document.body.classList.remove('sidebar-open');
   
   // Section-specific loading
   if (id === 'team' && typeof loadTeamMembers === 'function') {
@@ -447,9 +458,9 @@ async function showSection(id) {
   if (id === 'pos-analytics' && typeof loadPosAnalytics === 'function') {
     loadPosAnalytics();
   }
-  if (id === 'refund-requests' && typeof loadProviderRefunds === 'function') {
-    loadProviderRefunds();
-  }
+  // Refund Requests retired 2026-09-23 — nav item + section removed from
+  // providers.html. loadProviderRefunds() left in providers-jobs.js as dead
+  // code for a later hygiene sweep.
   if (id === 'bids' && typeof loadBidInsights === 'function') {
     loadBidInsights();
   }
