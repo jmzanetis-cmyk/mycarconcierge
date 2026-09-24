@@ -1060,7 +1060,7 @@
 
         <div class="login-tabs">
           <button type="button" class="login-tab active" id="tab-password" onclick="switchLoginTab('password')">Password</button>
-          <button type="button" class="login-tab" id="tab-magic" onclick="switchLoginTab('magic')">Magic Link</button>
+          <button type="button" class="login-tab" id="tab-magic" onclick="switchLoginTab('magic')">Email Code</button>
         </div>
 
         <form id="login-form">
@@ -1074,7 +1074,7 @@
           </div>
           <div style="text-align:right;margin:-4px 0 4px;"><a href="forgot-password.html" style="font-size:var(--text-sm);color:var(--text-muted);text-decoration:none;">Forgot password?</a></div>
           <button type="submit" class="btn btn--primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
-          <button type="button" class="btn btn--primary" id="magic-link-btn" style="display:none;" onclick="sendMagicLink()">Send Magic Link</button>
+          <button type="button" class="btn btn--primary" id="magic-link-btn" style="display:none;" onclick="sendEmailCode()">Send Code</button>
         </form>
 
         <div class="login-message" id="message"></div>
@@ -1107,40 +1107,33 @@
         </div>
       </div>
 
-      <div id="magic-link-sent" style="display:none;">
+      <!-- Email Code entry — replaces the "check your email" screen. Works in-app
+           on iOS (no deep-link dependency). Web users can also click the magic link
+           in the same email; both paths land at the same
+           check2faAndProceed → handleUserRedirect flow. Code length is set from
+           OTP_LENGTH in login.js so a change is a one-line edit if Supabase's
+           token length is ever reconfigured. -->
+      <div id="email-code-sent" style="display:none;">
         <div class="magic-link-sent">
           <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
-          <h2 class="magic-link-sent-title">Check Your Email!</h2>
+          <h2 class="magic-link-sent-title">Enter your code</h2>
           <p class="magic-link-sent-text">
-            We sent a sign-in link to<br>
+            We sent a sign-in code to<br>
             <span class="magic-link-sent-email" id="magic-link-email-display"></span>
           </p>
-          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
+          <div class="form-group" style="max-width:280px;margin:16px auto 8px;">
+            <input type="text" inputmode="numeric" autocomplete="one-time-code"
+                   class="form-input" id="email-code-input" placeholder="123456"
+                   style="text-align:center;font-size:1.5rem;letter-spacing:0.5em;">
+          </div>
+          <div id="email-code-error" class="login-message" style="display:none;color:var(--danger,#e34);margin:0 0 12px;"></div>
+          <button type="button" class="btn btn--primary" id="email-code-verify-btn" onclick="verifyEmailCode()">Verify</button>
           <div class="magic-link-resend">
-            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
+            <a id="magic-resend-link" onclick="resendEmailCode()">Resend code</a>
           </div>
           <div class="magic-link-countdown" id="magic-resend-countdown"></div>
           <div class="magic-link-sent-actions">
-            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="magic-link-sent" style="display:none;">
-        <div class="magic-link-sent">
-          <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
-          <h2 class="magic-link-sent-title">Check Your Email!</h2>
-          <p class="magic-link-sent-text">
-            We sent a sign-in link to<br>
-            <span class="magic-link-sent-email" id="magic-link-email-display"></span>
-          </p>
-          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
-          <div class="magic-link-resend">
-            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
-          </div>
-          <div class="magic-link-countdown" id="magic-resend-countdown"></div>
-          <div class="magic-link-sent-actions">
-            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+            <button class="btn--secondary" onclick="usePasswordInstead()">Use password instead</button>
           </div>
         </div>
       </div>

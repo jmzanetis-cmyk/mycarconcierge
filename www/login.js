@@ -261,7 +261,7 @@
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('totp-screen').style.display = 'none';
       document.getElementById('biometric-enroll-screen').style.display = 'none';
-      document.getElementById('magic-link-sent').style.display = 'none';
+      document.getElementById('email-code-sent').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
     }
 
@@ -935,7 +935,37 @@
         ? 'https://www.mycarconcierge.com/login.html'
         : window.location.origin + '/login.html';
 
-    async function sendMagicLink() {
+    // Source of truth for the Supabase email OTP length. If Supabase's token
+    // length is ever reconfigured, change this line and the input's maxlength,
+    // pattern, and the verify-side regex all follow.
+    const OTP_LENGTH = 6;
+    const OTP_REGEX = new RegExp('^\\d{' + OTP_LENGTH + '}$');
+
+    // Map a Supabase send-OTP error to a user-facing message. shouldCreateUser:false
+    // means an unknown email surfaces as "Signups not allowed" / "User not found" —
+    // translate that into a specific "sign up or use password" hint instead of the
+    // raw Supabase copy.
+    function mapSendOtpError(err) {
+      const raw = ((err && err.message) || '').toLowerCase();
+      if (raw.includes('signups not allowed') ||
+          raw.includes('user not found') ||
+          raw.includes('not found') ||
+          raw.includes('no user')) {
+        return 'No account found for that email. Sign up or use password.';
+      }
+      return err && err.message ? err.message : 'Failed to send code. Please try again.';
+    }
+
+    function hideEmailCodeError() {
+      const el = document.getElementById('email-code-error');
+      if (el) el.style.display = 'none';
+    }
+    function showEmailCodeError(msg) {
+      const el = document.getElementById('email-code-error');
+      if (el) { el.textContent = msg; el.style.display = 'block'; }
+    }
+
+    async function sendEmailCode() {
       const email = document.getElementById('email').value.trim();
       if (!email) {
         showMessage('Please enter your email address.');
@@ -944,33 +974,96 @@
 
       const magicBtn = document.getElementById('magic-link-btn');
       magicBtn.disabled = true;
-      magicBtn.innerHTML = '<span class="spinner"></span>Sending...';
+      magicBtn.innerHTML = '<span class="spinner"></span>Sending…';
 
       try {
+        // Email Code is sign-in only. shouldCreateUser:false blocks silent
+        // account creation for unknown emails — registration stays on the
+        // normal signup flow. emailRedirectTo is retained so the same email
+        // still carries a clickable magic link for web users.
         const { error } = await supabaseClient.auth.signInWithOtp({
           email,
           options: {
+            shouldCreateUser: false,
             emailRedirectTo: authRedirectBase
           }
         });
 
         if (error) {
-          showMessage(error.message || 'Failed to send magic link. Please try again.');
+          showMessage(mapSendOtpError(error));
           magicBtn.disabled = false;
-          magicBtn.innerHTML = 'Send Magic Link';
+          magicBtn.innerHTML = 'Send Code';
           return;
         }
 
         lastMagicLinkEmail = email;
         document.getElementById('magic-link-email-display').textContent = email;
         document.getElementById('login-form-container').style.display = 'none';
-        document.getElementById('magic-link-sent').style.display = 'block';
+        const sentBlock = document.getElementById('email-code-sent');
+        sentBlock.style.display = 'block';
+        const codeInput = document.getElementById('email-code-input');
+        if (codeInput) {
+          codeInput.maxLength = OTP_LENGTH;
+          codeInput.setAttribute('pattern', '\\d{' + OTP_LENGTH + '}');
+          codeInput.value = '';
+          codeInput.focus();
+        }
+        hideEmailCodeError();
         startMagicResendCountdown();
       } catch (err) {
         showMessage('An error occurred. Please try again.');
         magicBtn.disabled = false;
-        magicBtn.innerHTML = 'Send Magic Link';
+        magicBtn.innerHTML = 'Send Code';
       }
+    }
+
+    async function verifyEmailCode() {
+      const email = lastMagicLinkEmail;
+      const code = (document.getElementById('email-code-input').value || '').trim();
+      hideEmailCodeError();
+      if (!email) {
+        return showEmailCodeError('No email on record — tap "Use password instead" and start over.');
+      }
+      if (!OTP_REGEX.test(code)) {
+        return showEmailCodeError('Enter the ' + OTP_LENGTH + '-digit code from your email.');
+      }
+
+      const verifyBtn = document.getElementById('email-code-verify-btn');
+      verifyBtn.disabled = true;
+      verifyBtn.innerHTML = '<span class="spinner"></span>Verifying…';
+
+      try {
+        const { data, error } = await supabaseClient.auth.verifyOtp({
+          email, token: code, type: 'email'
+        });
+        if (error) {
+          const raw = (error.message || '').toLowerCase();
+          const msg = raw.includes('expired')
+                        ? 'That code expired. Tap "Resend code" to get a new one.'
+                    : (raw.includes('invalid') || raw.includes('not found') || raw.includes('token'))
+                        ? "That code isn't right. Double-check and try again."
+                    : (error.message || 'Verification failed.');
+          showEmailCodeError(msg);
+          verifyBtn.disabled = false;
+          verifyBtn.innerHTML = 'Verify';
+          return;
+        }
+        if (data && data.user) {
+          // Route through the same path as password login: 2FA gate then
+          // handleUserRedirect handles chooser / member / provider / admin.
+          await check2faAndProceed(data.user);
+        }
+      } catch (err) {
+        showEmailCodeError('Something went wrong. Try again.');
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = 'Verify';
+      }
+    }
+
+    function usePasswordInstead() {
+      document.getElementById('email-code-sent').style.display = 'none';
+      document.getElementById('login-form-container').style.display = 'block';
+      switchLoginTab('password');
     }
 
     function startMagicResendCountdown() {
@@ -994,7 +1087,7 @@
       }, 1000);
     }
 
-    async function resendMagicLink() {
+    async function resendEmailCode() {
       if (magicResendCountdown > 0) return;
 
       if (!lastMagicLinkEmail) {
@@ -1003,43 +1096,49 @@
       }
 
       const resendLink = document.getElementById('magic-resend-link');
-      resendLink.textContent = 'Sending...';
+      resendLink.textContent = 'Sending…';
       resendLink.classList.add('disabled');
+      hideEmailCodeError();
 
       try {
         const { error } = await supabaseClient.auth.signInWithOtp({
           email: lastMagicLinkEmail,
           options: {
+            shouldCreateUser: false,
             emailRedirectTo: authRedirectBase
           }
         });
 
         if (error) {
-          showMessage('Failed to resend. Please try again.');
-          resendLink.textContent = 'Resend magic link';
+          showEmailCodeError(mapSendOtpError(error));
+          resendLink.textContent = 'Resend code';
           resendLink.classList.remove('disabled');
           return;
         }
 
-        resendLink.textContent = 'Resend magic link';
+        resendLink.textContent = 'Resend code';
+        const codeInput = document.getElementById('email-code-input');
+        if (codeInput) { codeInput.value = ''; codeInput.focus(); }
         startMagicResendCountdown();
       } catch (err) {
-        showMessage('Failed to resend. Please try again.');
-        resendLink.textContent = 'Resend magic link';
+        showEmailCodeError('Failed to resend. Please try again.');
+        resendLink.textContent = 'Resend code';
         resendLink.classList.remove('disabled');
       }
     }
 
     function showMagicLinkForm() {
-      document.getElementById('magic-link-sent').style.display = 'none';
+      document.getElementById('email-code-sent').style.display = 'none';
       document.getElementById('login-form-container').style.display = 'block';
       if (magicResendTimer) clearInterval(magicResendTimer);
       switchLoginTab('magic');
     }
 
     window.switchLoginTab = switchLoginTab;
-    window.sendMagicLink = sendMagicLink;
-    window.resendMagicLink = resendMagicLink;
+    window.sendEmailCode = sendEmailCode;
+    window.verifyEmailCode = verifyEmailCode;
+    window.resendEmailCode = resendEmailCode;
+    window.usePasswordInstead = usePasswordInstead;
     window.showMagicLinkForm = showMagicLinkForm;
 
     // Deep-link handler: completes magic-link sign-in when iOS hands the
