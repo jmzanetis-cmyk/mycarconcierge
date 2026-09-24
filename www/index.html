@@ -2929,16 +2929,21 @@
           return;
         }
 
-        // Get user role and redirect
-        const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', data.user.id).single();
-        
-        if (profile?.role === 'admin') {
-          window.location.href = 'admin.html';
-        } else if (profile?.role === 'provider' || profile?.role === 'pending_provider') {
-          window.location.href = 'providers.html';
-        } else {
-          window.location.href = 'members.html';
-        }
+        // Route through login.html — its inline fast-path + login.js's
+        // load handler apply the single source-of-truth routing:
+        // dual-role chooser, 2FA challenge, admin/provider/member. The
+        // homepage form used to duplicate a role-only routing that
+        // shunted demo@mycarconcierge.com (role='provider' +
+        // is_also_member=true, the Apple Reviewer path) straight to
+        // providers.html, bypassing the chooser — reproduced on a
+        // clean-state second computer 2026-09-24. Passing ?2fa=required
+        // makes login.js call handle2faRequiredRedirect →
+        // check2faAndProceed, which honors any verified TOTP factor and
+        // then falls through to handleUserRedirect. For a non-2FA
+        // account (demo, jm.zanetis, reviewer-*) it's a straight pass
+        // through with no extra prompt.
+        console.log('[index-hero-login] signed in, hop → login.html?2fa=required for portal routing');
+        window.location.href = 'login.html?2fa=required';
       } catch (err) {
         console.error('Login error:', err);
         errorEl.textContent = err.message || 'An error occurred. Please try again.';

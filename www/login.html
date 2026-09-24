@@ -1342,6 +1342,24 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
+          // URL param guard (build 27, 2026-09-24): if ?2fa=required,
+          // ?oauth=X, or ?returnTo=/... is present, login.js's `load`
+          // handler must run — it dispatches to handle2faRequiredRedirect
+          // (2FA challenge) or, via handleUserRedirect, honors the
+          // returnTo path and completes OAuth-callback profile bootstrap.
+          // The fast-path used to preempt those. This return also matters
+          // for the homepage-form → login.html?2fa=required hop
+          // introduced this build: check2faAndProceed must run before
+          // handleUserRedirect so any verified TOTP factor is enforced.
+          // NOTE: This does NOT close the standing OAuth 2FA bypass —
+          // login.js's load handler treats ?oauth=X paths through
+          // handleUserRedirect directly, skipping check2faAndProceed.
+          // Filed in HANDOFF 1.1.1.
+          const _urlParams = new URLSearchParams(window.location.search);
+          if (_urlParams.has('2fa') || _urlParams.has('oauth') || _urlParams.has('returnTo')) {
+            return;
+          }
+
           // Always fetch profile FIRST so we can detect dual-role users
           // (member+provider). Dual-role must always see the chooser — the
           // mcc_portal localStorage hint cannot override it, or accounts like
@@ -1370,6 +1388,16 @@
           }
 
           const portal = localStorage.getItem('mcc_portal');
+          // No stored portal preference (fresh browser, private window,
+          // or a user who has never explicitly picked): let login.js's
+          // load handler route by profile.role via handleUserRedirect.
+          // Without this return, admin and pure-provider accounts on a
+          // fresh browser got shunted to members.html because that's
+          // the fast-path's default `target` — reported 2026-09-24.
+          if (!portal) {
+            return;
+          }
+
           let target = 'members.html';
           if (portal === 'provider' || portal === 'admin') {
             // Task: fix login<->providers/admin redirect loop ("spasming").
