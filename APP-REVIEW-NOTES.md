@@ -24,7 +24,7 @@ The app is currently US-only, launching in the Northeast + Midwest metros first.
 On first launch:
 
 1. **Splash → onboarding intro** (2 short screens explaining the marketplace).
-2. **Sign-in / register screen** — options for email + password, **Sign in with Apple**, Sign in with Google, or Sign in with Facebook.
+2. **Sign-in / register screen** — email + password.
 3. **Role selection** — user picks "I need service" (Member portal) or "I offer service" (Provider portal). The app supports dual-role users (a member can later add provider capabilities and vice versa).
 4. **First-run vehicle add** (Member path) — asked to add a vehicle (year, make, model, nickname) so requests can be tied to a real car. Provider path collects business name, service area, and payout details for Stripe Connect onboarding.
 
@@ -50,7 +50,7 @@ The demo account is a dual-role user (member + provider). Both portals can be ex
 
 ### A. Registration flow (fresh account, optional)
 1. Tap "Register" on the sign-in screen.
-2. Choose "Continue with Apple" (or email/password).
+2. Enter email + password and tap "Create account".
 3. Complete the onboarding — pick "I need service", add a vehicle.
 4. Land on the Member Portal home.
 
@@ -113,15 +113,13 @@ Confirmed active in this build:
 
 - **Stripe** — payment processing for member service payments and provider payouts (via Stripe Connect). Also processes provider bid-credit purchases and monthly subscriptions.
 - **Supabase** — backend (authentication, PostgreSQL, real-time subscriptions for chat and notifications, storage for uploaded photos).
-- **Sign in with Apple** — offered as a first-class sign-in option per Apple 4.8, via `AuthenticationServices.framework` entitlement + Supabase OAuth.
-- **Sign in with Google** and **Sign in with Facebook** — additional sign-in options (via Supabase OAuth).
 - **Twilio** — SMS delivery for verification codes, appointment reminders, and provider bid alerts.
 - **Resend** — transactional email delivery (receipts, reminders, admin notifications).
 - **Anthropic Claude** — assists members composing service requests (natural-language → structured package), and powers admin-side operational triage assistants. No user data is trained on; requests go over Anthropic's API with standard privacy protections.
 - **Google Places API** — address autocomplete for member service-request location entry and provider service-area setup.
-- **Third-party background-check service** `[CONFIRM — Checkr was retired 2026-09-11 per code comments; current vendor is not Checkr — confirm name before submitting]` — runs identity and background verification on providers before their listings can accept bids. Members do NOT undergo background checks.
+- **BackgroundChecks.com (operated by ClearChecks)** — runs identity and background verification on providers before their listings can accept bids. Members do NOT undergo background checks.
 
-Third-party services do NOT include: cryptocurrency, ad networks, or any social-media data-sync beyond the initial Sign-in-with-provider OAuth handshake. Facebook data-deletion callback is implemented per Facebook's platform policy.
+The app authenticates with email + password only; no third-party or social sign-in is offered.
 
 ## 6. Regional consistency and regulated-industry classification
 
