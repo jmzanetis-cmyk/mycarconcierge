@@ -1066,6 +1066,13 @@ async function loadProfile() {
     userProfile = data;
   }
 
+  // Expose on window so the inline checkOnboardingStatus() in members.html
+  // can read role + is_also_provider before deciding whether to force-redirect
+  // a user to the onboarding survey. userProfile is a module-scope `let`;
+  // without this line the inline script sees undefined and (per its fail-open
+  // gate) skips the redirect, which is the correct fallback anyway.
+  window.userProfile = userProfile;
+
   // Redirect non-members who don't have cross-role member access
   const _role = userProfile?.role;
   if (_role === 'provider' && !userProfile?.is_also_member) {

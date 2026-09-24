@@ -8758,7 +8758,20 @@
         // If survey not yet completed, redirect once to onboarding survey page so the response
         // is reliably user-linked (the page uses getSession() which is always authenticated).
         // sessionStorage dedup prevents re-redirect within the same browser session.
-        if (!data.survey_completed && !sessionStorage.getItem('mcc_survey_redirect_done')) {
+        //
+        // Gate (2026-09-24, P1 fix): only route pure new members into the survey. Admins
+        // visiting the member portal (admin.html "Member Portal" button) and dual-role
+        // providers who are also members (the Apple-reviewer demo path
+        // demo@mycarconcierge.com — role=provider, is_also_member=true) must NOT be
+        // kicked to the signup form; from their perspective it's indistinguishable from
+        // being logged out. window.userProfile is set by members-core.js:loadProfile
+        // (module-scope `let` re-exported on window). If it hasn't been assigned yet
+        // (initializeDashboard's Promise.all hasn't resolved by the 1500 ms setTimeout),
+        // window.userProfile?.role is undefined, isPureMember stays false, and the
+        // redirect is skipped — fail open to the dashboard, never to the survey.
+        const role = window.userProfile?.role;
+        const isPureMember = role === 'member' && !window.userProfile?.is_also_provider;
+        if (isPureMember && !data.survey_completed && !sessionStorage.getItem('mcc_survey_redirect_done')) {
           sessionStorage.setItem('mcc_survey_redirect_done', '1');
           window.location.href = '/onboarding-member.html?from=dashboard';
           return;
