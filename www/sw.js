@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v163';
+const CACHE_NAME = 'mcc-cache-v164';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

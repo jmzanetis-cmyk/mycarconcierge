@@ -1456,9 +1456,10 @@ async function loadBackgroundCheckStatus(opts = {}) {
             <div style="font-size:2.5rem;margin-bottom:12px;">🛡️</div>
             <p style="font-weight:500;margin-bottom:8px;">No background check on file</p>
             <p style="font-size:0.85rem;margin-bottom:20px;">Verified providers earn a trust badge visible to customers on bids and profile.</p>
-            <button class="btn btn-primary" onclick="openBackgroundCheckModal('provider')">
+            <button class="btn btn-primary web-purchase-only" onclick="openBackgroundCheckModal('provider')">
               ${mccIcon('shield', 16)} Start My Background Check
             </button>
+            <div class="native-purchase-only" style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">Start your background check from your account at <strong>mycarconcierge.com</strong>.</div>
           </div>`;
       } else {
         const statusCfg = BG_STATUS_CONFIG[pc.status] || {};
@@ -1488,7 +1489,7 @@ async function loadBackgroundCheckStatus(opts = {}) {
             </div>` : ''}
           <div style="margin-top:14px;display:flex;gap:8px;">
             <button class="btn btn-secondary btn-sm" onclick="loadBackgroundCheckStatus()">${mccIcon('refresh-cw', 14)} Refresh</button>
-            ${['canceled','not_eligible'].includes(pc.status) ? `<button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('provider')">${mccIcon('shield', 14)} Re-initiate</button>` : ''}
+            ${['canceled','not_eligible'].includes(pc.status) ? `<button class="btn btn-primary btn-sm web-purchase-only" onclick="openBackgroundCheckModal('provider')">${mccIcon('shield', 14)} Re-initiate</button><span class="native-purchase-only" style="font-size:0.85rem;color:var(--text-muted);">Re-initiate from <strong>mycarconcierge.com</strong>.</span>` : ''}
           </div>`;
       }
     }
@@ -1529,7 +1530,8 @@ async function loadBackgroundCheckStatus(opts = {}) {
         dashCard.innerHTML = `
           <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;gap:10px;">
             <div style="font-size:0.85rem;color:var(--text-muted);">No background check on file.</div>
-            <button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">🛡️ Start Check</button>
+            <button class="btn btn-primary btn-sm web-purchase-only" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">🛡️ Start Check</button>
+            <span class="native-purchase-only" style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">Start from <strong>mycarconcierge.com</strong>.</span>
           </div>`;
         _clearBgCheckPoll();
       } else {
@@ -1576,7 +1578,8 @@ async function loadBackgroundCheckStatus(opts = {}) {
         dashCard.innerHTML = `
           <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;gap:10px;">
             <div style="font-size:0.85rem;color:var(--text-muted);">Get verified — complete setup for your trust badge.</div>
-            <button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">${mccIcon('shield', 14)} Start Check</button>
+            <button class="btn btn-primary btn-sm web-purchase-only" onclick="openBackgroundCheckModal('provider')" style="white-space:nowrap;">${mccIcon('shield', 14)} Start Check</button>
+            <span class="native-purchase-only" style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">Start from <strong>mycarconcierge.com</strong>.</span>
           </div>`;
       }
     }
