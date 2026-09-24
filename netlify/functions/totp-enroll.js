@@ -233,8 +233,21 @@ exports.handler = async function(event) {
     var codeRows = plaintextCodes.map(function(c) {
       return { user_id: user.id, code_hash: hashBackupCode(c) };
     });
-    await supabase.from('totp_backup_codes').delete().eq('user_id', user.id);
-    await supabase.from('totp_backup_codes').insert(codeRows);
+    // Fail closed if either write errors — never hand the user backup codes
+    // that won't redeem. The TOTP factor is already verified in auth.mfa_factors
+    // at this point, but two_factor_enabled below stays off so the user can retry.
+    var deleteResult = await supabase.from('totp_backup_codes').delete().eq('user_id', user.id);
+    if (deleteResult.error) {
+      return jsonResponse(500, {
+        error: 'Failed to reset backup codes; TOTP not fully enabled. Please retry.'
+      });
+    }
+    var insertResult = await supabase.from('totp_backup_codes').insert(codeRows);
+    if (insertResult.error) {
+      return jsonResponse(500, {
+        error: 'Failed to store backup codes; TOTP not fully enabled. Please retry.'
+      });
+    }
 
     // Mark the user as enrolled and recently verified (same columns the page
     // gate reads, so auth-check-access.js needs no changes).
