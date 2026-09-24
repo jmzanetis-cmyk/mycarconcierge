@@ -56,7 +56,7 @@ The demo account is a dual-role user (member + provider). Both portals can be ex
 
 ### B. Sign in with the demo account (recommended for review)
 1. Enter `demo@mycarconcierge.com` and the password provided in ASC Notes.
-2. Land on the Member Portal home. The account has:
+2. After signing in you'll be asked to choose Member Portal or Provider Portal. You can switch between them any time from the account menu. Tap **Member Portal**. The Member Portal home shows:
    - 4 vehicles in the garage
    - Multiple maintenance packages (open, in-progress, and one completed 60,000-mile Service)
    - 1 unread message from the provider "Roadside Rescue Auto"

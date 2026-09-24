@@ -1342,6 +1342,33 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
+          // Always fetch profile FIRST so we can detect dual-role users
+          // (member+provider). Dual-role must always see the chooser — the
+          // mcc_portal localStorage hint cannot override it, or accounts like
+          // demo@mycarconcierge.com (role=provider, is_also_member=true — the
+          // Apple Reviewer demo path) get shunted straight to providers.html
+          // on every session revisit (bug reported 2026-09-24). The old
+          // query omitted is_also_member entirely.
+          let profile = null;
+          try {
+            const { data: { user: fpUser } } = await supabaseClient.auth.getUser();
+            const r = await supabaseClient
+              .from('profiles')
+              .select('role, is_also_member, is_also_provider')
+              .eq('id', fpUser.id).single();
+            profile = r.data;
+          } catch (_) { /* fall through to safe defaults below */ }
+
+          const fpIsMember   = profile && (profile.role === 'member' || profile.role === 'admin' || profile.is_also_member);
+          const fpIsProvider = profile && (profile.role === 'provider' || profile.is_also_provider);
+          if (fpIsMember && fpIsProvider) {
+            // Fall through: login.js's `load` handler fires next and runs
+            // handleUserRedirect(), which shows the chooser via
+            // login.js:410 (isMember && isProvider). Same code path as
+            // fresh form login — one source of truth for the chooser gate.
+            return;
+          }
+
           const portal = localStorage.getItem('mcc_portal');
           let target = 'members.html';
           if (portal === 'provider' || portal === 'admin') {
@@ -1355,22 +1382,21 @@
             // which trusted the same stale flag again — an infinite loop.
             // Verify actual access first, and self-heal the flag if it's
             // wrong so this can't loop even if some other code path leaves
-            // a bad value behind.
-            try {
-              const { data: { user } } = await supabaseClient.auth.getUser();
-              const { data: profile } = await supabaseClient.from('profiles').select('role,is_also_provider').eq('id', user.id).single();
-              if (portal === 'admin' && profile && profile.role === 'admin') {
-                target = 'admin.html';
-              } else if (portal === 'provider' && profile && (profile.role === 'provider' || profile.is_also_provider)) {
-                target = 'providers.html';
-              } else {
-                localStorage.setItem('mcc_portal', 'member');
-              }
-            } catch (_) {
-              // Couldn't verify — fall back to the safe default (members.html)
-              // rather than risk another loop.
+            // a bad value behind. profile fetched above; reuse it.
+            if (portal === 'admin' && profile && profile.role === 'admin') {
+              target = 'admin.html';
+            } else if (portal === 'provider' && profile && (profile.role === 'provider' || profile.is_also_provider)) {
+              target = 'providers.html';
+            } else {
+              localStorage.setItem('mcc_portal', 'member');
             }
           }
+          // Signal login.js's `load` handler that we're taking over the
+          // redirect so its own handleUserRedirect(user) call skips out —
+          // prevents a race where both this fast-path and login.js issue
+          // a redirect concurrently (functionally same URL, but no need
+          // to double-fire).
+          window.__mccFastPathRedirecting = true;
           window.location.replace(target);
           return;
         }

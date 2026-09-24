@@ -21,10 +21,17 @@
 
     window.addEventListener('load', async () => {
       await initBiometricUI();
-      
+
+      // Belt+suspenders (2026-09-24, build 25): if login.html's inline
+      // fast-path has already decided to navigate away, don't compete
+      // with it here. Fast-path only sets this flag on its redirect
+      // path; the dual-role return branch does NOT set it, so this
+      // handler still runs and shows the chooser for those accounts.
+      if (window.__mccFastPathRedirecting) return;
+
       const user = await getCurrentUser();
       const urlParams = getUrlParams();
-      
+
       if (user) {
         if (urlParams.twoFaRequired) {
           await handle2faRequiredRedirect(user);
