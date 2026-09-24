@@ -462,12 +462,10 @@ class HelpdeskWidget extends ChatWidgetBase {
   // for its POST — pulled out here so the feedback PATCH below can reuse it
   // instead of re-deriving the same three cases.
   getHelpdeskApiUrl() {
-    const isNetlify = window.location.hostname.includes('netlify') ||
-                      window.location.hostname === 'mycarconcierge.com' ||
-                      window.location.hostname === 'www.mycarconcierge.com';
-    const isNativeApp = window.Capacitor !== undefined || window.location.protocol === 'capacitor:';
-    if (isNetlify) return '/.netlify/functions/helpdesk';
-    if (isNativeApp) return 'https://www.mycarconcierge.com/.netlify/functions/helpdesk';
+    // Always '/api/helpdesk' — mcc-config.js's native-fetch interceptor
+    // rewrites this to https://www.mycarconcierge.com on iOS, and _redirects
+    // (line 52) maps it to /.netlify/functions/helpdesk on web. One URL
+    // string works everywhere; no more hostname sniffing.
     return '/api/helpdesk';
   }
 
@@ -522,10 +520,9 @@ class HelpdeskWidget extends ChatWidgetBase {
     const emailBtn = widget.querySelector('.helpdesk-email-btn');
     if (emailBtn) emailBtn.disabled = true;
     try {
-      const isNetlify = window.location.hostname.includes('netlify') || 
-                        window.location.hostname === 'mycarconcierge.com' ||
-                        window.location.hostname === 'www.mycarconcierge.com';
-      const apiUrl = isNetlify ? '/.netlify/functions/helpdesk-email' : '/api/helpdesk-email';
+      // See getHelpdeskApiUrl() above — one /api/* URL works everywhere via
+      // mcc-config.js's interceptor + _redirects (line 54).
+      const apiUrl = '/api/helpdesk-email';
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

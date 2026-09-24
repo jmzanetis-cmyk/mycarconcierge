@@ -1187,7 +1187,12 @@ function updateCreditsBadge() {
 }
 
 // ========== BID PACK PURCHASE ==========
-const STRIPE_CHECKOUT_URL = '/.netlify/functions/create-bid-checkout';
+// '/api/...' is critical: mcc-config.js's native-fetch interceptor only
+// rewrites '/api/' paths to https://www.mycarconcierge.com on iOS. A raw
+// '/.netlify/functions/...' URL bypasses the rewriter, resolves to
+// https://localhost, fetch fails, and the client falls through to the
+// openWebPurchase() sign-in wall. See _redirects:46 for the mapping.
+const STRIPE_CHECKOUT_URL = '/api/create-bid-checkout';
 const USE_STRIPE = true;
 
 // Apple Guideline 3.1.1 / Google Play Billing compliance (2026-09-18,
@@ -1221,14 +1226,15 @@ function _isNativeApp() {
 }
 
 async function openWebPurchase() {
-  const url = 'https://www.mycarconcierge.com/providers.html?section=subscription';
-  const Browser = window.Capacitor?.Plugins?.Browser;
-  if (Browser) {
-    try { await Browser.open({ url }); return; }
-    catch (e) { console.error('[openWebPurchase] Browser.open failed:', e); }
+  // Historic behavior was to Browser.open(providers.html?section=subscription)
+  // on native as a last-resort fallback when /api/create-bid-checkout failed.
+  // That URL is login-gated and lands the user on the sign-in wall (2026-09-24
+  // bug report). Show a toast instead — the real fix is the failing API call,
+  // not routing the user through Safari to a login form.
+  console.error('[openWebPurchase] checkout API call failed — showing toast fallback');
+  if (typeof showToast === 'function') {
+    showToast("Couldn't start checkout. Please try again.", 'error');
   }
-  try { window.open(url, '_blank'); }
-  catch (e) { console.error('[openWebPurchase] window.open failed:', e); }
 }
 
 function handleBuyCreditsClick() {

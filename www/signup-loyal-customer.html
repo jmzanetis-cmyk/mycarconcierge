@@ -819,7 +819,7 @@
           }
 
           try {
-            const referralResp = await fetch('/.netlify/functions/referral-process', {
+            const referralResp = await fetch('/api/provider-referral/process', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ user_id: data.user.id, referral_code: referralCode })

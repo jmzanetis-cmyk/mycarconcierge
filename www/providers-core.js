@@ -12,7 +12,7 @@ async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `/providers-${name}.js?v=20260914d`;
+    script.src = `/providers-${name}.js?v=20260924`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
