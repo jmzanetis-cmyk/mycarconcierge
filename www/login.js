@@ -266,6 +266,20 @@
     }
 
     async function handleUserRedirect(user) {
+      // Telemetry (2026-09-24, build 26): stamp every path through this
+      // function with a short trace id so field bug reports for
+      // "signed in but went straight to providers.html without the chooser"
+      // can be pinned to the exact branch. Cost: 5 console.logs; no PII
+      // beyond a truncated user id.
+      const _traceId = Math.random().toString(36).slice(2, 8);
+      console.log('[handleUserRedirect:' + _traceId + '] entry', {
+        user_id: user?.id?.slice(0, 8) + '…',
+        urlParams: Object.fromEntries(new URLSearchParams(window.location.search)),
+        mcc_portal: (function() { try { return localStorage.getItem('mcc_portal'); } catch (_) { return 'err'; } })(),
+        mcc_signup_intent: (function() { try { return localStorage.getItem('mcc_signup_intent'); } catch (_) { return 'err'; } })(),
+        called_from: (new Error()).stack?.split('\n')[2]?.trim() || 'unknown',
+      });
+
       // Check for returnTo parameter (from 2FA required redirect)
       const urlParams = getUrlParams();
       const returnTo = urlParams.returnTo;
@@ -282,6 +296,10 @@
         .select('role, is_also_member, is_also_provider')
         .eq('id', user.id)
         .single();
+
+      console.log('[handleUserRedirect:' + _traceId + '] profile', {
+        profile, errorCode: error?.code,
+      });
 
       if (error && error.code === 'PGRST116') {
         // Task #318: honor `mcc_signup_intent='provider'` set by the
@@ -409,32 +427,45 @@
       const isProvider = profile.role === 'provider' || profile.is_also_provider;
       const isPendingProvider = profile.role === 'pending_provider';
 
+      console.log('[handleUserRedirect:' + _traceId + '] classified', {
+        role: profile.role,
+        is_also_member: profile.is_also_member,
+        is_also_provider: profile.is_also_provider,
+        isMember, isProvider, isPendingProvider,
+      });
+
       if (isPendingProvider && !profile.is_also_member) {
+        console.log('[handleUserRedirect:' + _traceId + '] → pending-screen');
         showScreen('pending-screen');
         return;
       }
 
       if (isMember && isProvider) {
+        console.log('[handleUserRedirect:' + _traceId + '] → CHOOSER (portal-selection-screen)');
         showScreen('portal-selection-screen');
         return;
       }
 
       if (isPendingProvider && profile.is_also_member) {
+        console.log('[handleUserRedirect:' + _traceId + '] → members.html (pending+is_also_member)');
         window.location.href = 'members.html';
         return;
       }
 
       if (isProvider) {
+        console.log('[handleUserRedirect:' + _traceId + '] → providers.html (single-role provider)');
         localStorage.setItem('mcc_portal', 'provider');
         // Small delay to ensure session is saved to localStorage
         await new Promise(resolve => setTimeout(resolve, 300));
         window.location.href = 'providers.html';
       } else if (profile.role === 'admin') {
+        console.log('[handleUserRedirect:' + _traceId + '] → admin.html');
         localStorage.setItem('mcc_portal', 'admin');
         // Small delay to ensure session is saved to localStorage
         await new Promise(resolve => setTimeout(resolve, 300));
         window.location.href = 'admin.html';
       } else {
+        console.log('[handleUserRedirect:' + _traceId + '] → members.html (pure member fallback)');
         localStorage.setItem('mcc_portal', 'member');
         // Small delay to ensure session is saved to localStorage
         await new Promise(resolve => setTimeout(resolve, 300));
