@@ -58,8 +58,9 @@ The demo account is a dual-role user (member + provider). Both portals can be ex
 1. Enter `demo@mycarconcierge.com` and the password provided in ASC Notes.
 2. After signing in you'll be asked to choose Member Portal or Provider Portal. You can switch between them any time from the account menu. Tap **Member Portal**. The Member Portal home shows:
    - 4 vehicles in the garage
-   - Multiple maintenance packages (open, in-progress, and one completed 60,000-mile Service)
-   - 1 unread message from the provider "Roadside Rescue Auto"
+   - Open service request "Front Brake Pads & Rotors" (2022 Toyota Camry) with 1 pending $220 bid from Roadside Rescue Auto
+   - Completed 60,000-mile Service ($380) in the Requests tab under Completed
+   - 1 unread message from Roadside Rescue Auto (Messages icon in the header — badge shows unread count)
 
 ### C. Exercise the three report + block mechanisms
 
@@ -70,10 +71,10 @@ The demo account is a dual-role user (member + provider). Both portals can be ex
 4. Also visible: **"Block provider"** — tap it, confirm, and the provider is added to the user's block list (filters them out of future conversations).
 
 **C2 — Per-bid Report ghost button:**
-1. From the Member Portal home, open the "Front Brake Pads & Rotors" package.
-2. Scroll to the bids section — 1 pending bid from Roadside Rescue Auto ($220, "OEM ceramic pads + Brembo rotors, 12-month warranty").
-3. Below the description, the action row shows Message / Accept Bid / a subtle underlined **Report** link.
-4. Tap **Report** — same modal shape as C1, with `contentType=bid`.
+1. From the Member Portal, tap the **Requests** tab (bottom nav).
+2. Open the "Front Brake Pads & Rotors" service request (open, Camry).
+3. Scroll to the **Bids Received** section — 1 pending bid from Roadside Rescue Auto ($220, "OEM ceramic pads + Brembo rotors, 12-month warranty").
+4. Each bid card shows a subtle underlined **Report** link on the right, below the price. Tap it — same modal shape as C1, with `contentType=bid`.
 
 **C3 — Per-review Report on provider "My Reviews" tab:**
 1. Switch to the Provider Portal (the demo account has both roles via the account switcher, OR log in as the counterparty `demo.counterparty@mcc-test.com` / password `[FILL IN — in ASC Notes]` for a pure provider view).
@@ -82,6 +83,9 @@ The demo account is a dual-role user (member + provider). Both portals can be ex
 4. Tap **Report** — same modal, with `contentType=review`.
 
 ### D. Delete Account (Apple Guideline 5.1.1(v))
+
+**Please register a new account to test deletion. Don't delete the demo account.** The demo account holds all seeded data (open request, completed service, message thread, provider review) that later parts of this walkthrough depend on. Register a throwaway account (email + password on the sign-in screen → tap Register), then run steps 1–6 against it.
+
 1. From the Member Portal, open **Profile** → **Account settings**.
 2. Scroll to the "Delete Account" section — tap the red **Delete My Account** button.
 3. A confirmation modal opens listing what will be deleted. It requires:
