@@ -513,6 +513,12 @@
         '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">' +
           '<strong style="font-size:1.05rem;">' + escapeHtml(fmtMoney(b.amount)) + '</strong>' +
           statusEl +
+          // Guideline 1.2 report surface: matches the bid card in
+          // members-packages.js:2509 (contentType 'bid'). Guarded on id +
+          // provider_id so orphan/synthetic rows don't render a dead button.
+          (b.id && b.provider_id
+            ? '<button type="button" onclick="window.mccModeration && window.mccModeration.openReport({contentType:\'bid\',contentId:\'' + escapeHtml(b.id) + '\',reportedUserId:\'' + escapeHtml(b.provider_id) + '\',subjectLabel:\'this bid\'})" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:0;">Report</button>'
+            : '') +
         '</div>' +
       '</div>';
     }).join('');
