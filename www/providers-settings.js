@@ -1586,7 +1586,65 @@ async function loadBackgroundCheckStatus(opts = {}) {
   }
 }
 
-function openBackgroundCheckModal(subjectType) {
+async function openBackgroundCheckModal(subjectType) {
+  // Pre-submit enrollment gate (2026-09-24). With BGC_LIVE_MODE=true and
+  // BGC_API_TOKEN unset in Netlify prod, bgc-provider-initiate.js hard-400s
+  // any provider who hasn't completed BackgroundChecks.com sub-account
+  // enrollment. Reuse the existing /api/provider/bgc/status/:id endpoint
+  // (bgc-provider-status.js:101-114) which already returns apiConfigured
+  // WITHOUT exposing the API key — server-side check is
+  //   apiConfigured = !!BGC_API_TOKEN || (row in provider_background_check_accounts)
+  // mirroring what initiate needs. providerId resolution matches both
+  // server functions (bgc-provider-initiate.js:154-172 and
+  // bgc-provider-status.js:60-72): team_provider_id first, else caller id.
+  const providerId = providerProfile?.team_provider_id || currentUser?.id;
+  let enrolled = false;
+  if (providerId) {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const r = await fetch(`${apiBase}/api/provider/bgc/status/${providerId}`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
+      if (r.ok) {
+        const data = await r.json().catch(() => ({}));
+        enrolled = !!data.apiConfigured;
+      }
+    } catch (_) { /* leave enrolled=false — safer than opening the form */ }
+  }
+
+  const formWrap  = document.getElementById('bg-check-form-wrapper');
+  const ctaWrap   = document.getElementById('bg-check-enrollment-cta');
+  const submitBtn = document.getElementById('bg-check-submit-btn');
+
+  if (!enrolled) {
+    if (formWrap)  formWrap.style.display  = 'none';
+    if (submitBtn) submitBtn.style.display = 'none';
+    if (ctaWrap) {
+      const price = window.MCC_BGC_PRICING?.display || '';
+      const priceLine = price ? ` (${price} per check)` : '';
+      ctaWrap.innerHTML = `
+        <div style="text-align:center;padding:20px 8px;">
+          <div style="font-size:2.5rem;margin-bottom:12px;">🛡️</div>
+          <div style="font-weight:600;margin-bottom:8px;font-size:var(--text-lg);">Enroll with BackgroundChecks.com first</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin-bottom:20px;">
+            To order background checks${priceLine}, complete the one-time BackgroundChecks.com sub-account enrollment. This sets up your billing account with them directly.
+          </p>
+          <a href="/bgc-enroll-account.html" class="btn btn-primary" style="text-decoration:none;display:inline-block;">
+            ${mccIcon('external-link', 14)} Open enrollment form
+          </a>
+        </div>`;
+      ctaWrap.style.display = '';
+    }
+    openModal('background-check-modal');
+    return;
+  }
+
+  // Enrolled — show form, hide CTA, show submit.
+  if (formWrap)  formWrap.style.display  = '';
+  if (ctaWrap)   ctaWrap.style.display   = 'none';
+  if (submitBtn) submitBtn.style.display = '';
+
   const typeSelect = document.getElementById('bg-check-type');
   const emailInput = document.getElementById('bg-check-email');
   const firstInput = document.getElementById('bg-check-first-name');
