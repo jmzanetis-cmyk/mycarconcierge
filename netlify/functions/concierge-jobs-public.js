@@ -168,7 +168,7 @@ async function handleGet(event, supabase, user, profile, jobId) {
     let profMap = {};
     if (profileIds.length) {
       const { data: profs } = await supabase.from('profiles')
-        .select('id, full_name, avatar_url').in('id', profileIds);
+        .select('id, full_name').in('id', profileIds);
       profMap = Object.fromEntries((profs || []).map(p => [p.id, p]));
     }
     const drvMap = Object.fromEntries((drvs || []).map(d => {

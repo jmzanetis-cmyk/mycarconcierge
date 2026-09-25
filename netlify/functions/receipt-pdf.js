@@ -238,9 +238,9 @@ exports.handler = async function (event) {
   // Load related data in parallel — accepted bid (authoritative amount),
   // member/provider profiles, vehicle.
   const [memberResult, providerResult, bidResult, vehicleResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, first_name, last_name, email').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle(),
     pkg.provider_id
-      ? supabase.from('profiles').select('full_name, first_name, last_name, provider_alias, business_name').eq('id', pkg.provider_id).maybeSingle()
+      ? supabase.from('profiles').select('full_name, provider_alias, business_name').eq('id', pkg.provider_id).maybeSingle()
       : Promise.resolve({ data: null }),
     pkg.accepted_bid_id
       ? supabase.from('plan_bids').select('amount').eq('id', pkg.accepted_bid_id).maybeSingle()

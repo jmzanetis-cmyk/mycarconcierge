@@ -305,7 +305,7 @@ async function handleTracking(event, supabase, user) {
   let driverProfiles = [];
   try {
     const { data: drivers } = await supabase.from('drivers')
-      .select('id, name, avatar_url')
+      .select('id, full_name')
       .in('id', activeDriverIds);
     driverProfiles = drivers || [];
   } catch { /* best-effort */ }

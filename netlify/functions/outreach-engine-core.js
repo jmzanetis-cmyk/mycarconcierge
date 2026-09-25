@@ -1545,7 +1545,7 @@ async function runOutreachAiDecisionLayer(supabase) {
   const staleThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const inactiveThreshold = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { count: activeProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').eq('is_active', true);
+  const { count: activeProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').is('suspended_at', null);
   const { count: staleApplications } = await supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'provider').eq('status', 'new').lt('created_at', staleThreshold);
   const { count: inactiveProviders } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'provider').lt('updated_at', inactiveThreshold);
 

@@ -244,7 +244,7 @@ async function handleGetOne(sb, user, planId) {
   if (providerIds.length > 0) {
     const { data: providers, error: provErr } = await sb
       .from('profiles')
-      .select('id, full_name, business_name, avatar_url')
+      .select('id, full_name, business_name')
       .in('id', providerIds);
     if (provErr) {
       // Non-fatal — return bids with null provider fields rather than 500ing.
