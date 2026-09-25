@@ -958,26 +958,53 @@ async function loadMyReviews() {
 
 function renderReviews() {
   const container = document.getElementById('reviews-list');
-  if (!container) return;
-  
-  if (!myReviews.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('star', 40) + '</div><p>No reviews yet.</p></div>';
+  if (!container) {
+    _writeReviewStats(0, null, 0);
     return;
   }
 
-  container.innerHTML = myReviews.map(r => `
+  if (!myReviews.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('star', 40) + '</div><p>No reviews yet.</p></div>';
+    _writeReviewStats(0, null, 0);
+    return;
+  }
+
+  // Aggregates for the stat cards above the list. Rating is nullable so
+  // filter out non-numeric/zero rows before averaging so a single stray null
+  // can't drag the mean down.
+  const ratings = myReviews.map(r => Number(r.rating) || 0).filter(v => v > 0);
+  const total = myReviews.length;
+  const avg = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : null;
+  const fiveStarPct = ratings.length
+    ? Math.round((ratings.filter(v => v === 5).length / ratings.length) * 100)
+    : 0;
+  _writeReviewStats(total, avg, fiveStarPct);
+
+  container.innerHTML = myReviews.map(r => {
+    // U+2605 (filled) / U+2606 (outline) — avoids adding a filled-star SVG
+    // variant to mcc-icons.js and renders as text at the container's font size.
+    const filled = Math.max(0, Math.min(5, Number(r.rating) || 0));
+    const stars = '★'.repeat(filled) + '☆'.repeat(5 - filled);
+    return `
     <div style="padding:16px;border-bottom:1px solid var(--border-subtle);">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
         <strong>${r.profiles?.full_name || 'Member'}</strong>
-        <span style="color:var(--accent-gold);">${mccIcon('star', 16).repeat(r.rating)}${mccIcon('star', 16).repeat(5-r.rating)}</span>
+        <span style="color:var(--accent-gold);font-size:1rem;letter-spacing:2px;">${stars}</span>
       </div>
       ${r.review_text ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.review_text}"</p>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</span>
         <button onclick="window.mccModeration && window.mccModeration.openReport({contentType:'review',contentId:'${r.id}',reportedUserId:'${r.member_id || ''}',subjectLabel:'this review'})" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:0;">Report</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function _writeReviewStats(count, avg, fiveStarPct) {
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('reviews-total-count', String(count));
+  setText('reviews-avg-rating',  avg == null ? '--' : avg.toFixed(1));
+  setText('reviews-5-star',      count ? (fiveStarPct + '%') : '0%');
 }
 
 // ========== PERFORMANCE ==========
